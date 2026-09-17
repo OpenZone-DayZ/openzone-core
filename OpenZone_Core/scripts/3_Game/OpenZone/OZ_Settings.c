@@ -113,7 +113,7 @@ class OZ_BridgeSettings
 
 class OZ_Settings : OZ_ConfigBase
 {
-    bool                  DebugMode = true;
+    bool                  DebugMode = false;
     ref array<string>     AdminIds;
     string                VppPermission = "OpenZone:Admin";
     ref OZ_BridgeSettings Bridge;
@@ -124,7 +124,7 @@ class OZ_Settings : OZ_ConfigBase
     // Це рішення СЕРВЕРА. Ролі Discord дають фракцію, стаж і посади, тобто
     // все, що вирішує, хто кому ворог; непов'язаний гравець для цієї
     // машинерії просто не існує.
-    bool RequireDiscordLink = true;
+    bool RequireDiscordLink = false;
 
     // Що робити, коли МОСТА немає, а прив'язка вимагається.
     //
@@ -169,12 +169,12 @@ class OZ_Settings : OZ_ConfigBase
     override void LoadDefaults()
     {
         Version       = LatestVersion();
-        DebugMode     = true;
+        DebugMode     = false;
         AdminIds      = new array<string>();
         VppPermission = "OpenZone:Admin";
         Bridge        = new OZ_BridgeSettings();
 
-        RequireDiscordLink      = true;
+        RequireDiscordLink      = false;
         AllowPlayWhenBridgeDown = true;
 
         if (Bridge)

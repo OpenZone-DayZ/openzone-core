@@ -18,6 +18,7 @@ infrastructure.
 | **Player store** | Per-SteamID JSON that survives character death. `Load()` keeps a uid resident and CREATES its file if there is none, so a lookup about somebody offline belongs in `Peek()` — it reads through a short-lived cache, marks nothing dirty and writes nothing |
 | **Bridge client** | Long-poll client for the OpenZone Discord bridge |
 | **Affiliation contract** | `OZ_Identity`: which organisation, which stand towards another player, who leads. Declared here, answered with "none" here, filled in by the factions mod; read-only by design. The only faction-shaped thing in Core |
+| **Spawn zones** | Role-keyed spawn areas, personal points and a staging place in `OZ_Core_Spawns.json`, **off by default**: the file carries an `Enabled` switch that a fresh install leaves false, so the engine's own spawn position is what every new character gets until an admin says otherwise. A file written before this switch existed keeps working if it already had zones |
 | **Spawn loadouts** | A service another mod fills in (`OZ_Loadout`, three-valued: no opinion / naked / preset) plus an applicator that strips what the mission gave a new character and dresses it from a preset, in the same frame after `OnClientNewEvent`. [The factions mod](https://github.com/covalschi/openzone-factions) supplies the ladder (`OZ_Factions_Loadouts.json`) |
 | **Design tokens** | `ui/tokens.json`: the series' single source of colour, font, spacing, device-geometry and VPP admin-window (`vpp`) tokens; the PDA and the factions read this same file through their own `[build] tokens` |
 
@@ -118,8 +119,10 @@ and `v1/news/voices` neutral, everything else it calls (`v1/news/post`,
 
 ## The Discord link gate
 
-`RequireDiscordLink` (in `$profile:OpenZone\OZ_Core_Settings.json`, **on** by default)
-is enforced by the server, not only by a client window. Roles in the guild decide
+`RequireDiscordLink` (in `$profile:OpenZone\OZ_Core_Settings.json`, **off** by default
+since 2026-09-18) is enforced by the server, not only by a client window. A server that
+never configures it never gates anybody; the table below describes what happens once an
+admin turns it on. Roles in the guild decide
 faction, standing and posts, so a player the bot has never heard of does not exist for
 any of it. What the server actually does:
 

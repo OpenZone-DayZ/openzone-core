@@ -97,6 +97,13 @@ class OZ_SpawnPersonal
 
 class OZ_SpawnsConfig : OZ_ConfigBase
 {
+    // ГОЛОВНИЙ ВИМИКАЧ СЛУЖБИ (власник 2026-09-18). Досі «вимкнено»
+    // означало лише порожній файл; тепер навіть заповнені зони мовчать, поки
+    // адмін не скаже так. Умовчання false стосується НОВИХ серверів: файл,
+    // який уже жив із зонами, вмикає міграція нижче, щоб оновлення ядра не
+    // забрало те, що вчора працювало.
+    bool Enabled = false;
+
     ref array<ref OZ_SpawnZone> Zones;
 
     // Особисті точки: гравець -> місце. Дивляться ПЕРЕД зонами ролей.
@@ -108,12 +115,33 @@ class OZ_SpawnsConfig : OZ_ConfigBase
 
     override int LatestVersion()
     {
-        return 3;
+        return 4;
+    }
+
+    // Файли до v4 вимикача не знали: у них служба працювала вже тим, що мала
+    // вміст. Зберігаємо саме це, а не голе false, інакше оновлення ядра тихо
+    // поклало б живі зони.
+    override bool Migrate(int from)
+    {
+        if (from < 4)
+        {
+            bool had = false;
+            if (Zones && Zones.Count() > 0)
+                had = true;
+            if (Personal && Personal.Count() > 0)
+                had = true;
+            if (Staging && Staging.Center != "")
+                had = true;
+            Enabled = had;
+        }
+        Version = LatestVersion();
+        return true;
     }
 
     override void LoadDefaults()
     {
         Version = LatestVersion();
+        Enabled = false;
 
         // ПОРОЖНЬО навмисно. Координати належать карті, а карт багато, і
         // вигадана точка на Чернарусі означала б, що на Сахаліні всі
@@ -308,6 +336,14 @@ class OZ_Spawns
     {
         s_Cfg = new OZ_SpawnsConfig();
         s_Writable = OZ_ConfigLoader<OZ_SpawnsConfig>.Load(OZ_Const.PROFILE_DIR + "\\OZ_Core_Spawns.json", "spawns", s_Cfg, !quiet, !quiet);
+    }
+
+    // Чи ввімкнена служба взагалі. Конфіг, який ще не читали, — вимкнена.
+    static bool IsEnabled()
+    {
+        if (!s_Cfg)
+            return false;
+        return s_Cfg.Enabled;
     }
 
     static int Count()
@@ -644,6 +680,12 @@ class OZ_Spawns
     static vector Resolve(PlayerIdentity who, vector fallback)
     {
         if (!who)
+            return fallback;
+
+        // ГОЛОВНИЙ ВИМИКАЧ. Служба мовчить цілком — разом з одноразовими
+        // точками адміна: «вимкнено» мусить означати вимкнено, а не
+        // «вимкнено, крім одного шляху».
+        if (!IsEnabled())
             return fallback;
 
         string uid = who.GetPlainId();
