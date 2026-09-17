@@ -194,13 +194,34 @@ class OZ_Module : CF_ModuleWorld
         // Вимикач видно СЛОВОМ, а не числом: «0» не відрізняє «зон немає»
         // від «зони є, але служба вимкнена», і адмін шукав би причину у файлі.
         if (OZ_Spawns.IsEnabled())
+        {
             summary += " spawnzones=" + OZ_Spawns.Count().ToString();
+        }
         else
+        {
             summary += " spawnzones=off";
+
+            // НАПОВНЕНИЙ ФАЙЛ ПРИ ВИМКНЕНІЙ СЛУЖБІ -- ОКРЕМИМ РЯДКОМ.
+            // Адмін, який щойно додав зони панеллю VPP і не побачив нічого,
+            // шукатиме помилку в координатах. Назвати причину дешевше, ніж
+            // дати йому її шукати.
+            int off = OZ_Spawns.Count();
+            if (off > 0)
+            {
+                string hint = "spawns: " + off + " zone(s) in the file, but the service is off";
+                hint += " -- set \"Enabled\": 1 in OZ_Core_Spawns.json to use them";
+                OZ_Log.Warn(hint);
+            }
+        }
 
         // Стейджинґ окремим словом, а не в лічильнику зон: він або є, або
         // його немає, і адмін мусить бачити відповідь, не рахуючи рядки.
-        if (OZ_Spawns.HasStaging())
+        // Вимкнена служба означає вимкнений і стейджинг: "spawnzones=off
+        // staging=on" читалося б як "половина працює", а не працює нічого.
+        bool stagingOn = false;
+        if (OZ_Spawns.IsEnabled())
+            stagingOn = OZ_Spawns.HasStaging();
+        if (stagingOn)
             summary += " staging=on";
         else
             summary += " staging=off";
