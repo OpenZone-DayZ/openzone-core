@@ -106,6 +106,19 @@ class OZ_Rpc
     // який працює: сервер зробив -- сервер і сказав.
     static const string RPC_SHOW = "OZ_Show";
 
+    // СЛУЖБА -- третя пара клієнт -> сервер, і третя не з примхи (2026-09-20).
+    //
+    // Сторінки проходять крізь OZ_PageAccess -- «чи є ця сторінка на приладі
+    // в руках», -- розділи крізь OZ_Perm.IsAdmin. Настройка ручної рації й
+    // край її гашетки -- ні те, ні інше: прилад тут інший, КПК не потрібен,
+    // адмін ні до чого. Поки для них не було конверта, рація тримала СІМ
+    // власних CF-RPC, свою тягу й свій троттл -- другий транспорт поруч із
+    // цим. Тепер конверт той самий (ім'я служби, операція, JSON), нарізка та
+    // сама (SendChunked, RPC_REQ_PART/RPC_RES_PART), а ворота -- у самого
+    // обробника: «що в руках» знає лише він. Реєстр -- OZ_ServiceRegistry.
+    static const string RPC_SVC_REQ = "OZ_SvcReq";
+    static const string RPC_SVC_RES = "OZ_SvcRes";
+
     // Зареєстрована функція МУСИТЬ мати рівно цю форму -- її задає диспетчер
     // CF (Param4 + CallFunctionParams), ніде не оголошуючи явно:
     //
@@ -120,6 +133,7 @@ class OZ_Rpc
         GetRPCManager().AddRPC(OZ_Const.MOD, RPC_REQ_PART, inst, SingleplayerExecutionType.Server);
         GetRPCManager().AddRPC(OZ_Const.MOD, RPC_LINK_REQ, inst, SingleplayerExecutionType.Server);
         GetRPCManager().AddRPC(OZ_Const.MOD, RPC_ADMIN_REQ, inst, SingleplayerExecutionType.Server);
+        GetRPCManager().AddRPC(OZ_Const.MOD, RPC_SVC_REQ, inst, SingleplayerExecutionType.Server);
     }
 
     // RegisterRoles ТУТ БІЛЬШЕ НЕМАЄ (2026-09-04). Прохання змінити роль
@@ -150,6 +164,7 @@ class OZ_Rpc
         GetRPCManager().AddRPC(OZ_Const.MOD, RPC_NOTICE, inst, SingleplayerExecutionType.Client);
         GetRPCManager().AddRPC(OZ_Const.MOD, RPC_ADMIN_RES, inst, SingleplayerExecutionType.Client);
         GetRPCManager().AddRPC(OZ_Const.MOD, RPC_SHOW, inst, SingleplayerExecutionType.Client);
+        GetRPCManager().AddRPC(OZ_Const.MOD, RPC_SVC_RES, inst, SingleplayerExecutionType.Client);
     }
 
     // guaranteed за замовчуванням FALSE. Усе, що тут надсилається, має
@@ -279,6 +294,31 @@ class OZ_Rpc
             new Param6<int, string, string, bool, string, string>(id, sectionId, op, ok, last, error);
 
         GetRPCManager().SendRPC(OZ_Const.MOD, RPC_ADMIN_RES, p, true, to);
+    }
+
+    // ---------------------------------------------------------------- служба
+    //
+    // Та сама форма, що в сторінок і консолі, і той самий різак: третя копія
+    // циклу нарізки була б третім місцем, де пастку з UTF-8 можна проґавити.
+
+    static void ServiceRequest(string serviceId, string op, string json)
+    {
+        int id = NextId();
+        string last = SendChunked(RPC_REQ_PART, id, json);
+
+        Param4<int, string, string, string> p = new Param4<int, string, string, string>(id, serviceId, op, last);
+        GetRPCManager().SendRPC(OZ_Const.MOD, RPC_SVC_REQ, p, true);
+    }
+
+    static void ServiceRespond(PlayerIdentity to, string serviceId, string op, bool ok, string json, string error)
+    {
+        int id = NextId();
+        string last = SendChunked(RPC_RES_PART, id, json, to);
+
+        Param6<int, string, string, bool, string, string> p =
+            new Param6<int, string, string, bool, string, string>(id, serviceId, op, ok, last, error);
+
+        GetRPCManager().SendRPC(OZ_Const.MOD, RPC_SVC_RES, p, true, to);
     }
 
     // ------------------------------------------------------------ прив'язка

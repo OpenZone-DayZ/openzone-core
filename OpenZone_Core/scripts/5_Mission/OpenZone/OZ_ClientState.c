@@ -33,6 +33,7 @@ class OZ_ClientState
         s_Listener = null;
         s_Watch = null;
         s_AdminWatch = null;
+        s_ServiceWatch = null;
         if (s_Inst)
             s_Inst.m_ResParts.Clear();
 
@@ -70,6 +71,19 @@ class OZ_ClientState
         if (!s_AdminWatch)
             s_AdminWatch = new ScriptInvoker();
         return s_AdminWatch;
+    }
+
+    // Відповіді СЛУЖБ -- третій інвокер, з тієї ж причини, що й другий: слухає
+    // їх не екран КПК і не вікно VPP, а мод, що приніс службу (рація -- свій
+    // тост на відмову настройки), і фільтрувати чужі конверти на око йому
+    // не треба.
+    private static ref ScriptInvoker s_ServiceWatch;
+
+    static ScriptInvoker ServiceWatch()
+    {
+        if (!s_ServiceWatch)
+            s_ServiceWatch = new ScriptInvoker();
+        return s_ServiceWatch;
     }
 
     private static ref OZ_SyncPayload  s_Payload;
@@ -312,5 +326,27 @@ class OZ_ClientState
 
         if (s_AdminWatch)
             s_AdminWatch.Invoke(data.param2, data.param3, data.param4, body, data.param6);
+    }
+
+    void OZ_SvcRes(CallType type, ParamsReadContext ctx, PlayerIdentity sender, Object target)
+    {
+        if (type != CallType.Client)
+            return;
+
+        Param6<int, string, string, bool, string, string> data;
+        if (!ctx.Read(data))
+            return;
+
+        string body = Whole(data.param1, data.param5);
+
+        string line = "service response service=" + data.param2;
+        line += " op=" + data.param3;
+        line += " ok=" + data.param4;
+        if (!data.param4)
+            line += " error=" + data.param6;
+        OZ_Log.Dbg(line);
+
+        if (s_ServiceWatch)
+            s_ServiceWatch.Invoke(data.param2, data.param3, data.param4, body, data.param6);
     }
 }

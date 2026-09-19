@@ -185,6 +185,9 @@ class OZ_Module : CF_ModuleWorld
         // Розділи консолі -- ІМЕНАМИ, а не числом: «три» не каже, чи серед них
         // той, якого адмін шукає, а «config,spawns,factions» каже.
         summary += " admin=" + OZ_AdminRegistry.Describe();
+        // Служби -- теж іменами, з тієї ж причини: «radio» каже, що рація
+        // зареєструвала свою настройку й гашетку, а «1» не каже нічого.
+        summary += " services=" + OZ_ServiceRegistry.Describe();
         // ВИТИРАЧІ -- ІМЕНАМИ Й У ПОРЯДКУ РЕЄСТРАЦІЇ (R-W1.9). Порядок ядро не
         // обіцяє (порядок модулів CF не гарантований), тож несподіванка мусить
         // бути ВИДНОЮ, а не виводитись; "none" -- законна відповідь, а не
@@ -492,6 +495,63 @@ class OZ_Module : CF_ModuleWorld
             return;
 
         OZ_Rpc.AdminRespond(sender, sectionId, op, ok, res, err);
+    }
+
+    // Служба. Порядок нижче -- вся межа безпеки диспетчера, і вона коротша за
+    // обидві сусідні навмисно: ані приладу, ані прав. Що в гравця в руках і чи
+    // має він право це крутити, знає ОБРОБНИК, і перевіряє він, а не ми --
+    // диспетчер, який вгадує чужі правила, помиляється в чужий бік.
+    void OZ_SvcReq(CallType type, ParamsReadContext ctx, PlayerIdentity sender, Object target)
+    {
+        if (type != CallType.Server)
+            return;
+
+        Param4<int, string, string, string> data;
+        if (!ctx.Read(data))
+            return;
+
+        // 1. Особа -- ЗАВЖДИ з sender. Ніколи з корисного навантаження.
+        if (!sender)
+            return;
+
+        string serviceId = data.param2;
+        string op        = data.param3;
+        string json      = data.param4;
+
+        // Довге тіло приїхало частинами поперед конверта -- приклеїти; стелі
+        // ті самі, що в сторінок, бо мапа та сама.
+        if (!TakeBody(PartKey(sender, data.param1), json))
+        {
+            OZ_Log.Warn("service: dropped an over-cap body from " + sender.GetPlainId());
+            OZ_Rpc.ServiceRespond(sender, serviceId, op, false, "", "STR_OZ_ERR_TOO_LONG");
+            return;
+        }
+
+        // 2. Служба мусить існувати. Warn, а не Dbg: сюди приходять лише за
+        //    натисканням, і невідоме ім'я означає розсинхрон збірок або підробку.
+        OZ_ServiceHandler svc = OZ_ServiceRegistry.Get(serviceId);
+        if (!svc)
+        {
+            string w1 = "rejected service \"" + serviceId;
+            w1 += "\" from " + sender.GetPlainId();
+            w1 += ": no such service, have " + OZ_ServiceRegistry.Describe();
+            OZ_Log.Warn(w1);
+            OZ_Rpc.ServiceRespond(sender, serviceId, op, false, "", "STR_OZ_ERR_NO_SERVICE");
+            return;
+        }
+
+        bool ok;
+        string err;
+
+        string res = svc.Handle(op, json, sender, ok, err);
+
+        // Служба відповість сама пізніше (DEFER) -- або відповідати нічого
+        // (NO_REPLY): край гашетки -- подія, і «ок» на кожен край був би
+        // другим пакетом заради рядка, який ніхто не читає.
+        if (!ok && (err == OZ_Const.DEFER || err == OZ_Const.NO_REPLY))
+            return;
+
+        OZ_Rpc.ServiceRespond(sender, serviceId, op, ok, res, err);
     }
 
     // Викинути всі недособрані частини гравця. Кличеться на дисконекті:

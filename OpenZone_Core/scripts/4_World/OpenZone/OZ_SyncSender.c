@@ -48,4 +48,32 @@ class OZ_SyncSender
         line += ", " + json.Length().ToString() + " b)";
         OZ_Log.Dbg(line);
     }
+
+    // Усім, хто в грі. Потрібно, коли стан, який їде пакетом, змінив адмін
+    // посеред сесії -- профілі рацій у вкладці VPP (2026-09-20): клієнт
+    // отримує пакет на вході й далі не питає, тож без цієї розсилки він
+    // лишався б зі старим ефіром до перезаходу. Повний пакет кожному, а не
+    // «лише різниця»: подія рідкісна, пакет малий, а одна форма пакета --
+    // одна дорога його розбору.
+    static void SendAll(string why)
+    {
+        array<Man> players = new array<Man>();
+        GetGame().GetPlayers(players);
+
+        int sent = 0;
+        for (int i = 0; i < players.Count(); i++)
+        {
+            if (!players[i])
+                continue;
+
+            PlayerIdentity to = players[i].GetIdentity();
+            if (!to)
+                continue;
+
+            Send(to, why);
+            sent++;
+        }
+
+        OZ_Log.Info("sync: re-sent to " + sent.ToString() + " player(s): " + why);
+    }
 }
