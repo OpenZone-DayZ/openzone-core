@@ -1,5 +1,8 @@
 # OpenZone Core
 
+**Steam Workshop:** [OZ_Core](https://steamcommunity.com/sharedfiles/filedetails/?id=3798432022) ·
+[OZ_Core_VPP](https://steamcommunity.com/sharedfiles/filedetails/?id=3798436187)
+
 The shared foundation for the **OpenZone** family of DayZ mods.
 
 Core ships no gameplay of its own. It provides the plumbing every OpenZone mod needs,
@@ -16,6 +19,7 @@ infrastructure.
 | **Transport** | One generic request/response envelope over Community Framework's string-keyed RPC, so the contract does not grow with every new screen |
 | **Page registry** | Screens register themselves once; any mod can add one |
 | **Player store** | Per-SteamID JSON that survives character death. `Load()` keeps a uid resident and CREATES its file if there is none, so a lookup about somebody offline belongs in `Peek()` — it reads through a short-lived cache, marks nothing dirty and writes nothing |
+| **Permadeath** | `OZ_Wipe`: freezes the old life whole into `players\<uid>.g<N>.json`, raises `SessionEpoch`, then runs a registry of per-mod `OZ_Wiper`s (`OZ_Wipe.Register`) so each mod clears only the fields it writes — a wiper's failure does not stop the others. Triggered from the admin console's PLAYERS pane or a bridge push; a bare core still freezes the generation and clears both spawn points, and reports `wipers=none` |
 | **Bridge client** | Long-poll client for the OpenZone Discord bridge |
 | **Affiliation contract** | `OZ_Identity`: which organisation, which stand towards another player, who leads. Declared here, answered with "none" here, filled in by the factions mod; read-only by design. The only faction-shaped thing in Core |
 | **Spawn zones** | Role-keyed spawn areas, personal points and a staging place in `OZ_Core_Spawns.json`, **off by default**: the file carries an `Enabled` switch that a fresh install leaves false, so the engine's own spawn position is what every new character gets until an admin says otherwise. A file written before this switch existed keeps working if it already had zones |
@@ -115,7 +119,7 @@ cache whole rather than quietly clearing nothing.
 
 Core declares only its own four route names: `v1/link/status`, `v1/link/begin`
 and `v1/news/voices` neutral, everything else it calls (`v1/news/post`,
-`v1/mirror/fill`) a write. The poll itself never touches the cache.
+`v1/mirror/fill`, `v1/player/wipe`) a write. The poll itself never touches the cache.
 
 ## The Discord link gate
 
@@ -145,7 +149,7 @@ Settings involved: `RequireDiscordLink`, `AllowPlayWhenBridgeDown`, `AdminIds`,
 ## OpenZone_VPP
 
 A second, optional pbo shipped from this same repository. It adds an "OpenZone" tab to
-VPP Admin Tools with three panes — SPAWNS, RAW JSON, NEWS — and nothing else. Unlike
+VPP Admin Tools with four panes — SPAWNS, RAW JSON, NEWS, PLAYERS — and nothing else. Unlike
 Core proper, it carries a hard dependency on VPP Admin Tools (`DZM_VPPAdminToolsScripts`);
 a server that leaves `@OpenZone_VPP` out of its mod list keeps every other service Core
 provides. The FACTIONS pane in that tab is not registered here — it comes from
@@ -154,14 +158,27 @@ repository.
 
 ## Requirements
 
+**OpenZone_Core** ([Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3798432022))
+
 - [Community Framework](https://steamcommunity.com/sharedfiles/filedetails/?id=1559212036) (`JM_CF_Scripts`)
 
 Optional, detected at runtime: VPP Admin Tools.
+
+**OpenZone_VPP** ([Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3798436187))
+
+- OpenZone_Core (this same repository)
+- VPP Admin Tools (`DZM_VPPAdminToolsScripts`)
+
+Both are hard dependencies (`requiredAddons`): with `@OpenZone_VPP` loaded and either of
+them missing, the game does not start -- a client stops at a blocking "Addon 'X' requires
+addon 'Y'" dialog, a dedicated server stops with an RPT that ends at its header. Not a
+silently skipped pbo.
 
 ## Mods built on it
 
 - **[OpenZone PDA](https://github.com/covalschi/openzone-pda)** — S.T.A.L.K.E.R.-style PDA: map, factions, friends, shared markers, Discord-backed chat, configurable radio
 - **[OpenZone Factions](https://github.com/covalschi/openzone-factions)** — factions, roles, ranks, roster, permadeath; supplies `OZ_Identity`
+- **[OpenZone Storage](https://github.com/covalschi/openzone-storage)** — virtual storage boxes; a closed box's contents live in the bridge database, the game only sees one that is open
 
 ## Licence
 
