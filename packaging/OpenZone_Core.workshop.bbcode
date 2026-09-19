@@ -1,0 +1,51 @@
+[h1]OpenZone Core[/h1]
+The foundation of the OpenZone series of DayZ mods. It ships no gameplay of its own: it is the plumbing every OpenZone mod runs on, so each of them can be content and rules instead of another copy of the same infrastructure. Part of the OpenZone series, built for the [UA] STALKER: Zone Protocol server. Runs on any server and map.
+
+[b]What it provides[/b]
+[list]
+[*]Config service: versioned JSON under the server profile, stepwise migrations, validation that warns instead of crashing, automatic backups, hot reload without a restart.
+[*]Two config surfaces: server-only settings that never cross the wire, and settings synced to clients.
+[*]Permissions: VPP Admin Tools when present, a SteamID list when not.
+[*]One transport: a generic request/response envelope over Community Framework's RPC, so the contract does not grow with every new screen.
+[*]Page registry and player store: screens register once, any mod can add one; per-player JSON survives character death.
+[*]Permadeath service: the old life is frozen into a file and every mod clears only what it wrote; triggered from the admin console or from the Discord bridge.
+[*]Discord link gate, optional: players may be required to link their Discord account, with a grace period, admins exempt, and nobody kicked while the bridge is down.
+[*]Spawn zones and spawn loadouts: role-keyed spawn areas and a dressing service, both off until an admin turns them on; the factions mod decides who wears what.
+[*]Affiliation contract: the questions about a player's faction are asked here and answered by the factions mod.
+[*]Design tokens: the series' single source of colours, fonts and spacing.
+[/list]
+[b]Requires[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=1559212036]Community Framework[/url].
+[b]Required by[/b] every other OpenZone mod.
+[b]For server owners[/b] Core itself runs without the OpenZone bridge; the mods that need the bridge say so on their own pages.
+[b]Admin tab[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798436187]OpenZone Core VPP[/url] adds the OpenZone tab to VPP Admin Tools.
+[b]Source code[/b] [url=https://github.com/covalschi/openzone-core]github.com/covalschi/openzone-core[/url]
+
+[b]Licence, repacking, selling[/b]
+You may repack this mod into your server's own pack, keeping the attribution and the same licence. You may not sell it, sublicense it or include it in any paid bundle. Running it on a server that accepts donations, sells cosmetics or priority queue slots is fine. CC BY-NC-SA 4.0 with the additional permission in NOTICE.
+
+[hr][/hr]
+
+[h1]OpenZone Core (українською)[/h1]
+Основа серії модів OpenZone для DayZ. Сам по собі геймплею не додає: це та інфраструктура, на якій працює кожен мод серії, щоб кожен із них був змістом і правилами, а не ще однією копією тих самих служб. Частина серії OpenZone, створеної для сервера [UA] STALKER: Zone Protocol. Працює на будь-якому сервері та карті.
+
+[b]Що дає[/b]
+[list]
+[*]Служба конфігів: версійований JSON у профілі сервера, покрокові міграції, перевірка, яка попереджає замість того, щоб падати, автоматичні резервні копії, перезавантаження без рестарту.
+[*]Дві поверхні налаштувань: серверні, що ніколи не йдуть у мережу, і ті, що синхронізуються клієнтам.
+[*]Права: VPP Admin Tools, якщо він є, список SteamID, якщо ні.
+[*]Єдиний транспорт: один конверт запит/відповідь поверх RPC Community Framework, тож контракт не росте з кожним новим екраном.
+[*]Реєстр сторінок і сховище гравця: екрани реєструються один раз, додати свій може будь-який мод; JSON гравця переживає смерть персонажа.
+[*]Служба пермадесу: старе життя заморожується у файл, і кожен мод чистить лише те, що сам записав; запускається з адмін-консолі або з Discord-моста.
+[*]Ворота Discord-прив'язки, необов'язкові: від гравців можна вимагати прив'язати акаунт Discord, із пільговим часом, адміни звільнені, і нікого не викидає, поки міст не відповідає.
+[*]Зони спавну й стартове спорядження: зони за ролями та служба одягання, обидві вимкнені, поки адмін їх не увімкне; хто що носить, вирішує мод фракцій.
+[*]Контракт приналежності: питання про фракцію гравця ставляться тут, а відповідає мод фракцій.
+[*]Дизайн-токени: єдине джерело кольорів, шрифтів і відступів серії.
+[/list]
+[b]Потребує[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=1559212036]Community Framework[/url].
+[b]Потрібен[/b] кожному іншому моду OpenZone.
+[b]Власникам серверів[/b] Саме ядро працює без моста OpenZone; моди, яким міст потрібен, кажуть про це на своїх сторінках.
+[b]Адмінська вкладка[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798436187]OpenZone Core VPP[/url] додає вкладку OpenZone у VPP Admin Tools.
+[b]Вихідний код[/b] [url=https://github.com/covalschi/openzone-core]github.com/covalschi/openzone-core[/url]
+
+[b]Ліцензія, репак, продаж[/b]
+Мод можна перепакувати у власний серверний пак, зберігши авторство й ту саму ліцензію. Продавати його, субліцензувати або включати в платну поставку не можна. Запуск на сервері, що приймає донати, продає косметику чи місця в пріоритетній черзі, дозволений. CC BY-NC-SA 4.0 з додатковим дозволом у NOTICE.
