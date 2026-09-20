@@ -8,8 +8,10 @@
 // поза грою (рішення власника 2026-09-20: «вивантажуй усе з сервера», і
 // служба ця -- ядра, бо потрібна кожному моду з полем «клас»).
 //
-// Формат рядка: <корінь>\t<ім'я>\t<база>\t<original>\t<english>. Порядок
-// коренів збігається з індексом класів моста (0..4). Назви: ключ
+// Формат рядка: <корінь>\t<ім'я>\t<база>\t<original>\t<english>\t<ширина>\t
+// <висота>\t<ширина вантажу>\t<висота вантажу> (itemSize та itemsCargoSize у
+// клітинках, 0 коли їх немає). Порядок коренів збігається з індексом класів
+// моста (0..4). Назви: ключ
 // displayName розв'язується таблицями рядків, які сервер читає з архівів
 // (OZ_StringTables); ключ, якого там немає, і буквальна назва без ключа
 // дають текст мовою сервера в обидві колонки. Табуляції й переноси в назві
@@ -83,7 +85,31 @@ class OZ_ClassDump
                 original = GetGame().ConfigGetTextOut(path + " displayName");
                 english = original;
             }
-            FPrintln(f, prefix + name + tab + base + tab + Clean(original) + tab + Clean(english));
+            // Розмір предмета в клітинках і розмір його вантажу (для ящиків):
+            // з них міст рахує зайняте місце, не питаючи гру.
+            int w = 0;
+            int h = 0;
+            TIntArray size = new TIntArray();
+            GetGame().ConfigGetIntArray(path + " itemSize", size);
+            if (size.Count() >= 2)
+            {
+                w = size[0];
+                h = size[1];
+            }
+            // Ваніль тримає itemsCargoSize просто в класі, ящики серії (і
+            // частина модів) -- у підкласі Cargo.
+            int cw = 0;
+            int ch = 0;
+            TIntArray cargo = new TIntArray();
+            GetGame().ConfigGetIntArray(path + " itemsCargoSize", cargo);
+            if (cargo.Count() < 2)
+                GetGame().ConfigGetIntArray(path + " Cargo itemsCargoSize", cargo);
+            if (cargo.Count() >= 2)
+            {
+                cw = cargo[0];
+                ch = cargo[1];
+            }
+            FPrintln(f, prefix + name + tab + base + tab + Clean(original) + tab + Clean(english) + tab + w.ToString() + tab + h.ToString() + tab + cw.ToString() + tab + ch.ToString());
             written++;
         }
         return written;
