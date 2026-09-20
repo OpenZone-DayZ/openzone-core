@@ -16,6 +16,8 @@ class OZ_Const
     static const string PLAYERS_DIR = "$profile:OpenZone\\players";
     static const string LANG_DIR    = "$profile:OpenZone\\Lang";
     static const string SETTINGS    = "$profile:OpenZone\\OZ_Core_Settings.json";
+    // Перелік класів сервера для моста (OZ_ClassDump), раз на старт.
+    static const string CLASSES     = "$profile:OpenZone\\classes.tsv";
 
     // ТЕГ цього файла для конфіг-служби -- КОНСТАНТОЮ, а не рядком у кожному
     // виклику. З тега робиться ім'я резервної копії (OZ_Json.Backup пише
