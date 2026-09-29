@@ -173,6 +173,21 @@ class OZ_IdentityService
         outNames = new array<string>();
     }
 
+    // Те саме, але з ДАНОГО ЗАПИСУ, а не за Steam64. Для замороженого
+    // персонажа (пермадес) uid називає вже ЖИВЕ життя акаунта, і Seen*(uid)
+    // показав би під іменем небіжчика звання й мітки нового персонажа. Хто
+    // тримає запис мертвого покоління (OZ_PlayerStore.FrozenOf), питає
+    // сюди. Null-запис -- порожньо.
+    string SeenRankNameIn(OZ_PlayerData d)
+    {
+        return "";
+    }
+
+    void SeenTraitNamesIn(OZ_PlayerData d, out array<string> outNames)
+    {
+        outNames = new array<string>();
+    }
+
     // Чи відстала синхронізація. Без служби відставати нічому.
     bool Stale()
     {
@@ -197,6 +212,10 @@ class OZ_Identity
 {
     private static ref OZ_IdentityService s_Svc;
 
+    // Чи підставив службу ЧУЖИЙ мод. Окремий прапорець, а не `s_Svc != null`
+    // -- чому, сказано в Present().
+    private static bool s_Provided = false;
+
     // OnChanged ТУТ БІЛЬШЕ НЕМАЄ. Інвокер «хто хоче знати про зміни, не
     // опитуючи» не мав ані підписника, ані того, хто його кличе, у жодному з
     // шести репозиторіїв серії: зміни ролей мод фракцій розсилає власним
@@ -209,6 +228,7 @@ class OZ_Identity
             return;
 
         s_Svc = svc;
+        s_Provided = true;
         OZ_Log.Info("identity service provided by another mod");
     }
 
@@ -216,9 +236,19 @@ class OZ_Identity
     // ВИДИМА гравцеві: не показувати вкладку «Фракція», не малювати поділ на
     // своїх і чужих. Для звичайного запиту це питати не треба -- відповідь
     // буде в будь-якому разі.
+    //
+    // Відповідь СЕРВЕРНА: Provide кличуть із серверного OnMissionStart, тож
+    // на клієнті тут завжди false. Клієнтові цю правду возить сервер
+    // (так робить КПК: OZ_MapState.FactionsPresent).
+    //
+    // Тут стояло `s_Svc != null` -- і брехало: Get() заводить порожню
+    // реалізацію сам, ядро кличе його на кожному вході, тож на сервері без
+    // фракцій «так» ставало відповіддю після першого ж гравця. Режим
+    // транспондера "faction" тоді пропонувався й приймався, хоч слухати його
+    // нікому, і OZ_PlayerFlags.Upgrade перестав його знімати.
     static bool Present()
     {
-        return s_Svc != null;
+        return s_Provided;
     }
 
     static OZ_IdentityService Get()

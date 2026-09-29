@@ -357,6 +357,11 @@ class OZ_PlayerStore
         // запис відомим, потім про нього щось стверджувати.
         s_Cache.Insert(uid, d);
 
+        // Офлайнова копія Peek від цієї миті -- минуле: живий запис щойно
+        // прочитано з диска, і все, що з ним станеться далі, піде в нього.
+        // Див. «офлайнове читання» нижче.
+        ForgetPeek(uid);
+
         // Нормалізація набору транспондера (ТЗ-4 A1/A3) і зняття "faction"
         // на сервері без мода фракцій. Це РЕМОНТИ, а не міграції: обидва
         // залежать від стану, а не від версії файла, і мусять іти на кожному
@@ -469,6 +474,10 @@ class OZ_PlayerStore
         if (s_Cache.Contains(uid))
             s_Cache.Remove(uid);
 
+        // Після скиду й виходу з кеша -- і офлайнову копію геть: наступний
+        // Peek мусить прочитати те, що щойно лягло на диск (див. нижче).
+        ForgetPeek(uid);
+
         int locked = s_Locked.Find(uid);
         if (locked != -1)
             s_Locked.Remove(locked);
@@ -487,6 +496,16 @@ class OZ_PlayerStore
     // Peek читає крізь маленький кеш зі строком: нічого не брудниться,
     // нічого не штампується, файл не заводиться. Хто зараз у Зоні -- той у
     // s_Cache, і Peek віддає саме його, не читаючи диска вдруге.
+    //
+    // КОПІЯ НЕ ПЕРЕЖИВАЄ НІ ВХОДУ ЗАПИСУ В s_Cache, НІ ВИХОДУ З НЬОГО
+    // (ForgetPeek у Load і Unload). П'ять хвилин строку -- це про офлайнового,
+    // чий файл ніхто не пише. Запис, що побував живим, міг змінитись і лягти
+    // на диск, і найгірший приклад -- «вийти з інших пристроїв»: власник
+    // онлайн піднімає SessionEpoch, запис скидається, власник виходить. Копія,
+    // прочитана ДО підйому, ще до п'яти хвилин відповідала б старою епохою, і
+    // вкрадений пристрій лишався б робочим. Поки вихід не вивантажував
+    // нікого (див. OZ_Module.OnClientDisconnect), до такої копії не можна
+    // було дістатись; тепер можна, тож знімаємо її на обох межах.
     private static ref map<string, ref OZ_PlayerData> s_Peek   = new map<string, ref OZ_PlayerData>();
     private static ref map<string, int>               s_PeekAt = new map<string, int>();
 
@@ -529,6 +548,16 @@ class OZ_PlayerStore
         s_Peek.Set(uid, d);
         s_PeekAt.Set(uid, now);
         return d;
+    }
+
+    // Забути офлайнову копію, якщо вона є. Одне написання на всіх, хто
+    // знає, що копія застаріла: Load, Unload і Freeze.
+    private static void ForgetPeek(string uid)
+    {
+        if (s_Peek.Contains(uid))
+            s_Peek.Remove(uid);
+        if (s_PeekAt.Contains(uid))
+            s_PeekAt.Remove(uid);
     }
 
     // ------------------------------------------- ключ персонажа
@@ -652,11 +681,7 @@ class OZ_PlayerStore
         Flush(uid);
 
         // Знімок показу застарів разом із поколінням.
-        if (s_Peek.Contains(uid))
-        {
-            s_Peek.Remove(uid);
-            s_PeekAt.Remove(uid);
-        }
+        ForgetPeek(uid);
     }
 
     // CachedCount() ТУТ БІЛЬШЕ НЕМАЄ: діагностичний лічильник без жодного

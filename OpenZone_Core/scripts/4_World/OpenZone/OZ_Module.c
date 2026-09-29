@@ -83,7 +83,8 @@ class OZ_Module : CF_ModuleWorld
         EnableMissionStart();
         EnableMissionFinish();
         EnableInvokeConnect();
-        EnableInvokeDisconnect();
+        // ClientDisconnect, а не InvokeDisconnect: див. OnClientDisconnect.
+        EnableClientDisconnect();
     }
 
     override void OnMissionStart(Class sender, CF_EventArgs args)
@@ -699,6 +700,10 @@ class OZ_Module : CF_ModuleWorld
 
         bool admin = OZ_Perm.IsAdmin(pArgs.Identity);
 
+        // Хеш -> Steam64, поки особа є: на виході її вже може не бути, а CF
+        // назве того, хто пішов, лише хешем (OZ_Players.PlainOfLeaving).
+        OZ_Players.Remember(pArgs.Identity);
+
         OZ_PlayerData d = OZ_PlayerStore.Load(pArgs.Identity.GetPlainId());
 
         // ПЕРША ПОЯВА ШТАМПУЄТЬСЯ ТУТ, а не в OZ_PlayerStore.Load.
@@ -777,36 +782,45 @@ class OZ_Module : CF_ModuleWorld
     private ref map<string, int> m_HelloAt = new map<string, int>();
     private static const int HELLO_GAP_MS = 3000;
 
-    override void OnInvokeDisconnect(Class sender, CF_EventArgs args)
+    // ВИХІД -- ПОДІЯ OnClientDisconnect, а не OnInvokeDisconnect.
+    //
+    // Тут стояв OnInvokeDisconnect із Cast до CF_EventPlayerDisconnectedArgs, і
+    // він не відпрацював ЖОДНОГО разу: CF кличе його з базовими
+    // CF_EventPlayerArgs, Cast давав null, і метод виходив, нічого не
+    // зробивши. Ні LastSeen, ні вивантаження запису, ні прибирання частин і
+    // привітів -- кеш сховища тримав кожного, хто хоч раз зайшов, до кінця
+    // запуску.
+    //
+    // OnClientDisconnect CF кличе з PlayerDisconnected, тобто тоді, коли вихід
+    // уже остаточний: таймер виходу добіг, скасувати його не можна. UID у його
+    // аргументах -- хеш, а не Steam64, тож людину називає
+    // OZ_Players.PlainOfLeaving (чому саме так -- там).
+    override void OnClientDisconnect(Class sender, CF_EventArgs args)
     {
-        super.OnInvokeDisconnect(sender, args);
+        super.OnClientDisconnect(sender, args);
 
         if (!GetGame().IsServer())
             return;
 
-        // На дисконекті особи може вже не бути, тому CF окремо несе UID у
-        // CF_EventPlayerDisconnectedArgs. Спираємось на нього, а не на Identity.
-        CF_EventPlayerDisconnectedArgs dArgs = CF_EventPlayerDisconnectedArgs.Cast(args);
-        if (!dArgs)
-            return;
+        string uid = OZ_Players.PlainOfLeaving(args);
 
-        // ПОРОЖНІЙ UID -- НЕ ГРАВЕЦЬ. PathOf клеїть uid просто в дорогу, тож
-        // Load("") завів би під профілем сервера файл `players\.json` і носив
-        // би в ньому чиюсь дату виходу. CF віддає UID окремим полем саме
-        // тому, що особи на дисконекті може вже не бути, -- значить порожнє
-        // тут можливе, і мовчки перетворювати його на файл не можна.
-        if (dArgs.UID == "")
+        // ПОРОЖНІЙ UID -- НЕ ГРАВЕЦЬ, а «не знаємо, чий це вихід»: особи вже
+        // немає, а хеш нам незнайомий. Load("") віддав би дефолти з
+        // попередженням (OZ_PlayerStore.Nameable), MarkDirty їх відкинув би, а
+        // решта чистки шукала б ключі з порожнім uid, тобто нічиї. Удавати
+        // прибирання, якого не було, не можна -- кажемо рядком і виходимо.
+        if (uid == "")
         {
             OZ_Log.Dbg("disconnect with no uid, nothing to write");
             return;
         }
 
-        OZ_PlayerData d = OZ_PlayerStore.Load(dArgs.UID);
+        OZ_PlayerData d = OZ_PlayerStore.Load(uid);
         d.LastSeen = OZ_Time.NowUtc();
-        OZ_PlayerStore.MarkDirty(dArgs.UID);
-        OZ_PlayerStore.Unload(dArgs.UID);
+        OZ_PlayerStore.MarkDirty(uid);
+        OZ_PlayerStore.Unload(uid);
 
-        // ЗАПРОШЕННЯ Й ПРОЕКЦІЮ РОЛЕЙ ЧИСТИТЬ МОД ФРАКЦІЙ, а не ядро.
+        // ЗАПРОШЕННЯ Й РОЛІ НА ВИХОДІ -- СПРАВА МОДА ФРАКЦІЙ, а не ядра.
         //
         // Тут стояв виклик OZ_FactionInvites.Forget, і він пережив винесення
         // фракцій. Ціна виявилась не косметичною: імені з незавантаженого
@@ -816,20 +830,21 @@ class OZ_Module : CF_ModuleWorld
         // правило серії «будь-який мод запускається, маючи одне лише ядро»
         // ламав один рядок у самому ядрі.
         //
-        // OZF_Module уже має свій OnInvokeDisconnect і чистить там OZ_Roles;
-        // запрошення прибираються поруч, бо належать тому ж модові.
+        // OZF_Module має свій OnClientDisconnect і прибирає там запрошення та
+        // свій лічильник запитів до моста; проекцію ролей він на виході
+        // навмисно лишає (причина -- там).
 
         // Недособрані частини довгих запитів цього гравця -- геть.
-        ForgetReqParts(dArgs.UID);
-        if (m_HelloAt.Contains(dArgs.UID))
-            m_HelloAt.Remove(dArgs.UID);
+        ForgetReqParts(uid);
+        if (m_HelloAt.Contains(uid))
+            m_HelloAt.Remove(uid);
 
         // Опитування моста про його код прив'язки теж припиняємо: воно жило
         // до десяти хвилин і не знало, що питати вже нема про кого. Разом із
         // ним іде й строк воріт.
-        OZ_Link.Leave(dArgs.UID);
+        OZ_Link.Leave(uid);
 
-        OZ_Log.Dbg("disconnect " + dArgs.UID);
+        OZ_Log.Dbg("disconnect " + uid);
     }
 
     // StartBridge ТУТ БІЛЬШЕ НЕМАЄ: опит пускає Ready() вище, одразу після
