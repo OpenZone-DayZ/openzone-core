@@ -106,6 +106,14 @@ class OZ_PageRegistry
         return s_Pages.Count();
     }
 
+    // Наприкінці місії, з тієї самої причини, що й OZ_AdminRegistry.Clear():
+    // обробники сторінок -- класи 4_World у статику 3_Game (diag-сервер
+    // називав їх поіменно: "Leaked 'OZ_PdaHandlerMap'" і решта).
+    static void Clear()
+    {
+        s_Pages.Clear();
+    }
+
     static OZ_PageEntry Get(string pageId)
     {
         return s_Pages.Get(pageId);

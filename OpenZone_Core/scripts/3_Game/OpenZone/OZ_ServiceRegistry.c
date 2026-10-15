@@ -54,6 +54,14 @@ class OZ_ServiceRegistry
         OZ_Log.Dbg("service registered: " + serviceId);
     }
 
+    // Наприкінці місії, з тієї самої причини, що й OZ_AdminRegistry.Clear():
+    // обробники -- класи 4_World у статику 3_Game (на Linux 1.30 це був
+    // "Leaked 'OZR_Service'" і assert на виході).
+    static void Clear()
+    {
+        s_Services.Clear();
+    }
+
     static OZ_ServiceHandler Get(string serviceId)
     {
         return s_Services.Get(serviceId);

@@ -42,6 +42,22 @@ class OZ_BridgeXfer : RestCallback
         return m_Done;
     }
 
+    // ВІДПОВІДЬ ВІДДАНА -- тіло й одержувач більше не потрібні.
+    //
+    // Сам колбек рушій тримає до кінця процесу: diag-сервер на виході рахує
+    // по одному "Leaked 'OZ_BridgeXfer'" на КОЖЕН запит за весь бут (запитів
+    // N -- витоків N + 1, одинадцять бутів поспіль), і RestContext.reset(),
+    // покликаний у Stop(), цього не змінив (виміряно 2026-10-15 на
+    // 1.30.164078, тому його там і немає). Тож усе, що колбек тримає, живе
+    // так само довго: тіло опиту, а через m_Reply -- і чужі відповіді
+    // (OZS_BootReply, OZL_BootReply, OZS_ClassesReply). Їх відпускаємо
+    // одразу, як рушій закінчив із запитом; Route лишається для рядків у лозі.
+    void Release()
+    {
+        Body    = "";
+        m_Reply = NULL;
+    }
+
     // OnError рушій кличе КІЛЬКА разів на один запит, якщо RetryCount > 1 --
     // так написано в його ж документації. Без цієї засувки один невдалий
     // опит породив би два наступні, потім чотири, і далі за прогресією.
@@ -63,14 +79,22 @@ class OZ_BridgeXfer : RestCallback
         // ніколи -- лише розмір.
         OZ_Log.Dbg("bridge: " + Route + " ok, " + dataSize.ToString() + " b");
 
-        if (m_Reply)
-            m_Reply.OnBody(data);
+        // Одержувача -- у сильне локальне посилання ДО Release(): для
+        // одноразових відповідей колбек був єдиним, хто їх тримав.
+        ref OZ_BridgeReply reply = m_Reply;
+        Release();
+
+        if (reply)
+            reply.OnBody(data);
     }
 
     override void OnError(int errorCode)
     {
         if (!Claim())
             return;
+
+        ref OZ_BridgeReply reply = m_Reply;
+        Release();
 
         // Вичерпаний таймаут читання приходить СЮДИ, кодом EREST_ERROR_TIMEOUT,
         // а не в OnTimeout -- зміряно на стенді. Для довгого опиту це звичайна
@@ -80,8 +104,8 @@ class OZ_BridgeXfer : RestCallback
         {
             OZ_Log.Dbg("bridge: " + Route + " went quiet");
 
-            if (m_Reply)
-                m_Reply.OnQuiet();
+            if (reply)
+                reply.OnQuiet();
             return;
         }
 
@@ -94,8 +118,8 @@ class OZ_BridgeXfer : RestCallback
         // раз -- коли він повернувся.
         OZ_BridgeClient.Fell(Route, errorCode);
 
-        if (m_Reply)
-            m_Reply.OnFail(errorCode);
+        if (reply)
+            reply.OnFail(errorCode);
     }
 
     override void OnTimeout()
@@ -103,10 +127,13 @@ class OZ_BridgeXfer : RestCallback
         if (!Claim())
             return;
 
+        ref OZ_BridgeReply reply = m_Reply;
+        Release();
+
         OZ_Log.Dbg("bridge: " + Route + " went quiet");
 
-        if (m_Reply)
-            m_Reply.OnQuiet();
+        if (reply)
+            reply.OnQuiet();
     }
 }
 
@@ -756,6 +783,16 @@ class OZ_BridgeClient
 
         if (s_Pump)
             GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).RemoveByName(s_Pump, "Tick");
+
+        // Незавершені перельоти рушій теж тримає до кінця процесу (див.
+        // OZ_BridgeXfer.Release), а з ними -- одержувачів, серед них і
+        // s_PollReply. Відпускаємо: колбек, що прийде після зупинки, однаково
+        // нікому не має що сказати.
+        if (s_InFlight)
+        {
+            for (int i = 0; i < s_InFlight.Count(); i++)
+                s_InFlight[i].Release();
+        }
 
         s_InFlight  = NULL;
         s_PollReply = NULL;

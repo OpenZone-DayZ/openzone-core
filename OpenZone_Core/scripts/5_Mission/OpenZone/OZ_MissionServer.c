@@ -41,4 +41,21 @@ modded class MissionServer
         OZ_Loadout.OnSpawn(player, identity);
         return player;
     }
+
+    // КІНЕЦЬ МІСІЇ: реєстри ядра порожніють ПІСЛЯ всіх модулів.
+    //
+    // super тут -- це вже й CF, а він кличе OnMissionFinish своїх модулів
+    // після ванільного (CF missionserver.c:40-44). Ядро вантажиться після CF,
+    // тож цей метод зовнішній, і на цю мить жоден модуль серії вже не зазирне
+    // в реєстр. Робити це в OZ_Module не можна: порядок CF-модулів не
+    // гарантований. Навіщо взагалі -- у OZ_AdminRegistry.Clear().
+    override void OnMissionFinish()
+    {
+        super.OnMissionFinish();
+
+        OZ_AdminRegistry.Clear();
+        OZ_ServiceRegistry.Clear();
+        OZ_PageRegistry.Clear();
+        OZ_PageAccess.Bind(NULL);
+    }
 }
