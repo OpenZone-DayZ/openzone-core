@@ -7,7 +7,7 @@
 // The exact VPP addon name is DZM_VPPAdminToolsScripts -- the CfgPatches
 // class of VPP's scripts pbo. The #ifdef in code guards on AVPPAdminTools
 // instead: the engine auto-defines CfgMods class names, not CfgPatches
-// (measured 2026-07-31 on 1.29 diag, recorded in zp-research).
+// (measured 2026-07-31 on 1.29 diag).
 
 class CfgPatches
 {
@@ -32,7 +32,7 @@ class CfgMods
     {
         dir = "OpenZone_VPP";
         name = "OpenZone VPP Tab";
-        author = "Zone Protocol";
+        author = "OpenZone";
         version = "0.1.0";
         type = "mod";
 

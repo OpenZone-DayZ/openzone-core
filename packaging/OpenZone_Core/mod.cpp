@@ -4,7 +4,7 @@
 // texture and says nothing, so a wrong path is worse than none.
 
 name        = "OpenZone Core";
-author      = "Zone Protocol";
+author      = "OpenZone";
 authorID    = "";
 version     = "0.1";
 description = "The framework of the OpenZone series: services, the bridge client, the admin window and the design tokens. Every OpenZone mod runs on top of it. github.com/covalschi/openzone-core";
