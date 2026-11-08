@@ -353,7 +353,7 @@ class OZ_Module : CF_ModuleWorld
         if (!known && KeysOf(prefix) >= REQPART_MAX_PER_UID)
         {
             Loud(uid, "too many in-flight streams, dropping");
-            Poison(key, prefix);
+            PoisonStream(key, prefix);
             return;
         }
 
@@ -363,7 +363,7 @@ class OZ_Module : CF_ModuleWorld
         {
             m_ReqParts.Remove(key);
             Loud(uid, "body over cap, dropped a key");
-            Poison(key, prefix);
+            PoisonStream(key, prefix);
             return;
         }
 
@@ -384,7 +384,14 @@ class OZ_Module : CF_ModuleWorld
     // коштувало не коректності, а самого змісту слова «найстаріша»:
     // викидалась довільна позначка гравця. Масив короткий (16 на гравця),
     // тож повільніше видалення тут нічого не важить.
-    private void Poison(string key, string prefix)
+    //
+    // ІМ'Я НЕ «Poison». Так звався метод, доки сервер із модом MSRPItemRP не
+    // впав на старті: той оголошує в 4_World рецепт `class Poison extends
+    // RecipeBase`, і виклик `Poison(key, prefix)` усередині цього класу
+    // компілятор узяв за конструктор рецепта -- `Too many parameters for
+    // 'RecipeBase#...' method` у рядку виклику (2026-11-08, 1.30.164289).
+    // Тип із чужого мода перемагає власний метод класу.
+    private void PoisonStream(string key, string prefix)
     {
         if (m_ReqPoison.Find(key) != -1)
             return;
@@ -414,7 +421,7 @@ class OZ_Module : CF_ModuleWorld
         if (bad != -1)
         {
             // Теж упорядковано: черга позначок має лишатись у порядку
-            // надходження, інакше евікція в Poison() бере не найстарішу.
+            // надходження, інакше евікція в PoisonStream() бере не найстарішу.
             m_ReqPoison.RemoveOrdered(bad);
             m_ReqParts.Remove(key);
             return false;
@@ -583,7 +590,7 @@ class OZ_Module : CF_ModuleWorld
 
         // Згори вниз і RemoveOrdered: індекси нижче за p від видалення не
         // рухаються, а порядок решти гравців зберігається -- на нього
-        // спирається евікція в Poison().
+        // спирається евікція в PoisonStream().
         for (int p = m_ReqPoison.Count() - 1; p >= 0; p--)
         {
             if (m_ReqPoison[p].IndexOf(prefix) == 0)
