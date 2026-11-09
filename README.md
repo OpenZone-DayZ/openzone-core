@@ -157,6 +157,30 @@ provides. The FACTIONS pane in that tab is not registered here — it comes from
 `OpenZone_Factions_VPP`, in the [OpenZone Factions](https://github.com/covalschi/openzone-factions)
 repository.
 
+## OpenZone_Identity_FFR
+
+A third optional pbo from this repository, for servers that run FFR_GroupSpawner (the VPP
+tab "Groups" by Gart): its groups become the factions the core answers with, so OpenZone
+Research gives every group its own tree and pool. It is a **server-side mod**: load it with
+`-serverMod=@OpenZone_Identity_FFR`; players need nothing.
+
+- It reads `$profile:FFR_Mods\GroupSpawner\GroupSpawner.json`, the file FFR rewrites after every
+  change of its groups, and never calls FFR's classes, so an FFR update cannot break the
+  server's script compile. Changes reach the core within `ReloadSeconds` (30 by default).
+- `$profile:OpenZone\OZ_Identity_FFR.json` (written on the first start) maps each FFR group
+  name to an OpenZone faction id: `{"FfrGroup": "Долг", "FactionId": "duty"}`. A group with no
+  line gives its members no group faction (one WARNING per group); `BaseFaction` is everybody's
+  base faction. Put the exact group names of your server there.
+- FFR groups have no leaders. With `AnyMemberSpends` (on by default) every member of a group
+  may spend its research pool.
+- It stays off by itself when FFR's file is missing, and when OpenZone Factions is loaded:
+  that mod then answers for factions and this one writes one WARNING asking to remove one of
+  the two.
+
+Measured 2026-11-09 on the Linux server 1.30.164289 with OpenZone Research from the Workshop:
+a member of the group mapped to `duty` got the Duty tree as owner and may spend, a member of
+an unmapped group and a player in no group got the base faction.
+
 ## Requirements
 
 **OpenZone_Core** ([Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3798432022))
