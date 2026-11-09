@@ -400,7 +400,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         m_Panes.Set(id, pane);
 
         // Вікно можна зробити меншим за панель (куток, ApplyWindowSize): те,
-        // що не влазить, ріжеться по краю панелі, а не малюється поверх гри.
+        // що не влазить, ріжеться по краю панелі, а не малюється поверх гри,
+        // і обрізане кліків не ловить (зміряно 2026-11-09). Рамка й панель
+        // ріжуть дітей і самі (dayz-modding, gui-layouts §31); прапорець --
+        // для панелі склейки, чия розмітка скаже clipchildren 0.
         pane.SetFlags(WidgetFlags.CLIPCHILDREN);
 
         LayoutTabs();

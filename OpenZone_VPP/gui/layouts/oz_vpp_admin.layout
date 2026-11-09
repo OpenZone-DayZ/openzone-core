@@ -23,7 +23,7 @@ FrameWidgetClass OZ_VppRoot {
    priority 1
    style rover_sim_colorable
   }
-  // The window's ground and its one-unit border, the same pair the PDA shell paints; fill, so it follows the window when it is maximized or resized; priority 1 leaves 2 for the panes the script creates on top of it.
+  // The window's ground and its one-unit border, the same pair the PDA shell paints; priority 1 leaves 2 for the panes the script creates on top of it. Fill is resolved to the window's exact size here, so nothing follows a resize by itself: ApplyWindowSize in OZ_VppMenu.c resizes the ground, the border, VppHeader, TabStrip and Header with the window.
   PanelWidgetClass VppBg {
    visible 1
    ignorepointer 1
@@ -78,7 +78,7 @@ FrameWidgetClass OZ_VppRoot {
     }
    }
   }
-  // VPP's m_TitlePanel: drag the window by it, double-click it to maximize or restore. Transparent, over the title band only (0..48), so the tab strip (52..80) stays clickable; fill, so it spans the window at any size. The script adds WidgetFlags.DRAGGABLE: the generator has no attribute for it.
+  // VPP's m_TitlePanel: drag the window by it, double-click it to maximize or restore. Transparent, over the title band only (0..48), so the tab strip (52..80) stays clickable; the script keeps it as wide as the window. The script adds WidgetFlags.DRAGGABLE: the generator has no attribute for it.
   PanelWidgetClass Header {
    visible 1
    position 0 0
