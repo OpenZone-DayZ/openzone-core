@@ -201,24 +201,34 @@ class OZ_ConfigSection : OZ_AdminSection
         if (!f)
             return "";
 
-        array<string> lines = new array<string>();
+        array<string> parts = new array<string>();
         string line;
         while (FGets(f, line) >= 0)
-            lines.Insert(line);
+            parts.Insert(line);
         CloseFile(f);
 
-        // ЧЕРЕЗ МАСИВ, А НЕ `text += line`. Рядки Enforce незмінні, тож кожне
-        // додавання копіює ВЕСЬ накопичений текст: для файла на 750 рядків це
-        // близько одинадцяти мегабайт копій на одне натискання RAW у вкладці
-        // VPP, i росте воно квадратично з розміром конфігу.
-        string text = "";
-        for (int i = 0; i < lines.Count(); i++)
+        // СКЛЕЮВАННЯ ПАРАМИ, ДЕРЕВОМ. Рядки Enforce незмінні, тож кожне `+=`
+        // копіює ВЕСЬ накопичений текст, і склейка підряд квадратична: для
+        // файла на 750 рядків -- близько одинадцяти мегабайт копій на одне
+        // натискання RAW у вкладці VPP, для правил дослідження (~200 КБ) --
+        // сотні. Масив, що стояв тут до 2026-11-09, цього не міняв: за ним
+        // ішов той самий цикл `text +=`. string.Join рушія -- той самий цикл
+        // (enstring.c:424). Сусіди парами, рівень за рівнем, копіюють увесь
+        // текст раз на рівень: розмір на log2 рядків.
+        if (parts.Count() == 0)
+            return "";
+
+        while (parts.Count() > 1)
         {
-            if (i > 0)
-                text += "\n";
-            text += lines[i];
+            array<string> next = new array<string>();
+            int n = parts.Count();
+            for (int i = 0; i + 1 < n; i += 2)
+                next.Insert(parts[i] + "\n" + parts[i + 1]);
+            if (n % 2 == 1)
+                next.Insert(parts[n - 1]);
+            parts = next;
         }
-        return text;
+        return parts[0];
     }
 }
 

@@ -24,7 +24,12 @@
 //    працюють з ним, власне поле лишає базі NULL i диаг-збірка висне;
 //  - вкладені лапки в text-значенні розмітки вішають парсер НАМЕРТВО
 //    (бісекція 2026-08-30);
-//  - сорт свій: HideBrokenWidgets приходить лише при ЗМІНІ порядку.
+//  - вікно живе там, де вікна самого VPP: у Panel_Content, створене
+//    базовим CreateWidgets, і порядок вікон тримає VPP (SetWindowPriorty).
+//    Власний SetSort(1000) на корені робочої області, що стояв тут до
+//    2026-11-09, і був багом «не клікається з першого відкриття»: перше ж
+//    натискання віддавало вікну SetSort(Count) -- нижче hud_root VPP (85),
+//    і кліки йшли в нікуди, доки повторне відкриття не ставило 1000 знову.
 
 #ifdef AVPPAdminTools
 #ifndef NO_GUI
@@ -68,6 +73,25 @@ modded class VPPAdminHud
     {
         super.DefineButtons();
         InsertButton("OZ_VppAdminMenu", "OpenZone", "set:dayz_gui_vpp image:vpp_icon_xml_editor", "OpenZone: spawns, configs, news");
+    }
+
+    // VPP показує нове підменю ДО того, як вносить його в свій перелік
+    // (CreateSubMenu: ShowSubMenu, потім Insert), тож SetWindowPriorty
+    // зсередини ShowSubMenu його ще не знаходить, і нове вікно лишається під
+    // уже відкритими -- під changelog, який VPP відкриває сам. Свій changelog
+    // VPP латає одразу після CreateSubMenu (OpenChangelog); наше вікно --
+    // тут, у той самий спосіб. Створює підменю лише VPPButton.OnClick, і
+    // лише цим методом.
+    override void CreateSubMenu(typename subMenuType)
+    {
+        bool fresh = (GetSubMenuByType(subMenuType) == null);
+        super.CreateSubMenu(subMenuType);
+        if (!fresh || subMenuType != OZ_VppAdminMenu)
+            return;
+
+        OZ_VppAdminMenu oz = OZ_VppAdminMenu.Cast(GetSubMenuByType(subMenuType));
+        if (oz)
+            oz.PlaceAndRaise();
     }
 }
 
@@ -137,7 +161,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         super.OnCreate(RootW);
         s_Inst = this;
 
-        M_SUB_WIDGET = GetGame().GetWorkspace().CreateWidgets("OpenZone_VPP/gui/layouts/oz_vpp_admin.layout");
+        // БАЗОВИЙ CreateWidgets: батько -- Panel_Content VPP, як у вікон самого
+        // VPP, і він же знімає m_SizeW/m_SizeH. Сорту свого немає: порядок
+        // вікон тримає SetWindowPriorty (коментар на початку файлу).
+        M_SUB_WIDGET = CreateWidgets("OpenZone_VPP/gui/layouts/oz_vpp_admin.layout");
         if (!M_SUB_WIDGET)
         {
             OZ_Log.Error("vpp tab: layout failed to load");
@@ -145,10 +172,17 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         }
 
         M_SUB_WIDGET.SetHandler(this);
-        M_SUB_WIDGET.SetSort(1000);
         M_SUB_WIDGET.Show(true);
 
-        m_TitlePanel  = null;
+        // Шапка -- m_TitlePanel базового класу: за неї вікно тягнеться, а
+        // подвійний клік розгортає його (ResizeWindow нижче). Прапорця
+        // draggable генератор розмітки не знає, тож ставимо його тут.
+        m_TitlePanel = M_SUB_WIDGET.FindAnyWidget("Header");
+        if (m_TitlePanel)
+            m_TitlePanel.SetFlags(WidgetFlags.DRAGGABLE);
+        m_Grip = M_SUB_WIDGET.FindAnyWidget("Grip");
+        if (m_Grip)
+            m_Grip.SetFlags(WidgetFlags.DRAGGABLE);
         m_closeButton = ButtonWidget.Cast(M_SUB_WIDGET.FindAnyWidget("BtnVppClose"));
 
         m_TabIds  = new array<string>();
@@ -266,6 +300,25 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // живцем: лише з цих двох полів, які раз записані вже не міняються.
     protected float m_TabW = 0;
 
+    // ------------------------------------------------- вікно як у VPP
+    //
+    // Куток зміни розміру і де саме його схопили (від миші до кута вікна);
+    // позиція й розмір до розгортання (пікселі: GetPos і GetSize віджета
+    // точного розміру віддають пікселі, коментар LayoutTabs).
+    protected Widget m_Grip;
+    protected float m_GripDX, m_GripDY;
+    protected float m_RestX, m_RestY, m_RestW, m_RestH;
+
+    // Дзеркала токенів ui/tokens.json (рушій того файлу не читає, як і для
+    // TAB_GAP): vpp.paneY -- де починаються панелі, vpp.windowX/windowY --
+    // місце першого показу частками батька. MIN_W/MIN_H -- найменше вікно,
+    // в одиницях розмітки: смуга з кількома вкладками і ще видно панель.
+    static const float PANE_Y = 96;
+    static const float WIN_X  = 0.24;
+    static const float WIN_Y  = 0.14;
+    static const float MIN_W  = 700;
+    static const float MIN_H  = 460;
+
     // Перший вдалий прохід LayoutTabs ще не стався (сторож нижче): до нього
     // GetScreenSize повертає 0 і для смуги, і для щойно створеної кнопки, а
     // ShowSubMenu приходить одразу після OnCreate -- раніше першого кадру
@@ -345,6 +398,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         m_TabIds.Insert(id);
         m_TabBtns.Insert(btn);
         m_Panes.Set(id, pane);
+
+        // Вікно можна зробити меншим за панель (куток, ApplyWindowSize): те,
+        // що не влазить, ріжеться по краю панелі, а не малюється поверх гри.
+        pane.SetFlags(WidgetFlags.CLIPCHILDREN);
 
         LayoutTabs();
     }
@@ -452,7 +509,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             b.SetPos(at, 0);
             float bw, bh;
             b.GetScreenSize(bw, bh);
-            if (bw > want)
+            // В ОБИДВА БОКИ: вікно, яке стиснули, а потім розтягли (куток,
+            // розгортання), мусить повернути вкладкам ширину. want ніколи не
+            // більший за m_TabW, тож ширше за шаблон вкладка не стане.
+            if (Math.AbsFloat(bw - want) > 0.5)
                 ShrinkTab(b, want);
 
             float lx, ly, sx, sy;
@@ -466,14 +526,15 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         m_TabsPending = false;
     }
 
-    // Кнопка і всі її діти (рамка, тло, напис) вужчають на одне число.
+    // Кнопка і всі її діти (рамка, тло, напис) вужчають -- або ширшають --
+    // на одне число: від'ємна дельта повертає вкладці ширину.
     //
     // ПІКСЕЛІ, НЕ ОДИНИЦІ: SetSize на віджеті точного розміру пише ЕКРАННІ
     // пікселі (зміряно 2026-09-03, gui-layouts.md §24), тому ширина-ціль тут
     // приходить уже в пікселях (LayoutTabs більше не ділить на scale), і
-    // дельта рахується від GetScreenSize, а не GetSize. Шлях спрацьовує лише
-    // від сьомої вкладки (див. коментар LayoutTabs, три вкладки в ядрі) і на
-    // живому стенді не перевірений -- жива перевірка ще належна.
+    // дельта рахується від GetScreenSize, а не GetSize. З 2026-11-09 шлях
+    // спрацьовує не лише від сьомої вкладки, а й щоразу, як вікно стискають
+    // кутом чи повертають із розгорнутого.
     private void ShrinkTab(Widget b, float width)
     {
         float w, h;
@@ -547,8 +608,6 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         // MissionGameplay.OnUpdate.
         LayoutTabs();
 
-        if (M_SUB_WIDGET)
-            M_SUB_WIDGET.SetSort(1000);
         Ask(OZ_AdminSect.CONFIG, "cfg_list", "{}");
 
         // ПЕРША ЗАРЕЄСТРОВАНА, а не названа рядком.
@@ -561,28 +620,181 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             ShowPane(m_TabIds[0]);
     }
 
-    override void HideBrokenWidgets(bool state)
+    // Місце першого показу -- там, де вікно стояло завжди (WIN_X / WIN_Y
+    // від батька), і нагору серед вікон VPP. Кличе modded
+    // VPPAdminHud.CreateSubMenu угорі файлу, раз на створення вікна.
+    void PlaceAndRaise()
     {
-        super.HideBrokenWidgets(state);
         if (!M_SUB_WIDGET)
             return;
-        if (state)
-            M_SUB_WIDGET.SetSort(10);
-        else
-            M_SUB_WIDGET.SetSort(1000);
+
+        Widget parent = M_SUB_WIDGET.GetParent();
+        if (parent)
+        {
+            float pw, ph;
+            parent.GetScreenSize(pw, ph);
+            if (pw > 0 && ph > 0)
+                M_SUB_WIDGET.SetPos(pw * WIN_X, ph * WIN_Y);
+        }
+
+        VPPAdminHud hud = GetToolbarMenu();
+        if (hud)
+            hud.SetWindowPriorty(this);
+    }
+
+    // Подвійний клік по шапці (базовий OnDoubleClick). Базова версія ставить
+    // ДРОБИ (0.848 x 1.0) і повертає m_SizeW/m_SizeH -- обидва в розумінні
+    // віджета пропорційного розміру; наш корінь точного розміру, і 0.848 у
+    // ньому -- менше пікселя. Тут пікселі: розгорнути на 0.848 x 1.0 батька
+    // (та сама частка, що в VPP: праворуч лишається його панель кнопок),
+    // повернути те місце й той розмір, що були.
+    override void ResizeWindow(bool expand)
+    {
+        if (!M_SUB_WIDGET)
+            return;
+
+        if (expand && !m_WindowExpanded)
+        {
+            Widget parent = M_SUB_WIDGET.GetParent();
+            if (!parent)
+                return;
+
+            float pw, ph;
+            parent.GetScreenSize(pw, ph);
+            M_SUB_WIDGET.GetPos(m_RestX, m_RestY);
+            M_SUB_WIDGET.GetSize(m_RestW, m_RestH);
+            m_WindowExpanded = true;
+            M_SUB_WIDGET.SetPos(0, 0);
+            ApplyWindowSize(pw * 0.848, ph);
+            return;
+        }
+
+        if (!expand && m_WindowExpanded)
+        {
+            m_WindowExpanded = false;
+            M_SUB_WIDGET.SetPos(m_RestX, m_RestY);
+            ApplyWindowSize(m_RestW, m_RestH);
+        }
+    }
+
+    // Новий розмір вікна в пікселях.
+    //
+    // САМЕ НІЩО ЗА ВІКНОМ НЕ ЇДЕ: генератор розмітки розв'язує "fill" у
+    // ТОЧНІ розміри ще під час збирання (oz_vpp_admin.layout: VppBg 1000x620,
+    // TabStrip 1000x28), тож тло, рамку, шапку й смугу вкладок тягнемо
+    // звідси. Хрестик і куток прив'язані до правого краю -- їх веде рушій.
+    // Панелям -- ширина вікна і висота за вирахуванням шапки; смугу вкладок
+    // перекладаємо; склейкам кажемо OnWindowResized.
+    protected void ApplyWindowSize(float w, float h)
+    {
+        int scrW, scrH;
+        GetScreenSize(scrW, scrH);
+        float s = scrH / 1080.0;
+        if (w < MIN_W * s)
+            w = MIN_W * s;
+        if (h < MIN_H * s)
+            h = MIN_H * s;
+
+        M_SUB_WIDGET.SetSize(w, h);
+
+        // Рамка -- на одиницю ширша за тло з кожного боку (ui/: VppBg edge).
+        FitChrome("VppBgEdge", w + 2 * s, h + 2 * s);
+        FitChrome("VppBg", w, h);
+        FitChrome("VppHeader", w, -1);
+        FitChrome("TabStrip", w, -1);
+        FitChrome("Header", w, -1);
+
+        float paneH = h - PANE_Y * s;
+        for (int i = 0; i < m_TabIds.Count(); i++)
+        {
+            Widget pane = m_Panes.Get(m_TabIds[i]);
+            if (pane)
+                pane.SetSize(w, paneH);
+        }
+
+        if (m_Grip)
+            m_Grip.SetPos(0, 0);
+
+        LayoutTabs();
+        OnWindowResized(w, paneH);
+    }
+
+    // Один віджет хрому -- на новий розмір у пікселях; h < 0 -- висота
+    // лишається своя (шапка, смуга).
+    protected void FitChrome(string name, float w, float h)
+    {
+        Widget c = M_SUB_WIDGET.FindAnyWidget(name);
+        if (!c)
+            return;
+
+        float cw, ch;
+        c.GetSize(cw, ch);
+        if (h < 0)
+            h = ch;
+        c.SetSize(w, h);
+    }
+
+    // Точка розширення для панелей склейок: вікно змінило розмір, панель
+    // тепер w x h пікселів (корінь панелі вже такого розміру). Свої панелі
+    // ядра розкладені генератором у точні місця, тож лишаються як були, у
+    // лівому верхньому куті, а що не влазить у менше вікно, ріже
+    // CLIPCHILDREN кореня панелі (RegisterPane).
+    protected void OnWindowResized(float w, float h)
+    {
+    }
+
+    // Куток зміни розміру. Шапку (m_TitlePanel) веде база, куток -- ми; рушій
+    // тягне сам віджет за мишею, тож щоразу повертаємо його в кут.
+    override bool OnDrag(Widget w, int x, int y)
+    {
+        if (m_Grip && w == m_Grip)
+        {
+            // Де саме схопили куток: від миші до правого нижнього кута вікна.
+            // Без цього кут вікна стрибав під мишу на першому ж русі -- на
+            // половину кутка (13 px на 3840x1600, зміряно 2026-11-09).
+            float wx, wy, ww, wh;
+            M_SUB_WIDGET.GetScreenPos(wx, wy);
+            M_SUB_WIDGET.GetScreenSize(ww, wh);
+            m_GripDX = wx + ww - x;
+            m_GripDY = wy + wh - y;
+            GetVPPUIManager().SetDraggingWindow(true);
+            return false;
+        }
+        return super.OnDrag(w, x, y);
+    }
+
+    override bool OnDragging(Widget w, int x, int y, Widget reciever)
+    {
+        if (m_Grip && w == m_Grip)
+        {
+            ResizeToPointer(x, y);
+            return false;
+        }
+        return super.OnDragging(w, x, y, reciever);
+    }
+
+    override bool OnDrop(Widget w, int x, int y, Widget reciever)
+    {
+        if (m_Grip && w == m_Grip)
+        {
+            ResizeToPointer(x, y);
+            GetVPPUIManager().SetDraggingWindow(false);
+            return false;
+        }
+        return super.OnDrop(w, x, y, reciever);
+    }
+
+    protected void ResizeToPointer(int x, int y)
+    {
+        float wx, wy;
+        M_SUB_WIDGET.GetScreenPos(wx, wy);
+        m_WindowExpanded = false;
+        ApplyWindowSize(x + m_GripDX - wx, y + m_GripDY - wy);
     }
 
     bool IsOpen()
     {
         return M_SUB_WIDGET && M_SUB_WIDGET.IsVisible();
-    }
-
-    void ForceHide()
-    {
-        if (!M_SUB_WIDGET || !M_SUB_WIDGET.IsVisible())
-            return;
-        M_SUB_WIDGET.Show(false);
-        m_IsVisible = false;
     }
 
     // Кличе MissionGameplay.OnUpdate (сторож у кінці файлу), поки перший
@@ -1789,11 +2001,13 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     }
 }
 
-// Вартовий: дві роботи, поки вікно відкрите. VPP ховає лише власний
-// корінь, сироту на корені робочої області прибирає місія (OnUpdate
-// підменю після ховання не тікає). Друга -- добиває розмітку смуги
-// вкладок, поки перший вдалий прохід ще не стався (m_TabsPending,
-// коментар у LayoutTabs).
+// Вартовий: добиває розмітку смуги вкладок, поки перший вдалий прохід ще
+// не стався (m_TabsPending, коментар у LayoutTabs).
+//
+// Другої роботи -- ховати вікно, коли VPP ховає панель кнопок, -- з
+// 2026-11-09 немає: вікно тепер дитина кореня VPP, і ховається та
+// вертається разом із ним, як вікна самого VPP. Доти воно висіло на корені
+// робочої області, і сироту доводилось прибирати звідси.
 modded class MissionGameplay
 {
     override void OnUpdate(float timeslice)
@@ -1804,10 +2018,6 @@ modded class MissionGameplay
             return;
 
         OZ_VppAdminMenu.s_Inst.RetryTabsLayoutIfPending();
-
-        VPPAdminHud hud = VPPAdminHud.Cast(GetGame().GetUIManager().FindMenu(VPP_ADMIN_HUD));
-        if (!hud || !hud.IsShowing())
-            OZ_VppAdminMenu.s_Inst.ForceHide();
     }
 }
 

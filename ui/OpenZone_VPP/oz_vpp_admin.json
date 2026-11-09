@@ -1,16 +1,21 @@
 {
   "layout": "oz_vpp_admin",
-  "note": "The OpenZone admin window, hosted by VPP Admin Tools. The root places itself at a fraction of the host (at_frac) at an exact size, because VPP hands it a workspace, not a page. Only the window chrome lives here: the background, the title, the close button and TabStrip -- the empty strip the script fills with one tab template per registered pane. THE PANES ARE NOT HERE: every pane, the core's three and the glue mods' own, is its own layout the script creates under this root at [0, vpp.paneY], so a mod that adds a pane needs nothing from this file. Names OZ_VppRoot, BtnVppClose and TabStrip are read by OZ_VppMenu.c.",
-  "root": {"frame": {"name": "OZ_VppRoot", "size": "$vpp.window", "at_frac": ["$vpp.windowX", "$vpp.windowY"], "hidden": true, "priority": 10,
-    "note": "Hidden: VPP shows the window itself (ShowSubMenu right after OnCreate). Priority 10 above VPP's own frames, as before.",
+  "note": "The OpenZone admin window, hosted by VPP Admin Tools. The script creates it through VPP's own AdminHudSubMenu.CreateWidgets, i.e. inside VPP's Panel_Content beside VPP's windows, at an exact size and an exact position the script sets on the first show. Only the window chrome lives here: the background, the title, the drag header, the close button, the resize grip and TabStrip -- the empty strip the script fills with one tab template per registered pane. THE PANES ARE NOT HERE: every pane, the core's four and the glue mods' own, is its own layout the script creates under this root at [0, vpp.paneY], so a mod that adds a pane needs nothing from this file. Names OZ_VppRoot, Header, Grip, BtnVppClose and TabStrip are read by OZ_VppMenu.c.",
+  "root": {"frame": {"name": "OZ_VppRoot", "size": "$vpp.window", "at": [0, 0], "hidden": true,
+    "note": "Hidden: VPP shows the window itself (ShowSubMenu right after OnCreate). No priority of its own: VPP's SetWindowPriorty orders the windows of Panel_Content, and the own SetSort(1000) that fought it was the 'not clickable on the first open' bug (2026-11-09). Exact position 0,0: the script places the window at vpp.windowX / vpp.windowY of the parent on the first show, and VPP's drag moves it in pixels. The script also sets CLIPCHILDREN on it: a pane of fixed size is cut at the edge of a window made smaller than the pane, instead of drawing over the game.",
     "children": [
-      {"panel": {"name": "VppBg", "size": "$vpp.window", "color": "$screen", "edge": true, "priority": 1,
-        "note": "The window's ground and its one-unit border, the same pair the PDA shell paints; priority 1 leaves 2 for the panes the script creates on top of it."}},
+      {"panel": {"name": "VppBg", "w": "fill", "h": "fill", "color": "$screen", "edge": true, "priority": 1,
+        "note": "The window's ground and its one-unit border, the same pair the PDA shell paints; fill, so it follows the window when it is maximized or resized; priority 1 leaves 2 for the panes the script creates on top of it."}},
       {"frame": {"name": "VppHeader", "w": "fill", "h": "$vpp.header", "priority": 3, "children": [
         {"label":  {"name": "VppTitle", "at": [20, 14], "w": 500, "h": 26, "text": "OPENZONE ADMIN", "font": "title", "color": "$accent"}},
-        {"button": {"name": "BtnVppClose", "anchor": "right", "at": [14, 12], "size": [34, 34], "text": "X", "font": "header", "glyph": true}},
         {"frame":  {"name": "TabStrip", "at": [0, 52], "w": "fill", "h": 28,
           "note": "Empty on purpose: LayoutTabs puts one oz_vpp_tab.layout in it per registered pane, so the strip is empty in the gallery. 28 is the height of vpp.tab and 52 puts its bottom at 80, inside the vpp.header band (96) and clear of the panes at vpp.paneY -- written out because the generator does no arithmetic on tokens."}}
-      ]}}
+      ]}},
+      {"panel": {"name": "Header", "at": [0, 0], "w": "fill", "h": 48, "click": true, "color": "$none", "priority": 4,
+        "note": "VPP's m_TitlePanel: drag the window by it, double-click it to maximize or restore. Transparent, over the title band only (0..48), so the tab strip (52..80) stays clickable; fill, so it spans the window at any size. The script adds WidgetFlags.DRAGGABLE: the generator has no attribute for it."}},
+      {"button": {"name": "BtnVppClose", "anchor": "right", "at": [14, 12], "size": [34, 34], "text": "X", "font": "header", "glyph": true, "priority": 6,
+        "note": "A child of the root, not of VppHeader, and above Header: the header spans the whole title band, and a close button inside VppHeader (priority 3) would sit under it (4) and never get a click."}},
+      {"panel": {"name": "Grip", "anchor": "bottom-right", "at": [0, 0], "size": [18, 18], "click": true, "color": "$edge", "priority": 5,
+        "note": "The resize grip, anchored to the bottom-right corner so it follows the window. The script makes it draggable and resizes the window while it is dragged."}}
     ]}}
 }
