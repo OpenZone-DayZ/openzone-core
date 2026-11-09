@@ -48,23 +48,20 @@ class OZI_FfrSettings
     bool AnyMemberSpends = true;
     int ReloadSeconds = 30;
 
-    // Перший старт: найчастіші назви угруповань у RP-серверах сталкера.
-    // Точні назви груп конкретного сервера адмін дописує сам.
+    // Перший старт: найчастіші назви угруповань у RP-серверах сталкера --
+    // українською, і «Долг» (єдиний виняток серії з правила мов). Точні
+    // назви груп конкретного сервера, зокрема іншою мовою, адмін дописує сам.
     void Seed()
     {
         GroupFactions = new array<ref OZI_FfrMap>();
         GroupFactions.Insert(new OZI_FfrMap("Долг", "duty"));
         GroupFactions.Insert(new OZI_FfrMap("Свобода", "freedom"));
         GroupFactions.Insert(new OZI_FfrMap("Воля", "freedom"));
-        GroupFactions.Insert(new OZI_FfrMap("Экологи", "ecolog"));
-        GroupFactions.Insert(new OZI_FfrMap("Учёные", "ecolog"));
         GroupFactions.Insert(new OZI_FfrMap("Вчені", "ecolog"));
-        GroupFactions.Insert(new OZI_FfrMap("Чистое небо", "clearsky"));
+        GroupFactions.Insert(new OZI_FfrMap("Екологи", "ecolog"));
         GroupFactions.Insert(new OZI_FfrMap("Чисте небо", "clearsky"));
         GroupFactions.Insert(new OZI_FfrMap("СОП", "sop"));
-        GroupFactions.Insert(new OZI_FfrMap("Бандиты", "bandit"));
         GroupFactions.Insert(new OZI_FfrMap("Бандити", "bandit"));
-        GroupFactions.Insert(new OZI_FfrMap("Одиночки", "neutral"));
         GroupFactions.Insert(new OZI_FfrMap("Одинаки", "neutral"));
     }
 }

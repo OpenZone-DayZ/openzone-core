@@ -43,6 +43,7 @@ the full set; the tags each item carries:
 |---|---|
 | OZ_Core (3798432022) | Mod, Mechanics, Dependency |
 | OZ_Core_VPP (3798436187) | Mod, Mechanics |
+| OZ_Identity_FFR (3836581786) | Mod, Mechanics; Required items: OZ_Core |
 
 The procedure and its reasons are written out in `openzone-radio/docs/publishing.md`.
 

@@ -1,7 +1,8 @@
 # OpenZone Core
 
 **Steam Workshop:** [OZ_Core](https://steamcommunity.com/sharedfiles/filedetails/?id=3798432022) ·
-[OZ_Core_VPP](https://steamcommunity.com/sharedfiles/filedetails/?id=3798436187)
+[OZ_Core_VPP](https://steamcommunity.com/sharedfiles/filedetails/?id=3798436187) ·
+[OZ_Identity_FFR](https://steamcommunity.com/sharedfiles/filedetails/?id=3836581786)
 
 The shared foundation for the **OpenZone** family of DayZ mods.
 
@@ -159,8 +160,8 @@ repository.
 
 ## OpenZone_Identity_FFR
 
-A third optional pbo from this repository, for servers that run FFR_GroupSpawner (the VPP
-tab "Groups" by Gart): its groups become the factions the core answers with, so OpenZone
+A third optional pbo from this repository ([Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3836581786)),
+for servers that run FFR_GroupSpawner (the VPP tab "Groups" by Gart): its groups become the factions the core answers with, so OpenZone
 Research gives every group its own tree and pool. It is a **server-side mod**: load it with
 `-serverMod=@OpenZone_Identity_FFR`; players need nothing.
 

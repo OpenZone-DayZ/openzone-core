@@ -1,0 +1,37 @@
+[h1]OpenZone Identity FFR[/h1]
+Server-side companion mod for servers that run FFR_GroupSpawner (the VPP tab "Groups" by Gart): its groups become the factions the OpenZone core answers with, so OpenZone Research gives every group its own research tree and points pool. Part of the OpenZone series, made for the whole Ukrainian DayZ community.
+
+[list]
+[*]It reads the file FFR rewrites after every change of its groups ($profile:FFR_Mods\GroupSpawner\GroupSpawner.json) and never calls FFR's code, so an FFR update cannot break the server's script compile. Changes reach OpenZone within ReloadSeconds (30 by default).
+[*]$profile:OpenZone\OZ_Identity_FFR.json, written on the first start, maps each FFR group name to an OpenZone faction id: {"FfrGroup": "Долг", "FactionId": "duty"}. Put the exact group names of your server there; a group with no line gives its members no group faction. BaseFaction is everybody's base faction.
+[*]FFR groups have no leaders: with AnyMemberSpends (on by default) every member of a group may spend its research pool.
+[*]It stays off by itself when FFR's file is missing, and when OpenZone Factions is loaded: that mod answers for factions then.
+[/list]
+
+[b]Install[/b] on the server only, with -serverMod=@OpenZone_Identity_FFR, next to OpenZone Core. Players need nothing; in -mod it would make every client download it.
+
+[b]Requires[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798432022]OpenZone Core[/url]. Works with FFR_GroupSpawner by Gart.
+[b]Source code[/b] [url=https://github.com/OpenZone-DayZ/openzone-core]github.com/OpenZone-DayZ/openzone-core[/url]
+
+[b]Licence, repacking, selling[/b]
+You may repack this mod into your server's own pack, keeping the attribution and the same licence. You may not sell it, sublicense it or include it in any paid bundle. Running it on a server that accepts donations, sells cosmetics or priority queue slots is fine. CC BY-NC-SA 4.0 with the additional permission in NOTICE.
+
+[hr][/hr]
+
+[h1]OpenZone Identity FFR (українською)[/h1]
+Серверний мод-супутник для серверів із FFR_GroupSpawner (вкладка VPP «Групи» від Gart): його групи стають фракціями, якими відповідає ядро OpenZone, тож OpenZone Research дає кожній групі власне дерево досліджень і пул балів. Частина серії OpenZone, створеної для всієї української спільноти DayZ.
+
+[list]
+[*]Читає файл, який FFR переписує після кожної зміни груп ($profile:FFR_Mods\GroupSpawner\GroupSpawner.json), і ніколи не кличе код FFR, тож оновлення FFR не зламає компіляцію скриптів сервера. Зміни доходять до OpenZone за ReloadSeconds (типово 30).
+[*]$profile:OpenZone\OZ_Identity_FFR.json, записаний під час першого запуску, зіставляє назву кожної групи FFR з id фракції OpenZone: {"FfrGroup": "Долг", "FactionId": "duty"}. Впишіть туди точні назви груп свого сервера; група без рядка не дає своїм членам угруповання. BaseFaction -- базова фракція для всіх.
+[*]У груп FFR немає лідерів: з AnyMemberSpends (типово ввімкнено) пул досліджень групи може витрачати будь-який її член.
+[*]Сам вимикається, коли файлу FFR немає, і коли завантажено OpenZone Factions: тоді за фракції відповідає той мод.
+[/list]
+
+[b]Встановлення[/b] лише на сервер, через -serverMod=@OpenZone_Identity_FFR, поруч з OpenZone Core. Гравцям нічого не потрібно; у -mod він змусив би кожного клієнта його завантажувати.
+
+[b]Потребує[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798432022]OpenZone Core[/url]. Працює з FFR_GroupSpawner від Gart.
+[b]Вихідний код[/b] [url=https://github.com/OpenZone-DayZ/openzone-core]github.com/OpenZone-DayZ/openzone-core[/url]
+
+[b]Ліцензія, репак, продаж[/b]
+Мод можна перепакувати у власний серверний пак, зберігши авторство й ту саму ліцензію. Продавати його, субліцензувати або включати в платну поставку не можна. Запуск на сервері, що приймає донати, продає косметику чи місця в пріоритетній черзі, дозволений. CC BY-NC-SA 4.0 з додатковим дозволом у NOTICE.
