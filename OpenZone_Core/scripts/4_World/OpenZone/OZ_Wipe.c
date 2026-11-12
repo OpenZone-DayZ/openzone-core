@@ -458,6 +458,10 @@ class OZ_PlayersHere
     ref array<string> Names;
     ref array<string> Uids;
 
+    // The server's slots (serverDZ.cfg maxPlayers) for the page's "online: n of max";
+    // 0 when the server does not say.
+    int Max;
+
     void OZ_PlayersHere()
     {
         Names = new array<string>();
@@ -512,6 +516,7 @@ class OZ_PlayerSection : OZ_AdminSection
     private string Here(out bool ok, out string error)
     {
         OZ_PlayersHere h = new OZ_PlayersHere();
+        h.Max = GetGame().ServerConfigGetInt("maxPlayers");
 
         array<Man> players = new array<Man>();
         GetGame().GetPlayers(players);

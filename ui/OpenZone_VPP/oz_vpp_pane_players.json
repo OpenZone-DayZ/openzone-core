@@ -1,40 +1,206 @@
 {
   "layout": "oz_vpp_pane_players",
-  "note": "PLAYERS pane of the admin window: who is in the Zone on the left, the permadeath form on the right. Created by OZ_VppMenu.OnCreate under OZ_VppRoot at [0, vpp.paneY], exactly where every other pane creates itself, so all of them overlap and the script shows one at a time. Names PlrList, PlrUid, PlrHint and BtnPlrWipe are read by OZ_VppMenu.c. The caption runs the full width under both columns rather than inside the 460-unit form: it is one long sentence, a label is a single line, and a column-wide one would be cut. The wording is deliberately POORER than the FACTIONS pane's: this pane exists on a server with nothing but the core, where 'private chats are left' and 'roles reset to novice' would be false.",
-  "root": {"frame": {"name": "PanePlayers", "size": "$vpp.pane", "at": [0, "$vpp.paneY"], "inset": "$vpp.inset",
-    "hidden": true, "priority": 2,
-    "note": "Hidden: ShowPane shows the open tab's pane and hides the rest.",
-    "children": [
-      {"vbox": {"name": "PlrBody", "gap": "$space.gap", "children": [
-        {"hbox": {"name": "PlrCols", "h": "fill", "gap": "$space.column", "children": [
-          {"vbox": {"name": "PlrHereCol", "w": 480, "gap": 8, "children": [
-            {"section": {"name": "SecPlrH", "text": "IN THE ZONE NOW"}},
-            {"listbox": {"name": "PlrList", "h": "fill", "font": "field", "color": "$text",
-              "props": {"style": "NoScrollBar", "title visible": false, "highlight row": true, "lines": 13},
-              "note": "The engine's own listbox, filled by AddItem from players_here; the same 13 lines over 414 units as the SPAWNS pane."}}
-          ]}},
-          {"vbox": {"name": "PlrFormCol", "w": 460, "gap": 8, "children": [
-            {"section": {"name": "SecPlrW", "text": "PERMADEATH"}},
-            {"label": {"name": "PlrHelp1", "text": "The list holds who is here now;", "font": "small", "color": "$muted"}},
-            {"label": {"name": "PlrHelp2", "text": "the field below wins, so an absent", "font": "small", "color": "$muted"}},
-            {"label": {"name": "PlrHelp3", "text": "character is reached by his steam64.", "font": "small", "color": "$muted"}},
-            {"hrow": {"h": "$size.field", "children": [
-              {"label": {"name": "PlrUidLbl", "w": "$vpp.labelW", "text": "steam64", "font": "small", "color": "$muted"}},
-              {"field": {"name": "PlrUid", "w": "$vpp.fieldW"}}
-            ]}},
-            {"label": {"name": "PlrHelp4", "text": "The first press names the person.", "font": "small", "color": "$muted"}},
-            {"hbox": {"h": "$size.button", "gap": "$space.gap", "children": [
-              {"gap": {"w": "fill"}},
-              {"button": {"name": "BtnPlrWipe", "w": 225, "text": "WIPE", "edge": "$bad", "color": "$bad"}}
-            ]}}
-          ]}}
-        ]}},
-        {"label": {"name": "PlrNote1", "font": "small", "color": "$muted",
-          "text": "Permadeath: the old life is frozen into its own file, every device of his is sealed,"}},
-        {"label": {"name": "PlrNote2", "font": "small", "color": "$muted",
-          "text": "spawn points are cleared. Press twice."}},
-        {"label": {"name": "PlrHint", "h": "$size.hint", "font": "hint", "color": "$muted",
-          "note": "Empty: every answer of the players route lands here."}}
-      ]}}
-    ]}}
+  "note": "Ядро › Гравці (VPP rework 2026-11-12, design §5.1; artboard CorePlayers): who is on the server on the left -- a search field (a name, or a 17-digit Steam ID that also reaches a player who is not in the game), the online count and the list -- and the picked player's card on the right: the character the server holds (name and generation from player_peek) and the wipe, which asks on the window's confirm strip. Created by OZ_VppMenu.OnCreate; the shell moves it into the content area. Laid out at the content size of the default window (1060 x 680); a smaller window cuts it at the edge. Names PlrFind, PlrCount, PlrList, PlrName, PlrUidShown, PlrState, PlrCharName, PlrGen, PlrSteam, BtnPlrRefresh and BtnPlrWipe are read by OZ_VppMenu.c.",
+  "root": {
+    "frame": {
+      "name": "PanePlayers",
+      "size": "$vpp.content",
+      "at": [0, "$vpp.paneY"],
+      "hidden": true,
+      "priority": 2,
+      "note": "Hidden: ShowPane shows the open page and hides the rest.",
+      "children": [
+        {
+          "vbox": {
+            "name": "PlrBody",
+            "size": "fill",
+            "children": [
+              {
+                "frame": {
+                  "name": "PlrHead",
+                  "h": 60,
+                  "children": [
+                    {"label": {"name": "PlrTitle", "at": [24, 9], "size": [600, 26], "text": "#STR_OZ_VPP_PLR_TITLE", "font": "title", "color": "$vppText"}},
+                    {"label": {"name": "PlrSub", "at": [24, 35], "size": [760, 18], "text": "#STR_OZ_VPP_PLR_SUB", "font": "small", "color": "$vppMuted"}},
+                    {"button": {"name": "BtnPlrRefresh", "anchor": "right", "at": [24, 15], "size": [190, 30], "text": "#STR_OZ_VPP_PLR_REFRESH", "font": "small", "bg": "$vppRaised", "edge": "$vppEdge", "color": "$vppText"}},
+                    {"panel": {"name": "PlrHeadRule", "at": [0, 59], "size": [1060, 1], "color": "$vppEdge"}}
+                  ]
+                }
+              },
+              {
+                "hbox": {
+                  "name": "PlrCols",
+                  "h": "fill",
+                  "children": [
+                    {
+                      "panel": {
+                        "name": "PlrLeft",
+                        "w": 360,
+                        "color": "$vppPanel",
+                        "inset": 16,
+                        "children": [
+                          {
+                            "vbox": {
+                              "name": "PlrLeftCol",
+                              "size": "fill",
+                              "gap": 8,
+                              "children": [
+                                {"label": {"name": "PlrFindLbl", "text": "#STR_OZ_VPP_PLR_FIND", "font": "small", "color": "$vppMuted"}},
+                                {"field": {"name": "PlrFind", "color": "$vppText", "note": "A name or a part of it filters the list; 17 digits pick that Steam ID, in the game or not (OZ_VppMenu.Tick)."}},
+                                {"text": {"name": "PlrFindNote", "h": 34, "plain": true, "grow": false, "font": "small", "color": "$vppMuted", "text": "#STR_OZ_VPP_PLR_FIND_NOTE"}},
+                                {"label": {"name": "PlrCount", "text": "", "font": "small", "color": "$vppMuted"}},
+                                {"listbox": {"name": "PlrList", "h": "fill", "font": "field", "color": "$vppText", "props": {"style": "NoScrollBar", "title visible": false, "highlight row": true, "lines": 14, "colums": "name;56;uid;44;"}, "note": "One row per player the filter keeps: the name, the Steam ID; the picked one in the accent colour (a NoScrollBar list draws no highlight of its own)."}},
+                                {
+                                  "panel": {
+                                    "name": "PlrNoteBox",
+                                    "h": 70,
+                                    "color": "$vppHead",
+                                    "inset": 10,
+                                    "children": [
+                                      {"text": {"name": "PlrNote", "size": "fill", "plain": true, "grow": false, "font": "small", "color": "$vppMuted", "text": "#STR_OZ_VPP_PLR_NOTE"}}
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {"panel": {"name": "PlrRule", "w": 1, "color": "$vppEdge"}},
+                    {
+                      "panel": {
+                        "name": "PlrRight",
+                        "w": "fill",
+                        "color": "$vppPanel",
+                        "inset": 24,
+                        "children": [
+                          {
+                            "vbox": {
+                              "name": "PlrCard",
+                              "size": "fill",
+                              "gap": 16,
+                              "children": [
+                                {
+                                  "hbox": {
+                                    "name": "PlrCardHead",
+                                    "h": 30,
+                                    "gap": 12,
+                                    "children": [
+                                      {"label": {"name": "PlrName", "w": 330, "text": "-", "font": "title", "color": "$vppText"}},
+                                      {"label": {"name": "PlrUidShown", "w": 200, "text": "", "font": "small", "color": "$vppMuted"}},
+                                      {"label": {"name": "PlrState", "w": "fill", "text": "", "font": "small", "color": "$vppOk"}}
+                                    ]
+                                  }
+                                },
+                                {
+                                  "panel": {
+                                    "name": "PlrCharBox",
+                                    "h": 156,
+                                    "color": "$vppHead",
+                                    "inset": 16,
+                                    "children": [
+                                      {
+                                        "vbox": {
+                                          "name": "PlrCharCol",
+                                          "size": "fill",
+                                          "gap": 8,
+                                          "children": [
+                                            {"label": {"name": "PlrCharTag", "h": 16, "text": "#STR_OZ_VPP_PLR_CHAR_TAG", "font": "small", "color": "$vppMuted"}},
+                                            {
+                                              "hbox": {
+                                                "name": "PlrCells",
+                                                "h": 56,
+                                                "gap": 10,
+                                                "children": [
+                                                  {
+                                                    "panel": {
+                                                      "name": "PlrCell0",
+                                                      "w": "fill",
+                                                      "color": "$vppCell",
+                                                      "children": [
+                                                        {"label": {"name": "PlrCell0Lbl", "at": [12, 6], "size": [180, 18], "text": "#STR_OZ_VPP_PLR_CHAR_NAME", "font": "small", "color": "$vppMuted"}},
+                                                        {"label": {"name": "PlrCharName", "at": [12, 26], "size": [180, 24], "text": "-", "font": "header", "color": "$vppText"}}
+                                                      ]
+                                                    }
+                                                  },
+                                                  {
+                                                    "panel": {
+                                                      "name": "PlrCell1",
+                                                      "w": "fill",
+                                                      "color": "$vppCell",
+                                                      "children": [
+                                                        {"label": {"name": "PlrCell1Lbl", "at": [12, 6], "size": [180, 18], "text": "#STR_OZ_VPP_PLR_GEN", "font": "small", "color": "$vppMuted"}},
+                                                        {"label": {"name": "PlrGen", "at": [12, 26], "size": [180, 24], "text": "-", "font": "header", "color": "$vppText"}}
+                                                      ]
+                                                    }
+                                                  },
+                                                  {
+                                                    "panel": {
+                                                      "name": "PlrCell2",
+                                                      "w": "fill",
+                                                      "color": "$vppCell",
+                                                      "children": [
+                                                        {"label": {"name": "PlrCell2Lbl", "at": [12, 6], "size": [180, 18], "text": "#STR_OZ_VPP_PLR_STEAM", "font": "small", "color": "$vppMuted"}},
+                                                        {"label": {"name": "PlrSteam", "at": [12, 26], "size": [180, 24], "text": "-", "font": "small", "color": "$vppText"}}
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            {"text": {"name": "PlrCharNote", "h": 34, "plain": true, "grow": false, "font": "small", "color": "$vppMuted", "text": "#STR_OZ_VPP_PLR_CHAR_NOTE"}}
+                                          ]
+                                        }
+                                      }
+                                    ]
+                                  }
+                                },
+                                {
+                                  "panel": {
+                                    "name": "PlrWipeBox",
+                                    "h": 110,
+                                    "color": "$vppHead",
+                                    "inset": 16,
+                                    "children": [
+                                      {
+                                        "vbox": {
+                                          "name": "PlrWipeCol",
+                                          "size": "fill",
+                                          "gap": 8,
+                                          "children": [
+                                            {"label": {"name": "PlrWipeTag", "h": 16, "text": "#STR_OZ_VPP_PLR_WIPE_TAG", "font": "small", "color": "$vppMuted"}},
+                                            {
+                                              "hbox": {
+                                                "name": "PlrWipeRow",
+                                                "h": 54,
+                                                "gap": 16,
+                                                "children": [
+                                                  {"text": {"name": "PlrWipeNote", "w": "fill", "plain": true, "grow": false, "font": "small", "color": "$vppMuted", "text": "#STR_OZ_VPP_PLR_WIPE_NOTE"}},
+                                                  {"button": {"name": "BtnPlrWipe", "w": 210, "h": 34, "text": "#STR_OZ_VPP_PLR_WIPE", "font": "small", "bg": "$vppPanel", "edge": "$vppBad", "color": "$vppBad", "note": "Asks on the confirm strip, naming the character the last peek found."}}
+                                                ]
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    ]
+                                  }
+                                },
+                                {"text": {"name": "PlrHelp", "h": 40, "plain": true, "grow": false, "font": "small", "color": "$vppMuted", "text": "#STR_OZ_VPP_PLR_HELP"}}
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
 }

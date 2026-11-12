@@ -172,17 +172,27 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     protected string m_RawPicked = "";
     protected ref array<string> m_RawRows;
 
-    // ------------------------------------------------- гравці
+    // ------------------------------------------------- Ядро › Гравці
     //
-    // Рядок списку -> uid. Список показує лише ПРИСУТНІХ (сервер уміє
-    // перелічити їх сам, без моста); відсутню ціль адмін набирає полем, і
-    // поле перемагає -- та сама ідіома, що поверхом вище в панелі спавнів.
+    // The last players_here as copies made by script, the list's rows (row -> Steam ID)
+    // and the card: whose it is and what the last player_peek said of that character.
+    // The list holds who is in the game (the server lists them without the bridge); a
+    // Steam ID typed whole in the search reaches an absent player too. The wipe asks on
+    // the confirm strip and names what the peek found: seventeen digits with a typo look
+    // exactly like the right ones. Fields are declared bare and set in OnCreate: every
+    // glue derives from this class (dayz-modding enforce-script.md, field initialisers).
+    protected ref array<string> m_PlrNames;
     protected ref array<string> m_PlrUids;
-
-    // Пермадес -- у два натискання, як усе руйнівне у вкладці. Перше йде по
-    // відповідь player_peek і НАЗИВАЄ ЛЮДИНУ; курок зводить лише вона.
-    protected bool   m_PlrArmed = false;
-    protected string m_PlrUid   = "";
+    protected ref array<string> m_PlrRowUid;
+    protected int    m_PlrMax;
+    protected string m_PlrPick;
+    protected string m_PlrFindSeen;
+    protected bool   m_PlrPeeked;
+    protected bool   m_PlrFound;
+    protected string m_PlrCharName;
+    protected int    m_PlrCharGen;
+    protected bool   m_PlrWantWipe;
+    protected EditBoxWidget m_PlrFindBox;
 
     override void OnCreate(Widget RootW)
     {
@@ -228,7 +238,17 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         m_CfgOwners = new array<string>();
         m_CfgQ      = new array<string>();
         m_RawRows = new array<string>();
-        m_PlrUids = new array<string>();
+        m_PlrNames  = new array<string>();
+        m_PlrUids   = new array<string>();
+        m_PlrRowUid = new array<string>();
+        m_PlrMax = 0;
+        m_PlrPick = "";
+        m_PlrFindSeen = "";
+        m_PlrPeeked = false;
+        m_PlrFound = false;
+        m_PlrCharName = "";
+        m_PlrCharGen = 0;
+        m_PlrWantWipe = false;
         m_SpawnRowKind = new array<string>();
         m_SpawnRowKey  = new array<string>();
         m_NwVoices = new array<string>();
@@ -249,8 +269,11 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         // б наполовину -- операція є, а натиснути її нічим. Кнопка WIPE
         // лишається й у панелі фракцій: логіка одна, кнопки дві, і панель
         // фракцій уже водить ядрові операції спавнів зі свого ростера.
-        AddOwnPane("players", "#STR_OZ_VPP_PAGE_PLAYERS", "PlrHint");
+        // No hint label of its own: its lines go to the journal, and the status bar
+        // shows the newest (design §3.2).
+        AddOwnPane("players", "#STR_OZ_VPP_PAGE_PLAYERS", "");
         AddOwnPane("raw",     "#STR_OZ_VPP_PAGE_FILES",   "RawHint");
+        m_PlrFindBox = EditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("PlrFind"));
 
         if (!m_Ears)
         {
@@ -705,8 +728,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             Ask(OZ_AdminSect.NEWS, OZ_NewsOp.VOICES, "{}");
         if (id == "players")
         {
-            m_PlrArmed = false;
-            Ask(OZ_AdminSect.PLAYERS, OZ_PlayerOp.HERE, "{}");
+            m_PlrWantWipe = false;
+            PlrAskList();
+            if (m_PlrPick != "")
+                PlrPick(m_PlrPick);
+            else
+                PlrPaintCard();
         }
     }
 
@@ -919,6 +946,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // that waited too long is closed, and the status bar and the journal follow it.
     void Tick()
     {
+        // The open page's own frame work: the search follows typing.
+        if (m_Shown == "players")
+            PlrFollowFind();
+
         OZ_VppJournal.Expire();
         int rev = OZ_VppJournal.Revision();
         if (rev == m_JournalSeen)
@@ -1232,7 +1263,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         {
             string wuid = action.Substring(5, action.Length() - 5);
             Ask(OZ_AdminSect.PLAYERS, OZ_PlayerOp.WIPE + ":" + wuid, "{}");
-            Hint("wiping...");
+            Hint("#STR_OZ_VPP_PLR_WIPING");
             return;
         }
 
@@ -1713,32 +1744,37 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         }
     }
 
-    // Відповідь розділу PLAYERS: хто в Зоні, чий це файл, і сам пермадес.
+    // ---------------------------------------------------------- Ядро › Гравці
+
+    // Відповідь розділу PLAYERS: хто в Зоні, чий це персонаж, і сам пермадес.
     protected void OnPlayerAnswer(string op, bool ok, string json, string error)
     {
         bool wipeOp = op.IndexOf(OZ_PlayerOp.WIPE + ":") == 0;
         bool peekOp = op.IndexOf(OZ_PlayerOp.PEEK + ":") == 0;
 
-        // КУРОК ГАСИМО НЕЗАЛЕЖНО ВІД ТОГО, ЩО ЗАРАЗ НА ЕКРАНІ: озброєна
-        // кнопка, яка пережила відповідь, вистрелила б з наступного
-        // натискання й без жодного попередження.
-        if (wipeOp)
-            m_PlrArmed = false;
-
         // ПІДКАЗКУ ПИШЕ ЛИШЕ ВІДКРИТА ПАНЕЛЬ (R-W4.5).
         //
         // OZ_ClientState.AdminWatch() -- розголос: цю саму відповідь чує й
-        // панель фракцій, у якої кнопка WIPE теж є, а Hint() пише в рядок
-        // ПОТОЧНОЇ вкладки. Без цієї перевірки останній записувач затирав би
-        // першого, і адмін читав би чужу відповідь у своїй панелі.
+        // панель фракцій, у якої кнопка WIPE теж є. A failure needs no line here:
+        // the journal writes every failed answer by itself (OZ_VppJournal.Answered).
         bool mine = CurrentPane() == "players";
+
+        if (peekOp)
+        {
+            // The answer of a peek names no player; its op does. An answer for a
+            // player the card no longer shows is old news.
+            int cut = OZ_PlayerOp.PEEK.Length() + 1;
+            string peekUid = op.Substring(cut, op.Length() - cut);
+            if (peekUid != m_PlrPick)
+                return;
+            PlrTakePeek(ok, json);
+            return;
+        }
 
         if (!ok)
         {
-            if (peekOp)
-                m_PlrArmed = false;
-            if (mine)
-                Hint(Words(error));
+            if (wipeOp)
+                m_PlrWantWipe = false;
             return;
         }
 
@@ -1750,80 +1786,299 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             OZ_PlayersHere h = new OZ_PlayersHere();
             string herr;
             if (JsonFileLoader<OZ_PlayersHere>.LoadData(json, h, herr) && h && h.Uids)
-                RebuildPlayerList(h);
-            return;
-        }
-
-        if (peekOp)
-        {
-            OZ_PlayerPeeked p = new OZ_PlayerPeeked();
-            string perr;
-            if (!JsonFileLoader<OZ_PlayerPeeked>.LoadData(json, p, perr) || !p)
-            {
-                m_PlrArmed = false;
-                if (mine)
-                    Hint("peek: unreadable answer");
-                return;
-            }
-
-            // ФАЙЛА НЕМАЄ -- КУРОК НЕ ЗВОДИТЬСЯ ВЗАГАЛІ. Це і захист від
-            // одруківки в сімнадцяти цифрах, і єдине місце, де ті сімнадцять
-            // цифр бачить людина.
-            if (!p.Found)
-            {
-                m_PlrArmed = false;
-                if (mine)
-                    Hint("no such character on this server");
-                return;
-            }
-
-            // ЗНІМАЄМО ВСЕ ВІДРАЗУ, а вже тоді складаємо рядок: складання
-            // рядка -- це виділення пам'яті, а конверт розібрав серіалізатор
-            // (шапка OZ_ConfigBase).
-            string pname = p.Name;
-            int    pgen  = p.Gen;
-
-            if (mine)
-            {
-                string ask = Widget.TranslateString("#STR_OZ_VPP_WIPE_ASK") + " " + pname + " (gen " + pgen.ToString() + ")";
-                Confirm(ask, "#STR_OZ_VPP_WIPE_YES", "wipe:" + m_PlrUid);
-            }
+                PlrTake(h);
             return;
         }
 
         if (wipeOp)
         {
             if (mine)
-                Hint("wiped: the old life is frozen, a new character starts here");
-            Ask(OZ_AdminSect.PLAYERS, OZ_PlayerOp.HERE, "{}");
+                Hint("#STR_OZ_VPP_PLR_WIPED");
+            PlrAskList();
+
+            // The card of the wiped player shows the new generation.
+            int wcut = OZ_PlayerOp.WIPE.Length() + 1;
+            string wiped = op.Substring(wcut, op.Length() - wcut);
+            if (wiped == m_PlrPick)
+                PlrPick(wiped);
             return;
         }
     }
 
-    // Список присутніх: ім'я й Steam64 в одному рядку -- інакше клік по рядку
-    // не сказав би адміну, чий саме uid поїхав у поле.
-    protected void RebuildPlayerList(OZ_PlayersHere h)
+    protected void PlrAskList()
+    {
+        Ask(OZ_AdminSect.PLAYERS, OZ_PlayerOp.HERE, "{}");
+    }
+
+    // The answer's arrays into the page's own, before the list is built (the core's
+    // OZ_ConfigBase header): names, Steam IDs and the server's slot count.
+    protected void PlrTake(OZ_PlayersHere h)
+    {
+        int max = h.Max;
+        m_PlrNames.Clear();
+        m_PlrUids.Clear();
+        for (int i = 0; i < h.Uids.Count(); i++)
+        {
+            string uid = h.Uids[i];
+            string nm = "";
+            if (h.Names && i < h.Names.Count())
+                nm = h.Names[i];
+            m_PlrUids.Insert(uid);
+            m_PlrNames.Insert(nm);
+        }
+        m_PlrMax = max;
+
+        PlrRebuild();
+        PlrPaintCard();
+    }
+
+    // What the peek found: the character's name and generation, or that the server
+    // holds no such character. A wipe pressed before the peek came back asks now.
+    protected void PlrTakePeek(bool ok, string json)
+    {
+        m_PlrPeeked = true;
+        m_PlrFound = false;
+        m_PlrCharName = "";
+        m_PlrCharGen = 0;
+
+        if (ok)
+        {
+            // Script-made root: Found, Name and Gen keep their initialisers when the
+            // answer lacks them.
+            OZ_PlayerPeeked p = new OZ_PlayerPeeked();
+            string perr;
+            if (JsonFileLoader<OZ_PlayerPeeked>.LoadData(json, p, perr) && p)
+            {
+                bool found = p.Found;
+                string pname = p.Name;
+                int pgen = p.Gen;
+                m_PlrFound = found;
+                m_PlrCharName = pname;
+                m_PlrCharGen = pgen;
+            }
+        }
+
+        PlrPaintCard();
+
+        if (m_PlrWantWipe)
+        {
+            m_PlrWantWipe = false;
+            PlrAskWipe();
+        }
+    }
+
+    // The card follows this player: his peek is asked again (a read, not journaled).
+    protected void PlrPick(string uid)
+    {
+        if (uid == "")
+            return;
+
+        m_PlrPick = uid;
+        m_PlrPeeked = false;
+        m_PlrFound = false;
+        m_PlrCharName = "";
+        m_PlrCharGen = 0;
+        m_PlrWantWipe = false;
+
+        PlrMarkRows();
+        PlrPaintCard();
+        Ask(OZ_AdminSect.PLAYERS, OZ_PlayerOp.PEEK + ":" + uid, "{}");
+    }
+
+    protected string PlrFindText()
+    {
+        if (!m_PlrFindBox)
+            return "";
+        return m_PlrFindBox.GetText().Trim();
+    }
+
+    // A Steam64: seventeen digits and nothing else.
+    protected bool PlrIsSteamId(string s)
+    {
+        if (s.Length() != 17)
+            return false;
+        for (int i = 0; i < 17; i++)
+        {
+            if ("0123456789".IndexOf(s.Substring(i, 1)) == -1)
+                return false;
+        }
+        return true;
+    }
+
+    protected bool PlrMatches(string name, string uid, string low)
+    {
+        string n = name;
+        n.ToLower();
+        bool hit = false;
+        if (n.IndexOf(low) != -1)
+            hit = true;
+        if (uid.IndexOf(low) != -1)
+            hit = true;
+        return hit;
+    }
+
+    // Every frame on this page (Tick): the list follows what is typed, and seventeen
+    // digits pick that Steam ID at once, in the game or not.
+    protected void PlrFollowFind()
+    {
+        string find = PlrFindText();
+        if (find == m_PlrFindSeen)
+            return;
+        m_PlrFindSeen = find;
+        PlrRebuild();
+        if (find != m_PlrPick && PlrIsSteamId(find))
+            PlrPick(find);
+    }
+
+    // The list: the players the search keeps, name and Steam ID; a Steam ID typed whole
+    // that is not in the game gets a row of its own on top.
+    protected void PlrRebuild()
     {
         TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("PlrList"));
         if (!lb)
             return;
 
+        string find = PlrFindText();
+        string low = find;
+        low.ToLower();
+        bool away = PlrIsSteamId(find) && m_PlrUids.Find(find) == -1;
+
         m_Repaint = true;
-
         lb.ClearItems();
-        m_PlrUids.Clear();
+        m_PlrRowUid.Clear();
 
-        for (int i = 0; i < h.Uids.Count(); i++)
+        if (away)
         {
-            string nm = h.Uids[i];
-            if (h.Names && i < h.Names.Count() && h.Names[i] != "")
-                nm = h.Names[i];
-
-            lb.AddItem(nm + "   " + h.Uids[i], NULL, 0);
-            m_PlrUids.Insert(h.Uids[i]);
+            string awayWord = OvTr("#STR_OZ_VPP_PLR_OFFLINE");
+            int arow = lb.AddItem(awayWord, NULL, 0);
+            lb.SetItem(arow, find, NULL, 1);
+            m_PlrRowUid.Insert(find);
         }
 
+        for (int i = 0; i < m_PlrUids.Count(); i++)
+        {
+            string uid = m_PlrUids[i];
+            string nm = m_PlrNames[i];
+            if (low != "" && !PlrMatches(nm, uid, low))
+                continue;
+            string shown = nm;
+            if (shown == "")
+                shown = uid;
+            int row = lb.AddItem(shown, NULL, 0);
+            lb.SetItem(row, uid, NULL, 1);
+            m_PlrRowUid.Insert(uid);
+        }
         m_Repaint = false;
+
+        PlrMarkRows();
+        PlrPaintCount();
+    }
+
+    // A NoScrollBar list draws no highlight of its own (dayz-modding gui-layouts.md):
+    // the picked row is the accent colour.
+    protected void PlrMarkRows()
+    {
+        TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("PlrList"));
+        if (!lb)
+            return;
+
+        int ink = ARGBF(1, 0.88, 0.875, 0.855);
+        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        int accent = ARGBF(1, 0.91, 0.47, 0.17);
+        for (int r = 0; r < m_PlrRowUid.Count(); r++)
+        {
+            int c0 = ink;
+            int c1 = muted;
+            if (m_PlrRowUid[r] == m_PlrPick)
+            {
+                c0 = accent;
+                c1 = accent;
+            }
+            lb.SetItemColor(r, 0, c0);
+            lb.SetItemColor(r, 1, c1);
+        }
+    }
+
+    protected void PlrPaintCount()
+    {
+        string head = OvTr("#STR_OZ_VPP_PLR_ONLINE");
+        string line = head + " " + m_PlrUids.Count().ToString();
+        if (m_PlrMax > 0)
+        {
+            string of = OvTr("#STR_OZ_VPP_PLR_OF");
+            line = line + " " + of;
+            line = line + " " + m_PlrMax.ToString();
+        }
+        OvText("PlrCount", line, ARGBF(1, 0.627, 0.624, 0.6));
+    }
+
+    // The card: who, whether he is in the game, and the character the server holds.
+    protected void PlrPaintCard()
+    {
+        int ink = ARGBF(1, 0.88, 0.875, 0.855);
+        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        int okInk = ARGBF(1, 0.4, 0.78, 0.36);
+        int badInk = ARGBF(1, 0.88, 0.32, 0.29);
+
+        if (m_PlrPick == "")
+        {
+            OvText("PlrName", "#STR_OZ_VPP_PLR_NOBODY", muted);
+            OvText("PlrUidShown", "", muted);
+            OvText("PlrState", "", muted);
+            OvText("PlrCharName", "-", muted);
+            OvText("PlrGen", "-", muted);
+            OvText("PlrSteam", "-", muted);
+            return;
+        }
+
+        int at = m_PlrUids.Find(m_PlrPick);
+        string shown = m_PlrPick;
+        if (at != -1 && m_PlrNames[at] != "")
+            shown = m_PlrNames[at];
+        else if (m_PlrFound && m_PlrCharName != "")
+            shown = m_PlrCharName;
+        OvText("PlrName", shown, ink);
+        OvText("PlrUidShown", m_PlrPick, muted);
+        if (at != -1)
+            OvText("PlrState", "#STR_OZ_VPP_PLR_ONLINE_STATE", okInk);
+        else
+            OvText("PlrState", "#STR_OZ_VPP_PLR_OFFLINE", muted);
+        OvText("PlrSteam", m_PlrPick, ink);
+
+        if (!m_PlrPeeked)
+        {
+            OvText("PlrCharName", "#STR_OZ_VPP_PLR_ASKING", muted);
+            OvText("PlrGen", "-", muted);
+            return;
+        }
+        if (!m_PlrFound)
+        {
+            OvText("PlrCharName", "#STR_OZ_VPP_PLR_NONE", badInk);
+            OvText("PlrGen", "-", muted);
+            return;
+        }
+        OvText("PlrCharName", m_PlrCharName, ink);
+        OvText("PlrGen", m_PlrCharGen.ToString(), ink);
+    }
+
+    // The question on the confirm strip names the character the peek found; "yes"
+    // sends the wipe (OnConfirmed "wipe:").
+    protected void PlrAskWipe()
+    {
+        if (!m_PlrFound)
+        {
+            Hint("#STR_OZ_VPP_PLR_NO_CHAR");
+            return;
+        }
+
+        string ask1 = OvTr("#STR_OZ_VPP_PLR_WIPE_ASK1");
+        string genWord = OvTr("#STR_OZ_VPP_PLR_GEN_WORD");
+        string ask2 = OvTr("#STR_OZ_VPP_PLR_WIPE_ASK2");
+        string ask = ask1 + " " + m_PlrCharName;
+        ask = ask + " (" + genWord;
+        ask = ask + " " + m_PlrCharGen.ToString();
+        ask = ask + ") " + ask2;
+        Confirm(ask, "#STR_OZ_VPP_WIPE_YES", "wipe:" + m_PlrPick);
     }
 
     // Помилка -- або ключ таблиці рядків, або слова моста. Міст відмовляє
@@ -2097,16 +2352,15 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return true;
         }
 
-        // Рядок присутнього КЛАДЕ СЕБЕ В ПОЛЕ -- те саме, що робить рядок
-        // списку спавнів. Курок при цьому гасне: підтвердженням для одного
-        // не може стати натискання, зроблене для іншого.
+        // A player's row opens his card; the card asks the server for his character.
+        // A question already on the confirm strip was about someone else: it goes.
         if (nm == "PlrList")
         {
-            if (row >= 0 && row < m_PlrUids.Count())
+            if (row >= 0 && row < m_PlrRowUid.Count())
             {
-                m_PlrArmed = false;
-                SetEdit("PlrUid", m_PlrUids[row]);
-                Hint("player " + m_PlrUids[row] + " picked");
+                if (m_ConfirmAction.IndexOf("wipe:") == 0)
+                    CloseConfirm();
+                PlrPick(m_PlrRowUid[row]);
             }
             return true;
         }
@@ -2225,33 +2479,31 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return true;
         }
 
-        // ПЕРМАДЕС -- у два натискання, і перше з них НАЗИВАЄ ЛЮДИНУ.
-        //
-        // Поле сильніше за вибір у списку (та сама ідіома, що й PickedSlug у
-        // панелі спавнів): у списку лише присутні, а стерти треба вміти й
-        // відсутнього. Клік по рядку кладе його uid у це саме поле.
+        if (nm == "BtnPlrRefresh")
+        {
+            PlrAskList();
+            if (m_PlrPick != "")
+                PlrPick(m_PlrPick);
+            return true;
+        }
+
+        // ПЕРМАДЕС НАЗИВАЄ ЛЮДИНУ: the question on the confirm strip names the
+        // character the peek found. A wipe pressed before the peek came back waits
+        // for it (PlrTakePeek) and asks it once more, in case the first was lost.
         if (nm == "BtnPlrWipe")
         {
-            // Trim() ПОВЕРТАЄ рядок, а не чистить на місці (TrimInPlace --
-            // окремий метод): пробіл із країв поля інакше зробив би з
-            // сімнадцяти цифр вісімнадцять символів, і ядро відмовило б
-            // «нема такого» на цілком правильний Steam64.
-            string wuid = GetEdit("PlrUid").Trim();
-
-            if (wuid == "")
+            if (m_PlrPick == "")
             {
-                Hint("type or pick a Steam64 first");
+                Hint("#STR_OZ_VPP_PLR_PICK_FIRST");
                 return true;
             }
-
-            // Курок зводить ЛИШЕ відповідь player_peek: цілі без файла гравця
-            // не буває (ядро відмовить), а сімнадцять цифр з одруківкою
-            // виглядають рівно як правильні.
-            // The peek's answer names the person and asks on the confirm strip
-            // (design §3.4); the strip's "yes" sends the wipe (OnConfirmed).
-            m_PlrUid = wuid;
-            Ask(OZ_AdminSect.PLAYERS, OZ_PlayerOp.PEEK + ":" + wuid, "{}");
-            Hint("checking " + wuid + "...");
+            if (m_PlrPeeked)
+            {
+                PlrAskWipe();
+                return true;
+            }
+            m_PlrWantWipe = true;
+            Ask(OZ_AdminSect.PLAYERS, OZ_PlayerOp.PEEK + ":" + m_PlrPick, "{}");
             return true;
         }
 
