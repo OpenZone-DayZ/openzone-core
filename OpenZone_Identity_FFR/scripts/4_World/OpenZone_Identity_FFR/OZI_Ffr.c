@@ -254,4 +254,29 @@ class OZI_FfrIdentity : OZ_IdentityService
     {
         return m_Set.AnyMemberSpends && GroupOf(uid) != "";
     }
+
+    // What this source can say (the core's contract, VPP rework 2026-11-12):
+    // FFR has no leaders and no posts; with AnyMemberSpends every member of a
+    // group answers as its leader.
+    override string Source()
+    {
+        return "OpenZone Identity FFR";
+    }
+
+    override bool HasLeaders()
+    {
+        return m_Set.AnyMemberSpends;
+    }
+
+    override bool HasPosts()
+    {
+        return false;
+    }
+
+    override string LeaderMeans()
+    {
+        if (m_Set.AnyMemberSpends)
+            return "any member of an FFR group";
+        return "";
+    }
 }

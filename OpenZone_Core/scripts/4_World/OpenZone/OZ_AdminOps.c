@@ -88,6 +88,17 @@ class OZ_AdminCfgList
     }
 }
 
+// The answer of `identity` (VPP rework 2026-11-12, design §5.5): who gives the
+// factions and what that source can say.
+class OZ_AdminIdentity
+{
+    bool   Present;
+    string Source;
+    bool   HasLeaders;
+    bool   HasPosts;
+    string LeaderMeans;
+}
+
 class OZ_ConfigSection : OZ_AdminSection
 {
     override string Handle(string op, string json, PlayerIdentity sender, out bool ok, out string error)
@@ -117,11 +128,37 @@ class OZ_ConfigSection : OZ_AdminSection
         // саме Settings, і адмін шукатиме її поруч із RAW JSON.
         if (op == "mirror_list")
             return OZ_MirrorOps.List(ok, error);
+
+        // Who gives the factions and what it can say (design §5.5): the pages
+        // that decide who may do what dim the fields its source does not know.
+        if (op == "identity")
+            return IdentityInfo(ok, error);
         if (op.IndexOf("mirror_set:") == 0)
             return OZ_MirrorOps.Set(op.Substring(11, op.Length() - 11), op, sender, ok, error);
 
         error = "STR_OZ_ERR_UNKNOWN_OP";
         return "";
+    }
+
+    private string IdentityInfo(out bool ok, out string error)
+    {
+        OZ_IdentityService svc = OZ_Identity.Get();
+        OZ_AdminIdentity info = new OZ_AdminIdentity();
+        info.Present = OZ_Identity.Present();
+        info.Source = svc.Source();
+        info.HasLeaders = svc.HasLeaders();
+        info.HasPosts = svc.HasPosts();
+        info.LeaderMeans = svc.LeaderMeans();
+
+        string outJson;
+        string err;
+        if (!JsonFileLoader<OZ_AdminIdentity>.MakeData(info, outJson, err, false))
+        {
+            error = "STR_OZ_ERR_INTERNAL";
+            return "";
+        }
+        ok = true;
+        return outJson;
     }
 
     private string CfgList(out bool ok, out string error)

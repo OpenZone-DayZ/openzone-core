@@ -146,6 +146,37 @@ class OZ_IdentityService
         return false;
     }
 
+    // ------------------------------------------------- what the source can say
+    //
+    // VPP rework 2026-11-12 (design §5.5): a page that decides who may do what
+    // (research's pool) asks the source of factions what it has and dims what
+    // it does not know. The core's empty service has nothing.
+
+    // The source's name for an admin: "OpenZone Factions", "OpenZone Identity
+    // FFR". Empty: no source of factions, the core alone.
+    string Source()
+    {
+        return "";
+    }
+
+    // Does the source know leaders at all, and posts?
+    bool HasLeaders()
+    {
+        return false;
+    }
+
+    bool HasPosts()
+    {
+        return false;
+    }
+
+    // What IsLeader answers here when it is not "the faction's leader", in
+    // words for an admin. Empty: the leader.
+    string LeaderMeans()
+    {
+        return "";
+    }
+
     // Людське ім'я звання, а не id. Порожньо -- показувати нічого.
     string RankName(string uid)
     {
