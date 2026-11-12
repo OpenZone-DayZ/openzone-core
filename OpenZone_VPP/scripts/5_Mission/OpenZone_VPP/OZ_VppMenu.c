@@ -101,8 +101,31 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
     // ------------------------------------------------- точки розширення
     protected ref array<string> m_TabIds;
-    protected ref array<Widget> m_TabBtns;
     protected ref map<string, Widget> m_Panes;
+
+    // The rail (VPP rework 2026-11-12, design §2.1): modules, each with its pages. A
+    // page is a pane of m_TabIds/m_Panes; m_PageModule and m_PageLabel run beside
+    // m_TabIds. A glue's pane from before the rail is a module with one page.
+    protected ref array<string> m_PageModule;
+    protected ref array<string> m_PageLabel;
+    protected ref array<string> m_ModIds;
+    protected ref array<string> m_ModLabels;
+    protected ref array<int>    m_ModOpen;
+
+    // The rows on screen now, made again by LayoutRail: "mod" or "page", and its key.
+    protected ref array<Widget> m_RailRows;
+    protected ref array<string> m_RailKind;
+    protected ref array<string> m_RailKey;
+    protected string m_Shown = "";
+    protected bool   m_Sized = false;
+
+    // The confirm strip (design §3.4): the action its "yes" sends to OnConfirmed.
+    protected string m_ConfirmAction = "";
+
+    // The journal as the status bar last showed it, and the filter of Ядро › Огляд.
+    protected int  m_JournalSeen = -1;
+    protected bool m_JournalErrors = false;
+    protected bool m_RepaintQueued = false;
 
     // Ім'я віджета підказки для кожної панелі -- називає сама панель.
     protected ref map<string, string> m_PaneHints;
@@ -186,7 +209,14 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         m_closeButton = ButtonWidget.Cast(M_SUB_WIDGET.FindAnyWidget("BtnVppClose"));
 
         m_TabIds  = new array<string>();
-        m_TabBtns = new array<Widget>();
+        m_PageModule = new array<string>();
+        m_PageLabel  = new array<string>();
+        m_ModIds     = new array<string>();
+        m_ModLabels  = new array<string>();
+        m_ModOpen    = new array<int>();
+        m_RailRows   = new array<Widget>();
+        m_RailKind   = new array<string>();
+        m_RailKey    = new array<string>();
         m_Panes   = new map<string, Widget>();
         m_PaneHints = new map<string, string>();
         m_CfgNames  = new array<string>();
@@ -204,16 +234,18 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         m_MirrorNotes = new array<string>();
         m_MirrorBtns  = new array<Widget>();
 
-        AddOwnPane("spawns", "SPAWNS",   "SpawnHint");
-        AddOwnPane("raw",    "RAW JSON", "RawHint");
-        AddOwnPane("news",   "NEWS",     "NewsHint");
+        // Ядро's pages (VPP rework 2026-11-12): the journal first, the config files last.
+        AddOwnPane("overview", "#STR_OZ_VPP_PAGE_OVERVIEW", "JrHint");
+        AddOwnPane("spawns",   "#STR_OZ_VPP_PAGE_SPAWNS",   "SpawnHint");
+        AddOwnPane("news",     "#STR_OZ_VPP_PAGE_NEWS",     "NewsHint");
 
         // PLAYERS -- ЯДРОВА, і саме тому вона тут (дизайн 2026-09-08).
         // Пермадес переїхав у ядро службою; без цієї панелі перенесення було
         // б наполовину -- операція є, а натиснути її нічим. Кнопка WIPE
         // лишається й у панелі фракцій: логіка одна, кнопки дві, і панель
         // фракцій уже водить ядрові операції спавнів зі свого ростера.
-        AddOwnPane("players", "PLAYERS", "PlrHint");
+        AddOwnPane("players", "#STR_OZ_VPP_PAGE_PLAYERS", "PlrHint");
+        AddOwnPane("raw",     "#STR_OZ_VPP_PAGE_FILES",   "RawHint");
 
         if (!m_Ears)
         {
@@ -234,6 +266,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         {
             OZ_ClientState.AdminWatch().Remove(this.OnAdminResponse);
         }
+
+        GetGame().GetCallQueue(CALL_CATEGORY_GUI).Remove(this.RepaintShown);
 
         if (M_SUB_WIDGET)
             M_SUB_WIDGET.Unlink();
@@ -284,21 +318,6 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // змінюєш токен -- зміни й цю сталу.
     static const float TAB_GAP = 6;
 
-    // Колір напису вкладки бере ПАЛІТРА ЯДРА (OZ_Palette), а не літерал тут.
-    // Та сама пара стояла й у OZ_PdaMenu.c, і в панелі фракцій: одне число в
-    // трьох репозиторіях розходиться мовчки, бо ніщо не звіряє його з
-    // ui/tokens.json.
-
-    // Розмір шаблону вкладки в ЕКРАННИХ ПІКСЕЛЯХ (не в одиницях: GetSize на
-    // віджеті точного розміру відповідає пікселями, зміряно 2026-09-06 --
-    // 222.222 px на 3840x1600 і 150 px на 1920x1080 з тих самих оголошених
-    // 150 одиниць; довший розбір -- у коментарі LayoutTabs). Знятий ОДИН РАЗ
-    // із першої ж створеної кнопки -- до того, як до неї хоч раз доторкнувся
-    // ShrinkTab (RegisterPane нижче). GetSize кнопки ПІСЛЯ SetSize, яким
-    // ShrinkTab її стискає, -- поведінка, якої рушій не документує і ніхто не
-    // міряв, тому LayoutTabs більше не читає розмір шаблону з m_TabBtns[0]
-    // живцем: лише з цих двох полів, які раз записані вже не міняються.
-    protected float m_TabW = 0;
 
     // ------------------------------------------------- вікно як у VPP
     //
@@ -314,18 +333,22 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // місце першого показу частками батька. MIN_W/MIN_H -- найменше вікно,
     // в одиницях розмітки: смуга з кількома вкладками і ще видно панель.
     static const float PANE_Y = 96;
-    static const float WIN_X  = 0.24;
-    static const float WIN_Y  = 0.14;
-    static const float MIN_W  = 700;
-    static const float MIN_H  = 460;
+    static const float WIN_X  = 0.14;
+    static const float WIN_Y  = 0.08;
+    static const float MIN_W  = 960;
+    static const float MIN_H  = 600;
 
-    // Перший вдалий прохід LayoutTabs ще не стався (сторож нижче): до нього
-    // GetScreenSize повертає 0 і для смуги, і для щойно створеної кнопки, а
-    // ShowSubMenu приходить одразу після OnCreate -- раніше першого кадру
-    // рушія. LayoutTabs виставляє прапорець замість того, щоб здатися
-    // назавжди; MissionGameplay.OnUpdate внизу файлу пробує ще раз щокадру,
-    // поки вікно відкрите, аж доки прохід не вдасться і сам його не згасить.
-    protected bool m_TabsPending = false;
+    // The window of the rework (ui/tokens.json group vpp, mirrored like the rest): the
+    // title band, the rail, the status bar, a rail row, the confirm strip, the size the
+    // window opens at. Layout units; times UnitScale() for pixels.
+    static const float TOP     = 48;
+    static const float RAIL    = 220;
+    static const float STATUS  = 32;
+    static const float ROW     = 32;
+    static const float CONFIRM = 48;
+    static const float DEF_W   = 1280;
+    static const float DEF_H   = 760;
+
 
     // Своя панель -- окремою розміткою, точно як у склейок: створити під
     // коренем і зареєструвати. Ім'я файлу росте з того самого id, тож
@@ -341,237 +364,297 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return;
         }
 
-        RegisterPane(id, label, pane, hintName);
+        RegisterPage("core", "#STR_OZ_VPP_MOD_CORE", id, label, pane, hintName);
     }
 
-    // Смуга вкладок -- порожня рамка з розмітки вікна. Якщо її раптом немає
-    // (старий .layout поруч із новим скриптом), вкладки лишаються дітьми
-    // кореня, як було до 2026-09-05: гірше на вигляд, але не порожньо.
-    protected Widget TabStrip()
+    // Screen pixels per layout unit: the engine's own idiom, screen height over 1080
+    // (tabberui.c:48). Exact-size widgets read and take pixels (measured 2026-09-06).
+    protected float UnitScale()
     {
-        if (!M_SUB_WIDGET)
-            return null;
-
-        Widget strip = M_SUB_WIDGET.FindAnyWidget("TabStrip");
-        if (strip)
-            return strip;
-
-        return M_SUB_WIDGET;
+        int scrW, scrH;
+        GetScreenSize(scrW, scrH);
+        float h = scrH;
+        if (h <= 0)
+            return 1;
+        return h / 1080.0;
     }
 
-    // Обидві ранні здачі тепер КАЖУТЬ ПРО СЕБЕ (лог) і не лишають сироти:
-    // до 2026-09-05 обидві мовчали, а підказку панелі записували ще ДО
-    // перевірки кнопки -- отже запис у m_PaneHints без пари в m_TabIds/
-    // m_TabBtns/m_Panes лишався, якщо шаблон вкладки не завантажився.
+    // A glue's pane from before the rail: a module of its own with one page. The glues
+    // keep calling this until they move onto pages of their module (design §2.2).
     protected void RegisterPane(string id, string label, Widget pane, string hintName = "")
+    {
+        RegisterPage(id, label, id, label, pane, hintName);
+    }
+
+    // A page of a module: the rail gains the module the first time and the page under it.
+    // The pane is repainted in the window's colours and moved into the content area.
+    protected void RegisterPage(string module, string moduleLabel, string id, string label, Widget pane, string hintName = "")
     {
         if (!pane)
         {
-            OZ_Log.Error("vpp pane: no widget to register: " + id);
+            OZ_Log.Error("vpp page: no widget to register: " + id);
             return;
         }
-
-        Widget btn = GetGame().GetWorkspace().CreateWidgets("OpenZone_VPP/gui/layouts/oz_vpp_tab.layout", TabStrip());
-        if (!btn)
+        if (m_TabIds.Find(id) != -1)
         {
-            OZ_Log.Error("vpp tab: layout failed to load: " + id);
+            OZ_Log.Error("vpp page: registered twice: " + id);
             return;
         }
 
-        // Розмір шаблону -- з ПЕРШОЇ кнопки, яка тут коли-небудь з'явилась,
-        // до того, як LayoutTabs нижче встигне її стиснути (коментар біля
-        // m_TabW вище).
-        // Висота нам не потрібна -- смуга її задає сама, -- але GetSize
-        // хоче обидва out-параметри, тож приймаємо її в локальну.
-        float tabH;
-        if (m_TabW <= 0)
-            btn.GetSize(m_TabW, tabH);
-
-        m_PaneHints.Set(id, hintName);
-
-        btn.SetName("tab:" + id);
-
-        TextWidget t = TextWidget.Cast(btn.FindAnyWidget("OZ_VppTabText"));
-        if (t)
-            t.SetText(label);
+        if (m_ModIds.Find(module) == -1)
+        {
+            m_ModIds.Insert(module);
+            m_ModLabels.Insert(moduleLabel);
+            m_ModOpen.Insert(0);
+        }
 
         m_TabIds.Insert(id);
-        m_TabBtns.Insert(btn);
+        m_PageModule.Insert(module);
+        m_PageLabel.Insert(label);
         m_Panes.Set(id, pane);
+        m_PaneHints.Set(id, hintName);
 
-        // Вікно можна зробити меншим за панель (куток, ApplyWindowSize): те,
-        // що не влазить, ріжеться по краю панелі, а не малюється поверх гри,
-        // і обрізане кліків не ловить (зміряно 2026-11-09). Рамка й панель
-        // ріжуть дітей і самі (dayz-modding, gui-layouts §31); прапорець --
-        // для панелі склейки, чия розмітка скаже clipchildren 0.
+        // A window smaller than its page cuts the page at its edge (measured 2026-11-09).
         pane.SetFlags(WidgetFlags.CLIPCHILDREN);
-
-        LayoutTabs();
+        OZ_VppPaint.Repaint(pane);
+        PlacePane(pane);
+        LayoutRail();
     }
 
-    // Вкладки ділять смугу. Кімната -- ЕКРАННА ширина самої смуги, ширина
-    // вкладки -- зі знятого один раз шаблону (m_TabW вище), зазор --
-    // TAB_GAP; коли всі не влазять, ширина ділиться на всіх, і кнопка з
-    // дітьми вужчає (ShrinkTab).
-    //
-    // УСЕ, ЩО ЧИТАЄТЬСЯ З ВІДЖЕТА ТОЧНОГО РОЗМІРУ, -- ВЖЕ ПІКСЕЛІ, І GetSize
-    // ТЕЖ (зміряно 2026-09-06 на стенді). Смуга оголошена як 1000x28 одиниць,
-    // а GetSize і GetScreenSize повертають про неї ОДНЕ Й ТЕ САМЕ число --
-    // 1481.48 px; шаблон вкладки оголошений як 150 одиниць, а GetSize дає
-    // 222.222 px. SetPos теж бере пікселі: GetPos повертає рівно те, що
-    // подали, а GetScreenPos = екранний x батька плюс воно.
-    //
-    // Через це масштаб room/stripLw, який стояв тут до 2026-09-06, ЗАВЖДИ
-    // дорівнював одиниці, і TAB_GAP -- єдине число тут, яке справді в
-    // ОДИНИЦЯХ розмітки, бо дзеркалить vpp.tabGap, -- їхав на екран
-    // непомасштабованим: 6 px замість 6·s = 8.9 px, тобто крок вкладок
-    // виходив 228.2 замість 231.1 px на 3840x1600 (замір task-48a §5,
-    // пояснений тут). Ширину вкладки та помилка не чіпала: m_TabW уже в
-    // пікселях, множення на одиницю його не змінювало.
-    //
-    // Тому масштаб одиниць береться ІДІОМОЮ САМОГО РУШІЯ -- висота екрана
-    // на 1080 (tabberui.c:48 `m_ResolutionMultiplier = y / 1080`,
-    // inventorymenu.c:72, tutorialsmenu.c:15) -- і множить РІВНО TAB_GAP.
-    // Ділення пишеться через float явно: у Enforce `int / int` -- цілочисельне,
-    // і 1600/1080 дало б 1.
-    //
-    // Доти тут стояли п'ять піксельних літералів (160/8/20/52/40): на
-    // 3840x1600 вони стискали вкладку зі 150 одиниць до 103 і клали смугу на
-    // 35-й одиниці замість 52-ї, тобто вікно виглядало по-різному на різних
-    // екранах.
-    //
-    // РАННІЙ ВИХІД НА НУЛІ, А НЕ НА ВІД'ЄМНИХ, І НЕ НАЗАВЖДИ: до першого
-    // проходу розмітки GetScreenSize повертає 0 і для смуги, і для щойно
-    // створеної кнопки (зміряно, gui-layouts.md §24, "widget measured before
-    // its first layout pass"), а ShowSubMenu приходить одразу після OnCreate
-    // (коментар в OnCreate) -- тобто й виклик з OnMenuShow часто встигає
-    // раніше першого кадру рушія. Без цієї сторожі room == 0 робить want
-    // від'ємним, SetPos тягне вкладки вліво від нуля, а ShrinkTab кличеться
-    // з від'ємною шириною. Замість остаточної здачі гарда виставляє
-    // m_TabsPending, і MissionGameplay.OnUpdate (сторож у кінці файлу)
-    // пробує ще раз щокадру, поки вікно відкрите, аж доки прохід не вдасться;
-    // виклик з OnMenuShow лишається -- він просто рідко буває першим, що
-    // спрацював.
-    protected void LayoutTabs()
+    // The content area: right of the rail, under the title band, over the status bar.
+    protected void PlacePane(Widget pane)
     {
-        int n = m_TabBtns.Count();
-        Widget strip = TabStrip();
-        if (n == 0 || !strip)
-            return;
-
-        float room, striph;
-        strip.GetScreenSize(room, striph);
-
-        // Ту саму смугу читаємо ДРУГИМ способом -- це доказ, на якому стоїть
-        // уся арифметика нижче, і він мусить лишатись видимим у лозі.
-        float stripLw, stripLh;
-        strip.GetSize(stripLw, stripLh);
-
-        int scrW, scrH;
-        GetScreenSize(scrW, scrH);
-        float scrHf = scrH;
-
-        if (room <= 0 || m_TabW <= 0 || scrHf <= 0)
-        {
-            m_TabsPending = true;
-            return;
-        }
-
-        float s    = scrHf / 1080.0;
-        float gap  = TAB_GAP * s;
-        float want = m_TabW;
-        if (want * n + gap * (n - 1) > room)
-            want = (room - gap * (n - 1)) / n;
-
-        // ОДИН РЯДОК НА ПРОХІД -- арифметика смуги і те, що з неї вийшло.
-        //
-        // Він тут не для налагодження «поки що», а тому, що 2026-09-06 живий
-        // замір спіймав розбіжність, якої з самого коду не видно: крок вкладок
-        // мав бути 150·s + 6·s = 231.1 px при s = 1.4815 (3840x1600), а на
-        // екрані вийшов рівно 228 px. Розрізнити «SetPos бере пікселі» від
-        // «SetPos бере одиниці» здатні тільки два числа поруч -- ПОДАНЕ в
-        // SetPos і ПРОЧИТАНЕ назад із GetPos/GetScreenPos, -- а вгадувати
-        // рушій нам не можна. Саме цей рядок і показав, що room і stripLw
-        // рівні, тобто старий scale завжди був одиницею.
-        //
-        // КОРОТКО НЕ ЗАРАДИ КРАСИ: рядок скриптового лога рушій ріже на 255
-        // символах разом із префіксом (зміряно тут-таки -- перший варіант
-        // цього рядка обривався на третій вкладці).
-        string dbg = "vpp strip: room=" + room.ToString() + " lw=" + stripLw.ToString();
-        dbg += " s=" + s.ToString() + " tabW=" + m_TabW.ToString();
-        dbg += " want=" + want.ToString() + " gap=" + gap.ToString();
-
-        float spx, spy;
-        strip.GetScreenPos(spx, spy);
-        dbg += " x0=" + spx.ToString();
-
-        for (int i = 0; i < n; i++)
-        {
-            Widget b = m_TabBtns[i];
-            float at = i * (want + gap);
-            b.SetPos(at, 0);
-            float bw, bh;
-            b.GetScreenSize(bw, bh);
-            // В ОБИДВА БОКИ: вікно, яке стиснули, а потім розтягли (куток,
-            // розгортання), мусить повернути вкладкам ширину. want ніколи не
-            // більший за m_TabW, тож ширше за шаблон вкладка не стане.
-            if (Math.AbsFloat(bw - want) > 0.5)
-                ShrinkTab(b, want);
-
-            float lx, ly, sx, sy;
-            b.GetPos(lx, ly);
-            b.GetScreenPos(sx, sy);
-            dbg += " |" + i.ToString() + " " + at.ToString() + "=" + lx.ToString() + ">" + sx.ToString();
-        }
-
-        OZ_Log.Dbg(dbg);
-
-        m_TabsPending = false;
-    }
-
-    // Кнопка і всі її діти (рамка, тло, напис) вужчають -- або ширшають --
-    // на одне число: від'ємна дельта повертає вкладці ширину.
-    //
-    // ПІКСЕЛІ, НЕ ОДИНИЦІ: SetSize на віджеті точного розміру пише ЕКРАННІ
-    // пікселі (зміряно 2026-09-03, gui-layouts.md §24), тому ширина-ціль тут
-    // приходить уже в пікселях (LayoutTabs більше не ділить на scale), і
-    // дельта рахується від GetScreenSize, а не GetSize. З 2026-11-09 шлях
-    // спрацьовує не лише від сьомої вкладки, а й щоразу, як вікно стискають
-    // кутом чи повертають із розгорнутого.
-    private void ShrinkTab(Widget b, float width)
-    {
+        float s = UnitScale();
         float w, h;
-        b.GetScreenSize(w, h);
-        float d = w - width;
-        b.SetSize(width, h);
-        Widget c = b.GetChildren();
-        while (c)
+        M_SUB_WIDGET.GetSize(w, h);
+        if (w <= 0 || h <= 0)
         {
-            c.GetScreenSize(w, h);
-            c.SetSize(w - d, h);
-            c = c.GetSibling();
+            w = DEF_W * s;
+            h = DEF_H * s;
         }
+        pane.SetPos(RAIL * s + 1, TOP * s);
+        pane.SetSize(w - RAIL * s - 1, h - (TOP + STATUS) * s);
+    }
+
+    protected int PagesOf(string module)
+    {
+        int n = 0;
+        for (int i = 0; i < m_PageModule.Count(); i++)
+        {
+            if (m_PageModule[i] == module)
+                n++;
+        }
+        return n;
+    }
+
+    protected string FirstPageOf(string module)
+    {
+        for (int i = 0; i < m_PageModule.Count(); i++)
+        {
+            if (m_PageModule[i] == module)
+                return m_TabIds[i];
+        }
+        return "";
+    }
+
+    protected string ModuleOf(string page)
+    {
+        int i = m_TabIds.Find(page);
+        if (i < 0)
+            return "";
+        return m_PageModule[i];
+    }
+
+    protected string ModuleLabelOf(string page)
+    {
+        int m = m_ModIds.Find(ModuleOf(page));
+        if (m < 0)
+            return "OpenZone";
+        return m_ModLabels[m];
+    }
+
+    // The rail's rows, made again: few, and a module opening or closing moves the rest.
+    protected void LayoutRail()
+    {
+        Widget rail = M_SUB_WIDGET.FindAnyWidget("Rail");
+        if (!rail)
+            return;
+
+        for (int r = 0; r < m_RailRows.Count(); r++)
+        {
+            if (m_RailRows[r])
+                m_RailRows[r].Unlink();
+        }
+        m_RailRows.Clear();
+        m_RailKind.Clear();
+        m_RailKey.Clear();
+
+        float s = UnitScale();
+        float y = 8 * s;
+        for (int m = 0; m < m_ModIds.Count(); m++)
+        {
+            string mod = m_ModIds[m];
+            int pages = PagesOf(mod);
+            bool open = m_ModOpen[m] == 1;
+            y = AddRailRow(rail, "mod", mod, m_ModLabels[m], pages, open, y, s);
+            if (pages < 2 || !open)
+                continue;
+            for (int p = 0; p < m_TabIds.Count(); p++)
+            {
+                if (m_PageModule[p] == mod)
+                    y = AddRailRow(rail, "page", m_TabIds[p], m_PageLabel[p], 0, false, y, s);
+            }
+        }
+    }
+
+    protected float AddRailRow(Widget rail, string kind, string key, string label, int pages, bool open, float y, float s)
+    {
+        Widget row = GetGame().GetWorkspace().CreateWidgets("OpenZone_VPP/gui/layouts/oz_vpp_rail_row.layout", rail);
+        if (!row)
+        {
+            OZ_Log.Error("vpp rail: layout failed to load");
+            return y;
+        }
+
+        int n = m_RailRows.Count();
+        row.SetName("rail:" + n.ToString());
+        row.SetPos(0, y);
+        m_RailRows.Insert(row);
+        m_RailKind.Insert(kind);
+        m_RailKey.Insert(key);
+
+        // The open page; a module of one page is that page. A module row is lit while it
+        // holds the open page.
+        bool current = false;
+        bool holds = false;
+        if (kind == "page")
+            current = key == m_Shown;
+        else
+        {
+            holds = ModuleOf(m_Shown) == key;
+            if (pages < 2)
+                current = holds;
+        }
+
+        int text = ARGBF(1, 0.88, 0.875, 0.855);
+        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+
+        TextWidget t = TextWidget.Cast(row.FindAnyWidget("RailRowText"));
+        if (t)
+        {
+            t.SetText(label);
+            if (kind == "page")
+                t.SetPos(30 * s, 0);
+            if (current || holds)
+                t.SetColor(text);
+            else
+                t.SetColor(muted);
+        }
+
+        TextWidget mark = TextWidget.Cast(row.FindAnyWidget("RailRowMark"));
+        if (mark)
+        {
+            if (kind == "mod" && pages > 1 && open)
+                mark.SetText("-");
+            else if (kind == "mod" && pages > 1)
+                mark.SetText("+");
+            else
+                mark.SetText("");
+        }
+
+        Widget bar = row.FindAnyWidget("RailRowBar");
+        if (bar)
+            bar.Show(current);
+        Widget bg = row.FindAnyWidget("RailRowBg");
+        if (bg && current)
+            bg.SetColor(ARGBF(0.16, 0.91, 0.47, 0.17));
+
+        return y + ROW * s;
+    }
+
+    // A module row opens its pages and shows the first, or closes them when it holds
+    // the open page already; a page row shows its page.
+    protected void RailClick(int n)
+    {
+        if (n < 0 || n >= m_RailKind.Count())
+            return;
+
+        string kind = m_RailKind[n];
+        string key = m_RailKey[n];
+        if (kind == "page")
+        {
+            ShowPane(key);
+            return;
+        }
+
+        int m = m_ModIds.Find(key);
+        if (m < 0)
+            return;
+
+        bool holds = ModuleOf(m_Shown) == key;
+        if (PagesOf(key) > 1 && m_ModOpen[m] == 1 && holds)
+        {
+            m_ModOpen[m] = 0;
+            LayoutRail();
+            return;
+        }
+
+        m_ModOpen[m] = 1;
+        if (!holds)
+        {
+            ShowPane(FirstPageOf(key));
+            return;
+        }
+        LayoutRail();
     }
 
     protected void ShowPane(string id)
     {
+        if (!m_Panes.Contains(id))
+            return;
+
+        if (m_ConfirmAction != "")
+            CloseConfirm();
+
+        m_Shown = id;
         for (int i = 0; i < m_TabIds.Count(); i++)
         {
             Widget pane = m_Panes.Get(m_TabIds[i]);
             if (pane)
                 pane.Show(m_TabIds[i] == id);
-
-            TextWidget t = TextWidget.Cast(m_TabBtns[i].FindAnyWidget("OZ_VppTabText"));
-            if (t)
-            {
-                if (m_TabIds[i] == id)
-                    t.SetColor(OZ_Palette.ACCENT);
-                else
-                    t.SetColor(OZ_Palette.MUTED);
-            }
         }
 
+        int m = m_ModIds.Find(ModuleOf(id));
+        if (m != -1)
+            m_ModOpen[m] = 1;
+
+        PaintCrumb();
+        LayoutRail();
         OnPaneShown(id);
+        RepaintSoon();
+    }
+
+    // The title band names the open page: its module, and the page when it has several.
+    protected void PaintCrumb()
+    {
+        TextWidget t = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("VppCrumb"));
+        if (!t)
+            return;
+
+        int i = m_TabIds.Find(m_Shown);
+        if (i < 0)
+        {
+            t.SetText("");
+            return;
+        }
+
+        string mod = Widget.TranslateString(ModuleLabelOf(m_Shown));
+        if (PagesOf(m_PageModule[i]) < 2)
+        {
+            t.SetText(mod);
+            return;
+        }
+        t.SetText(mod + "  /  " + Widget.TranslateString(m_PageLabel[i]));
     }
 
     // Панель показано -- свіжі дані. Субмод КПК довантажує своє тут.
@@ -581,6 +664,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // ростер у розділу, якого без мода фракцій не існує.
     protected void OnPaneShown(string id)
     {
+        if (id == "overview")
+            RebuildJournal();
         if (id == "spawns")
             AskCfg("Spawns");
         if (id == "raw")
@@ -603,13 +688,13 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     {
         super.OnMenuShow();
 
-        // Прохід розмітки смуги ЗВІДСИ: не єдиний і не завжди вдалий --
-        // ShowSubMenu (тобто цей виклик) приходить одразу після OnCreate,
-        // часто раніше першого кадру рушія, тож GetScreenSize може й тут
-        // повернути 0 (коментар у LayoutTabs). Лишається як найраніша
-        // спроба; коли вона падає на нулях, m_TabsPending передає естафету
-        // MissionGameplay.OnUpdate.
-        LayoutTabs();
+        // The first show lays the window out at its default size: every size is written,
+        // none read back, so it holds even before the engine's first layout pass
+        // (ShowSubMenu comes right after OnCreate). Later shows keep the admin's size.
+        if (!m_Sized)
+            ApplyWindowSize(DEF_W * UnitScale(), DEF_H * UnitScale());
+        LayoutRail();
+        PaintStatus();
 
         Ask(OZ_AdminSect.CONFIG, "cfg_list", "{}");
 
@@ -619,7 +704,9 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         // @OpenZone_Factions_VPP вікно відкривалось ПОРОЖНІМ: жодна панель не
         // показана, CurrentPane() повертає порожній рядок, i всі
         // повідомлення -- включно з рядком помилки -- летіли в нікуди.
-        if (m_TabIds.Count() > 0)
+        if (m_Shown != "" && m_Panes.Contains(m_Shown))
+            ShowPane(m_Shown);
+        else if (m_TabIds.Count() > 0)
             ShowPane(m_TabIds[0]);
     }
 
@@ -680,46 +767,52 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         }
     }
 
-    // Новий розмір вікна в пікселях.
+    // The window's new size in pixels.
     //
-    // САМЕ НІЩО ЗА ВІКНОМ НЕ ЇДЕ: генератор розмітки розв'язує "fill" у
-    // ТОЧНІ розміри ще під час збирання (oz_vpp_admin.layout: VppBg 1000x620,
-    // TabStrip 1000x28), тож тло, рамку, шапку й смугу вкладок тягнемо
-    // звідси. Хрестик і куток прив'язані до правого краю -- їх веде рушій.
-    // Панелям -- ширина вікна і висота за вирахуванням шапки; смугу вкладок
-    // перекладаємо; склейкам кажемо OnWindowResized.
+    // NOTHING FOLLOWS THE WINDOW BY ITSELF: the layout generator resolves "fill" into
+    // exact sizes when it builds (oz_vpp_admin.layout), so the ground, the border, the
+    // title band, the rail and the status bar are sized from here. The close button,
+    // the grip, the status bar and the confirm strip are anchored; the engine moves
+    // them. Every page gets the content area; glues hear OnWindowResized.
     protected void ApplyWindowSize(float w, float h)
     {
-        int scrW, scrH;
-        GetScreenSize(scrW, scrH);
-        float s = scrH / 1080.0;
+        float s = UnitScale();
         if (w < MIN_W * s)
             w = MIN_W * s;
         if (h < MIN_H * s)
             h = MIN_H * s;
 
         M_SUB_WIDGET.SetSize(w, h);
+        m_Sized = true;
 
-        // Рамка -- на одиницю ширша за тло з кожного боку (ui/: VppBg edge).
+        // Every size is written, none read back: before the engine's first layout pass
+        // a widget reads as 0 (gui-layouts §24).
+        float body = h - (TOP + STATUS) * s;
+        float content = w - RAIL * s - 1;
         FitChrome("VppBgEdge", w + 2 * s, h + 2 * s);
         FitChrome("VppBg", w, h);
-        FitChrome("VppHeader", w, -1);
-        FitChrome("TabStrip", w, -1);
-        FitChrome("Header", w, -1);
+        FitChrome("VppHeader", w, TOP * s);
+        FitChrome("VppHeadBg", w, TOP * s);
+        FitChrome("Header", w, TOP * s);
+        FitChrome("Rail", RAIL * s, body);
+        FitChrome("RailEdge", 1, body);
+        FitChrome("StatusBar", w, STATUS * s);
+        FitChrome("ConfirmBar", content, CONFIRM * s);
+        FitChrome("ConfirmLine", content, 1);
 
-        float paneH = h - PANE_Y * s;
         for (int i = 0; i < m_TabIds.Count(); i++)
         {
             Widget pane = m_Panes.Get(m_TabIds[i]);
-            if (pane)
-                pane.SetSize(w, paneH);
+            if (!pane)
+                continue;
+            pane.SetPos(RAIL * s + 1, TOP * s);
+            pane.SetSize(content, body);
         }
 
         if (m_Grip)
             m_Grip.SetPos(0, 0);
 
-        LayoutTabs();
-        OnWindowResized(w, paneH);
+        OnWindowResized(content, body);
     }
 
     // Один віджет хрому -- на новий розмір у пікселях; h < 0 -- висота
@@ -727,14 +820,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     protected void FitChrome(string name, float w, float h)
     {
         Widget c = M_SUB_WIDGET.FindAnyWidget(name);
-        if (!c)
-            return;
-
-        float cw, ch;
-        c.GetSize(cw, ch);
-        if (h < 0)
-            h = ch;
-        c.SetSize(w, h);
+        if (c)
+            c.SetSize(w, h);
     }
 
     // Точка розширення для панелей склейок: вікно змінило розмір, панель
@@ -800,13 +887,156 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         return M_SUB_WIDGET && M_SUB_WIDGET.IsVisible();
     }
 
-    // Кличе MissionGameplay.OnUpdate (сторож у кінці файлу), поки перший
-    // вдалий прохід LayoutTabs не стався. LayoutTabs сама гасить прапорець
-    // по вдалому проходу, тож виклик після успіху -- порожній no-op.
-    void RetryTabsLayoutIfPending()
+    // Every frame while the window is open (MissionGameplay.OnUpdate below): a request
+    // that waited too long is closed, and the status bar and the journal follow it.
+    void Tick()
     {
-        if (m_TabsPending)
-            LayoutTabs();
+        OZ_VppJournal.Expire();
+        int rev = OZ_VppJournal.Revision();
+        if (rev == m_JournalSeen)
+            return;
+        m_JournalSeen = rev;
+        PaintStatus();
+        if (m_Shown == "overview")
+            RebuildJournal();
+    }
+
+    protected int LevelColor(int level)
+    {
+        if (level == OZ_VppJournal.LV_OK)
+            return ARGBF(1, 0.4, 0.78, 0.36);
+        if (level == OZ_VppJournal.LV_ERR)
+            return ARGBF(1, 0.88, 0.32, 0.29);
+        if (level == OZ_VppJournal.LV_WAIT || level == OZ_VppJournal.LV_WARN)
+            return ARGBF(1, 0.96, 0.78, 0.25);
+        return ARGBF(1, 0.627, 0.624, 0.6);
+    }
+
+    protected string JournalLine(OZ_VppJournalEntry e)
+    {
+        string line = e.Time + "   " + OZ_VppJournal.Text(e.Module);
+        line += "   " + OZ_VppJournal.Text(e.What);
+        if (e.Result != "")
+            line += "   ->   " + OZ_VppJournal.Text(e.Result);
+        return line;
+    }
+
+    protected void PaintStatus()
+    {
+        if (!M_SUB_WIDGET)
+            return;
+        TextWidget t = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("StatusText"));
+        Widget dot = M_SUB_WIDGET.FindAnyWidget("StatusDot");
+        OZ_VppJournalEntry e = OZ_VppJournal.Last();
+        if (!t || !e)
+            return;
+        int c = LevelColor(e.Level);
+        t.SetText(JournalLine(e));
+        t.SetColor(c);
+        if (dot)
+            dot.SetColor(c);
+    }
+
+    // Ядро › Огляд: the journal, newest first; "errors" keeps the failed ones only.
+    protected void RebuildJournal()
+    {
+        TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("JournalList"));
+        if (!lb)
+            return;
+
+        m_Repaint = true;
+        lb.ClearItems();
+        for (int i = OZ_VppJournal.Count() - 1; i >= 0; i--)
+        {
+            OZ_VppJournalEntry e = OZ_VppJournal.At(i);
+            if (m_JournalErrors && e.Level != OZ_VppJournal.LV_ERR)
+                continue;
+            int row = lb.AddItem(JournalLine(e), NULL, 0);
+            lb.SetItemColor(row, 0, LevelColor(e.Level));
+        }
+        m_Repaint = false;
+    }
+
+    // ---------------------------------------------------------- the confirm strip
+
+    // A destructive action asks here, at the bottom of the page (design §3.4); "yes"
+    // gives `action` to OnConfirmed. One question at a time: a new one replaces it.
+    protected void Confirm(string text, string yesLabel, string action)
+    {
+        Widget bar = M_SUB_WIDGET.FindAnyWidget("ConfirmBar");
+        if (!bar)
+        {
+            OZ_Log.Error("vpp confirm: the window's layout has no ConfirmBar; nothing is done");
+            return;
+        }
+
+        m_ConfirmAction = action;
+        TextWidget t = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("ConfirmText"));
+        if (t)
+            t.SetText(text);
+        TextWidget yes = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("BtnConfirmYesText"));
+        if (yes)
+            yes.SetText(yesLabel);
+        bar.Show(true);
+    }
+
+    protected void CloseConfirm()
+    {
+        m_ConfirmAction = "";
+        Widget bar = M_SUB_WIDGET.FindAnyWidget("ConfirmBar");
+        if (bar)
+            bar.Show(false);
+    }
+
+    // The strip's "yes". A glue's layer overrides it for its own actions and calls super.
+    protected void OnConfirmed(string action)
+    {
+        if (action.IndexOf("wipe:") == 0)
+        {
+            string wuid = action.Substring(5, action.Length() - 5);
+            Ask(OZ_AdminSect.PLAYERS, OZ_PlayerOp.WIPE + ":" + wuid, "{}");
+            Hint("wiping...");
+            return;
+        }
+
+        if (action.IndexOf("mirror:") == 0)
+        {
+            MirrorSet(action.Substring(7, action.Length() - 7).ToInt());
+            return;
+        }
+
+        if (action.IndexOf("cfg:") == 0)
+        {
+            string cname = action.Substring(4, action.Length() - 4);
+            MultilineEditBoxWidget ed = MultilineEditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("RawEdit"));
+            if (!ed)
+                return;
+            string body;
+            ed.GetText(body);
+            SendCfg(cname, body);
+        }
+    }
+
+    // ---------------------------------------------------------- repainting
+
+    // A pane that colours its widgets from script (a picked row, a state) paints in the
+    // series palette; the open page is repainted shortly after each event and answer.
+    protected void RepaintSoon()
+    {
+        if (m_RepaintQueued)
+            return;
+        m_RepaintQueued = true;
+        GetGame().GetCallQueue(CALL_CATEGORY_GUI).CallLater(this.RepaintShown, 40, false);
+    }
+
+    void RepaintShown()
+    {
+        m_RepaintQueued = false;
+        if (!M_SUB_WIDGET)
+            return;
+        Widget p = m_Panes.Get(m_Shown);
+        if (p)
+            OZ_VppPaint.Repaint(p);
     }
 
     // ---------------------------------------------------------- транспорт
@@ -817,7 +1047,19 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // ростер туди, де про нього не чули, і мовчала про це.
     protected void Ask(string sectionId, string op, string json)
     {
+        // Reads (a list, a file, a peek) are asked all the time and are not news; their
+        // failures still reach the journal (OZ_VppJournal.Answered).
+        if (!IsReadOp(op))
+            OZ_VppJournal.Asked(ModuleLabelOf(CurrentPane()), sectionId, op, sectionId + " / " + op);
         OZ_Rpc.AdminRequest(sectionId, op, json);
+    }
+
+    protected bool IsReadOp(string op)
+    {
+        if (op.IndexOf("cfg_get:") == 0 || op.IndexOf("player_peek:") == 0)
+            return true;
+        array<string> reads = {"cfg_list", "mirror_list", "players_here", "news_voices", "roster", "list", "overview"};
+        return reads.Find(op) != -1;
     }
 
     protected void AskCfg(string name)
@@ -869,6 +1111,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // одразу: мовчазний рядок замість чужого рядка з іншої панелі.
     protected void Hint(string t)
     {
+        NoteHint(t);
+
         string id = CurrentPane();
         Widget p = m_Panes.Get(id);
         if (!p)
@@ -881,6 +1125,24 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         TextWidget h = TextWidget.Cast(p.FindAnyWidget(named));
         if (h)
             h.SetText(t);
+    }
+
+    // A pane's line is an entry of the journal of its own (design §3.2); the same line
+    // twice in a row is written once.
+    protected void NoteHint(string t)
+    {
+        if (t == "")
+            return;
+
+        string mod = ModuleLabelOf(CurrentPane());
+        int level = OZ_VppJournal.LV_INFO;
+        if (t.IndexOf("#STR_") == 0 && t.IndexOf("ERR") > 0)
+            level = OZ_VppJournal.LV_ERR;
+
+        OZ_VppJournalEntry last = OZ_VppJournal.Last();
+        if (last && last.What == t && last.Module == mod)
+            return;
+        OZ_VppJournal.Add(mod, t, "", level);
     }
 
     protected string CurrentPane()
@@ -898,6 +1160,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
     void OnAdminResponse(string sectionId, string op, bool ok, string json, string error)
     {
+        // Every answer, any section: the journal closes its request (design §3.2).
+        OZ_VppJournal.Answered(sectionId, op, ok, error);
+        RepaintSoon();
+
         // Спавни -- ТЕЖ НАШІ, i це нове.
         //
         // Раніше відповідь на SPAWN HERE приходила рольовим конвертом, i
@@ -1263,9 +1529,11 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             string pname = p.Name;
             int    pgen  = p.Gen;
 
-            m_PlrArmed = true;
             if (mine)
-                Hint("press WIPE again to erase " + pname + " (gen " + pgen.ToString() + ") forever");
+            {
+                string ask = Widget.TranslateString("#STR_OZ_VPP_WIPE_ASK") + " " + pname + " (gen " + pgen.ToString() + ")";
+                Confirm(ask, "#STR_OZ_VPP_WIPE_YES", "wipe:" + m_PlrUid);
+            }
             return;
         }
 
@@ -1519,11 +1787,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         lb.ClearItems();
         m_RawRows.Clear();
 
+        // Every module's configs (design §1 item 5): the owner names the module.
         for (int i = 0; i < m_CfgNames.Count(); i++)
         {
-            if (m_CfgOwners[i] != "core")
-                continue;
-            lb.AddItem(m_CfgNames[i], NULL, 0);
+            lb.AddItem(m_CfgOwners[i] + " / " + m_CfgNames[i], NULL, 0);
             m_RawRows.Insert(m_CfgNames[i]);
         }
     }
@@ -1537,6 +1804,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         if (m_Repaint)
             return true;
+
+        RepaintSoon();
 
         string nm = w.GetName();
 
@@ -1604,9 +1873,35 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         string nm = w.GetName();
 
-        if (nm.IndexOf("tab:") == 0)
+        RepaintSoon();
+
+        if (nm.IndexOf("rail:") == 0)
         {
-            ShowPane(nm.Substring(4, nm.Length() - 4));
+            RailClick(nm.Substring(5, nm.Length() - 5).ToInt());
+            return true;
+        }
+
+        if (nm == "BtnConfirmYes")
+        {
+            string act = m_ConfirmAction;
+            CloseConfirm();
+            if (act != "")
+                OnConfirmed(act);
+            return true;
+        }
+
+        if (nm == "BtnConfirmNo")
+        {
+            CloseConfirm();
+            Hint("#STR_OZ_VPP_CANCELLED");
+            return true;
+        }
+
+        if (nm == "BtnJrAll" || nm == "BtnJrErr")
+        {
+            bool errs = nm == "BtnJrErr";
+            m_JournalErrors = errs;
+            RebuildJournal();
             return true;
         }
 
@@ -1686,18 +1981,11 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             // Курок зводить ЛИШЕ відповідь player_peek: цілі без файла гравця
             // не буває (ядро відмовить), а сімнадцять цифр з одруківкою
             // виглядають рівно як правильні.
-            if (!m_PlrArmed || m_PlrUid != wuid)
-            {
-                m_PlrArmed = false;
-                m_PlrUid   = wuid;
-                Ask(OZ_AdminSect.PLAYERS, OZ_PlayerOp.PEEK + ":" + wuid, "{}");
-                Hint("checking " + wuid + "...");
-                return true;
-            }
-
-            m_PlrArmed = false;
-            Ask(OZ_AdminSect.PLAYERS, OZ_PlayerOp.WIPE + ":" + wuid, "{}");
-            Hint("wiping...");
+            // The peek's answer names the person and asks on the confirm strip
+            // (design §3.4); the strip's "yes" sends the wipe (OnConfirmed).
+            m_PlrUid = wuid;
+            Ask(OZ_AdminSect.PLAYERS, OZ_PlayerOp.PEEK + ":" + wuid, "{}");
+            Hint("checking " + wuid + "...");
             return true;
         }
 
@@ -1787,12 +2075,36 @@ class OZ_VppAdminMenu : AdminHudSubMenu
                 Hint("pick a config first");
                 return true;
             }
-            MultilineEditBoxWidget ed = MultilineEditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("RawEdit"));
-            if (!ed)
-                return true;
-            string body;
-            ed.GetText(body);
-            SendCfg(m_RawPicked, body);
+            string applyAsk = Widget.TranslateString("#STR_OZ_VPP_APPLY_ASK") + " " + m_RawPicked;
+            Confirm(applyAsk, "#STR_OZ_VPP_YES_APPLY", "cfg:" + m_RawPicked);
+            return true;
+        }
+
+        // The clipboard by script, not the engine's paste: that one stops at 512 bytes
+        // in an edit box (dayz-modding gui-layouts §22; design §4.2).
+        if (nm == "BtnRawPaste")
+        {
+            string clip;
+            GetGame().CopyFromClipboard(clip);
+            MultilineEditBoxWidget pasteTo = MultilineEditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("RawEdit"));
+            if (pasteTo && clip != "")
+            {
+                pasteTo.SetText(clip);
+                Hint("pasted " + clip.Length().ToString() + " b from the clipboard");
+            }
+            return true;
+        }
+
+        if (nm == "BtnRawCopy")
+        {
+            MultilineEditBoxWidget copyFrom = MultilineEditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("RawEdit"));
+            if (copyFrom)
+            {
+                string whole;
+                copyFrom.GetText(whole);
+                GetGame().CopyToClipboard(whole);
+                Hint("copied " + whole.Length().ToString() + " b");
+            }
             return true;
         }
 
@@ -1873,9 +2185,27 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         PaintMirror();
     }
 
-    // Рядки вздовж смуги, і вужчають, коли перестають уміщатись. Арифметика
-    // та сама, що в LayoutTabs, тільки без сторожа на перший кадр: смуга вже
-    // на екрані, коли приходить відповідь mirror_list.
+    // A button and its children (edge, ground, caption) narrower -- or wider -- by one
+    // number, in PIXELS: SetSize on an exact-size widget writes screen pixels (measured
+    // 2026-09-03, gui-layouts §24). The tab strip had it first; the mirror rows keep it.
+    private void ShrinkTab(Widget b, float width)
+    {
+        float w, h;
+        b.GetScreenSize(w, h);
+        float d = w - width;
+        b.SetSize(width, h);
+        Widget c = b.GetChildren();
+        while (c)
+        {
+            c.GetScreenSize(w, h);
+            c.SetSize(w - d, h);
+            c = c.GetSibling();
+        }
+    }
+
+    // The rows along the strip, narrower when they no longer fit: the arithmetic the
+    // tab strip used, without its first-frame guard -- the strip is on screen when the
+    // mirror_list answer comes.
     protected void LayoutMirror()
     {
         int n = m_MirrorBtns.Count();
@@ -1961,24 +2291,24 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return;
         }
 
-        if (m_MirrorArmed != row)
-        {
-            m_MirrorArmed = row;
-            PaintMirror();
+        string what = m_MirrorNotes[row];
+        if (what == "")
+            what = "switching the " + kind + " mirror";
 
-            string what = m_MirrorNotes[row];
-            if (what == "")
-                what = "switching the " + kind + " mirror";
+        string verb = "Turn the " + kind + " mirror ON? ";
+        if (on)
+            verb = "Turn the " + kind + " mirror OFF? ";
+        Confirm(verb + what, "#STR_OZ_VPP_YES", "mirror:" + row.ToString());
+    }
 
-            string verb = "turning the " + kind + " mirror ON: ";
-            if (on)
-                verb = "turning the " + kind + " mirror OFF: ";
-            Hint(verb + what + " - press again to confirm");
+    // The confirm strip's "yes" for a mirror row.
+    protected void MirrorSet(int row)
+    {
+        if (row < 0 || row >= m_MirrorKinds.Count())
             return;
-        }
 
-        m_MirrorArmed = -1;
-        PaintMirror();
+        string kind = m_MirrorKinds[row];
+        bool on = m_MirrorOn[row] == 1;
         Hint("switching the " + kind + " mirror...");
         if (on)
             Ask(OZ_AdminSect.CONFIG, "mirror_set:" + kind + ":off", "{}");
@@ -2004,8 +2334,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     }
 }
 
-// Вартовий: добиває розмітку смуги вкладок, поки перший вдалий прохід ще
-// не стався (m_TabsPending, коментар у LayoutTabs).
+// The frame tick while the window is open: the journal's waits and the status bar
+// (OZ_VppAdminMenu.Tick). It used to finish the tab strip's layout; the rail needs none.
 //
 // Другої роботи -- ховати вікно, коли VPP ховає панель кнопок, -- з
 // 2026-11-09 немає: вікно тепер дитина кореня VPP, і ховається та
@@ -2020,7 +2350,7 @@ modded class MissionGameplay
         if (!OZ_VppAdminMenu.s_Inst || !OZ_VppAdminMenu.s_Inst.IsOpen())
             return;
 
-        OZ_VppAdminMenu.s_Inst.RetryTabsLayoutIfPending();
+        OZ_VppAdminMenu.s_Inst.Tick();
     }
 }
 

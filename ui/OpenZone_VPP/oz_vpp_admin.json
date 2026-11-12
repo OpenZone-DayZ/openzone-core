@@ -1,21 +1,43 @@
 {
   "layout": "oz_vpp_admin",
-  "note": "The OpenZone admin window, hosted by VPP Admin Tools. The script creates it through VPP's own AdminHudSubMenu.CreateWidgets, i.e. inside VPP's Panel_Content beside VPP's windows, at an exact size and an exact position the script sets on the first show. Only the window chrome lives here: the background, the title, the drag header, the close button, the resize grip and TabStrip -- the empty strip the script fills with one tab template per registered pane. THE PANES ARE NOT HERE: every pane, the core's four and the glue mods' own, is its own layout the script creates under this root at [0, vpp.paneY], so a mod that adds a pane needs nothing from this file. Names OZ_VppRoot, Header, Grip, BtnVppClose and TabStrip are read by OZ_VppMenu.c.",
+  "note": "The OpenZone admin window, hosted by VPP Admin Tools (VPP rework 2026-11-12). The script creates it through VPP's own AdminHudSubMenu.CreateWidgets, inside VPP's Panel_Content beside VPP's windows, and places it on the first show. Only the window's chrome lives here: the ground, the title band, the drag header, the close button, the rail the script fills with one oz_vpp_rail_row per module and per page, the status bar, the confirm strip and the resize grip. THE PAGES ARE NOT HERE: every pane, the core's and the glue mods', is its own layout the script creates under this root and moves into the content area right of the rail, so a mod that adds a page needs nothing from this file. Colours are the window's own vpp* tokens (the trader's metal); the series palette stays the PDA's. Names OZ_VppRoot, VppTitle, VppCrumb, Header, Rail, RailEdge, StatusBar, StatusDot, StatusText, StatusCount, ConfirmBar, ConfirmText, BtnConfirmNo, BtnConfirmYes, Grip and BtnVppClose are read by OZ_VppMenu.c.",
   "root": {"frame": {"name": "OZ_VppRoot", "size": "$vpp.window", "at": [0, 0], "hidden": true,
-    "note": "Hidden: VPP shows the window itself (ShowSubMenu right after OnCreate). No priority of its own: VPP's SetWindowPriorty orders the windows of Panel_Content, and the own SetSort(1000) that fought it was the 'not clickable on the first open' bug (2026-11-09). Exact position 0,0: the script places the window at vpp.windowX / vpp.windowY of the parent on the first show, and VPP's drag moves it in pixels. The script also sets CLIPCHILDREN on it: a pane of fixed size is cut at the edge of a window made smaller than the pane, instead of drawing over the game.",
+    "note": "Hidden: VPP shows the window itself (ShowSubMenu right after OnCreate). No priority of its own: VPP's SetWindowPriorty orders the windows of Panel_Content. Exact position 0,0: the script places the window at vpp.windowX / vpp.windowY of the parent on the first show. The script sets CLIPCHILDREN on it.",
     "children": [
-      {"panel": {"name": "VppBg", "w": "fill", "h": "fill", "color": "$screen", "edge": true, "priority": 1,
-        "note": "The window's ground and its one-unit border, the same pair the PDA shell paints; priority 1 leaves 2 for the panes the script creates on top of it. Fill is resolved to the window's exact size here, so nothing follows a resize by itself: ApplyWindowSize in OZ_VppMenu.c resizes the ground, the border, VppHeader, TabStrip and Header with the window."}},
-      {"frame": {"name": "VppHeader", "w": "fill", "h": "$vpp.header", "priority": 3, "children": [
-        {"label":  {"name": "VppTitle", "at": [20, 14], "w": 500, "h": 26, "text": "OPENZONE ADMIN", "font": "title", "color": "$accent"}},
-        {"frame":  {"name": "TabStrip", "at": [0, 52], "w": "fill", "h": 28,
-          "note": "Empty on purpose: LayoutTabs puts one oz_vpp_tab.layout in it per registered pane, so the strip is empty in the gallery. 28 is the height of vpp.tab and 52 puts its bottom at 80, inside the vpp.header band (96) and clear of the panes at vpp.paneY -- written out because the generator does no arithmetic on tokens."}}
+      {"panel": {"name": "VppBg", "w": "fill", "h": "fill", "color": "$vppScreen", "edge": true, "priority": 1,
+        "note": "The window's ground and its one-unit border. Fill is resolved to the window's exact size here, so nothing follows a resize by itself: ApplyWindowSize in OZ_VppMenu.c resizes the ground, the border, the title band, the rail and the status bar with the window."}},
+      {"frame": {"name": "VppHeader", "w": "fill", "h": "$vpp.top", "priority": 3, "children": [
+        {"panel": {"name": "VppHeadBg", "w": "fill", "h": "$vpp.top", "color": "$vppHead", "priority": 0}},
+        {"label": {"name": "VppTitle", "at": [20, 0], "w": 200, "h": "$vpp.top", "text": "OPENZONE", "font": "title", "color": "$vppAccent", "priority": 1}},
+        {"label": {"name": "VppCrumb", "at": [240, 0], "w": 900, "h": "$vpp.top", "text": "", "font": "header", "color": "$vppText", "priority": 1,
+          "note": "The open page: module and page, written by ShowPane."}}
       ]}},
-      {"panel": {"name": "Header", "w": "fill", "h": 48, "click": true, "color": "$none", "priority": 4,
-        "note": "VPP's m_TitlePanel: drag the window by it, double-click it to maximize or restore. Transparent, over the title band only (0..48), so the tab strip (52..80) stays clickable; the script keeps it as wide as the window. The script adds WidgetFlags.DRAGGABLE: the generator has no attribute for it."}},
-      {"button": {"name": "BtnVppClose", "anchor": "right", "at": [14, 12], "size": [34, 34], "text": "X", "font": "header", "glyph": true, "priority": 6,
-        "note": "A child of the root, not of VppHeader, and above Header: the header spans the whole title band, and a close button inside VppHeader (priority 3) would sit under it (4) and never get a click."}},
-      {"panel": {"name": "Grip", "anchor": "bottom-right", "size": [18, 18], "click": true, "color": "$edge", "priority": 5,
+      {"panel": {"name": "Header", "w": "fill", "h": "$vpp.top", "click": true, "color": "$none", "priority": 4,
+        "note": "VPP's m_TitlePanel: drag the window by it, double-click it to maximize or restore. The script adds WidgetFlags.DRAGGABLE: the generator has no attribute for it."}},
+      {"button": {"name": "BtnVppClose", "anchor": "right", "at": [8, 7], "size": [34, 34], "text": "X", "font": "header", "glyph": true, "priority": 6,
+        "edge": "$vppEdge", "bg": "$vppRaised", "color": "$vppText",
+        "note": "A child of the root, not of VppHeader, and above Header: inside VppHeader it would sit under the drag panel and never get a click."}},
+      {"panel": {"name": "Rail", "at": [0, "$vpp.top"], "size": ["$vpp.rail", "$vpp.railH"], "color": "$vppRail", "priority": 2,
+        "note": "Empty on purpose: the script puts one oz_vpp_rail_row in it per module and one per page of an open module, and keeps it as tall as the window allows."}},
+      {"panel": {"name": "RailEdge", "at": ["$vpp.rail", "$vpp.top"], "size": [1, "$vpp.railH"], "color": "$vppEdge", "priority": 3}},
+      {"panel": {"name": "StatusBar", "anchor": "bottom", "at": [0, 0], "size": "$vpp.statusBar", "color": "$vppHead", "priority": 3,
+        "note": "The newest line of the journal and the config problems the last load reported. Anchored to the bottom, so the engine keeps it there; the script keeps it as wide as the window.",
+        "children": [
+          {"panel": {"name": "StatusDot", "at": [16, 12], "size": [8, 8], "color": "$vppMuted", "priority": 1}},
+          {"label": {"name": "StatusText", "at": [32, 0], "w": 900, "h": "$vpp.status", "text": "", "font": "small", "color": "$vppMuted", "priority": 1}},
+          {"label": {"name": "StatusCount", "anchor": "right", "at": [16, 0], "w": 280, "h": "$vpp.status", "text": "", "font": "small", "color": "$vppMuted", "align": "right", "priority": 1}}
+      ]}},
+      {"panel": {"name": "ConfirmBar", "anchor": "bottom", "at": ["$vpp.rail", "$vpp.status"], "size": "$vpp.confirm", "color": "$vppBadSoft", "hidden": true, "priority": 7,
+        "note": "The confirm strip (design §3.4): a destructive action asks here, at the bottom of the page, instead of a second press. Shown by Confirm(), hidden by either button, Esc or another page; the script keeps it as wide as the content.",
+        "children": [
+          {"panel": {"name": "ConfirmLine", "at": [0, 0], "size": [1060, 1], "color": "$vppBad", "priority": 1}},
+          {"label": {"name": "ConfirmText", "at": [16, 0], "w": 760, "h": 48, "text": "", "font": "small", "color": "$vppText", "priority": 1}},
+          {"button": {"name": "BtnConfirmNo", "anchor": "right", "at": [158, 7], "size": [128, 34], "text": "#STR_OZ_VPP_CANCEL", "font": "small", "priority": 2,
+            "edge": "$vppEdge", "bg": "$vppRaised", "color": "$vppText"}},
+          {"button": {"name": "BtnConfirmYes", "anchor": "right", "at": [16, 7], "size": [134, 34], "text": "", "font": "small", "priority": 2,
+            "edge": "$vppBad", "bg": "$vppBad", "color": "$vppScreen"}}
+      ]}},
+      {"panel": {"name": "Grip", "anchor": "bottom-right", "size": [16, 16], "click": true, "color": "$vppEdge", "priority": 8,
         "note": "The resize grip, anchored to the bottom-right corner so it follows the window. The script makes it draggable and resizes the window while it is dragged."}}
     ]}}
 }

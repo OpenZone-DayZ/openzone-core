@@ -1,0 +1,10 @@
+{
+  "note": "The journal page; the list is empty in the gallery: entries exist only at runtime.",
+  "ops": [
+    {
+      "op": "show",
+      "nth": 1,
+      "name": "PaneOverview"
+    }
+  ]
+}

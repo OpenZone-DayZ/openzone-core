@@ -1,0 +1,21 @@
+{
+  "layout": "oz_vpp_pane_overview",
+  "note": "Ядро › Огляд і журнал (VPP rework 2026-11-12, design §3.2): the window's journal -- every request a page sent and what came back, every line a page wrote -- with a filter. Created by OZ_VppMenu.OnCreate under OZ_VppRoot; the shell moves it into the content area. Names JournalList, BtnJrAll, BtnJrErr and JrHint are read by OZ_VppMenu.c.",
+  "root": {"frame": {"name": "PaneOverview", "size": "$vpp.pane", "at": [0, "$vpp.paneY"], "inset": "$vpp.inset",
+    "hidden": true, "priority": 2,
+    "note": "Hidden: ShowPane shows the open page and hides the rest.",
+    "children": [
+      {"vbox": {"name": "JrBody", "gap": "$space.gap", "children": [
+        {"hbox": {"name": "JrHead", "h": "$size.button", "gap": "$space.gap", "children": [
+          {"section": {"name": "SecJr", "w": 400, "text": "#STR_OZ_VPP_JOURNAL"}},
+          {"gap": {"w": "fill"}},
+          {"button": {"name": "BtnJrAll", "w": 150, "text": "#STR_OZ_VPP_JR_ALL"}},
+          {"button": {"name": "BtnJrErr", "w": 150, "text": "#STR_OZ_VPP_JR_ERRORS", "edge": "$bad", "color": "$bad"}}
+        ]}},
+        {"listbox": {"name": "JournalList", "h": "fill", "font": "field", "color": "$text",
+          "props": {"style": "NoScrollBar", "title visible": false, "highlight row": true, "lines": 18},
+          "note": "One row per entry, newest first: time, module, what was asked, what came back. Filled by RebuildJournal."}},
+        {"label": {"name": "JrHint", "h": "$size.hint", "font": "hint", "color": "$muted", "text": "#STR_OZ_VPP_JR_NOTE"}}
+      ]}}
+    ]}}
+}

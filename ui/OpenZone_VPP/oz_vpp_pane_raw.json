@@ -1,25 +1,30 @@
 {
   "layout": "oz_vpp_pane_raw",
-  "note": "RAW JSON pane of the admin window: the core's own server configs by name on the left, the file itself in an editor on the right, the Discord mirror switches under it -- one per mirrorable kind, generated -- and RELOAD/APPLY at the bottom. Created by OZ_VppMenu.OnCreate under OZ_VppRoot at [0, vpp.paneY]. Names RawList, RawEdit, MirrorStrip, RawHint, BtnRawReload and BtnRawApply are read by OZ_VppMenu.c.",
+  "note": "Ядро › Файли конфігів (VPP rework 2026-11-12, design §4.2): every config a module registered, by module and name, on the left; the file itself in an editor on the right; the Discord mirror switches under it -- one per mirrorable kind, generated; reload, paste from the clipboard, copy and apply at the bottom. Created by OZ_VppMenu.OnCreate; the shell moves it into the content area. Names RawList, RawEdit, MirrorStrip, RawHint, BtnRawReload, BtnRawPaste, BtnRawCopy and BtnRawApply are read by OZ_VppMenu.c.",
   "root": {"frame": {"name": "PaneRaw", "size": "$vpp.pane", "at": [0, "$vpp.paneY"], "inset": "$vpp.inset",
     "hidden": true, "priority": 2,
     "note": "Hidden: ShowPane shows the open tab's pane and hides the rest.",
     "children": [
       {"vbox": {"name": "RawBody", "gap": "$space.gap", "children": [
-        {"section": {"name": "SecRaw", "text": "RAW CONFIGS (CORE)"}},
+        {"section": {"name": "SecRaw", "text": "#STR_OZ_VPP_FILES_HEAD"}},
         {"hbox": {"name": "RawCols", "h": "fill", "gap": "$space.column", "children": [
-          {"listbox": {"name": "RawList", "w": 190, "font": "field", "color": "$text",
+          {"listbox": {"name": "RawList", "w": 240, "font": "field", "color": "$text",
             "props": {"style": "NoScrollBar", "title visible": false, "highlight row": true, "lines": 13},
-            "note": "Only configs whose owner is the core: a glue mod's own file belongs to whoever draws it."}},
-          {"vbox": {"name": "RawSide", "w": 750, "gap": 8, "children": [
+            "note": "Every registered config, 'module · name': the files page of the whole window (design §1 item 5). A module's own rail entry opens it on that module's files."}},
+          {"vbox": {"name": "RawSide", "w": 700, "gap": 8, "children": [
             {"field": {"name": "RawEdit", "h": "fill", "lines": 19,
               "note": "The whole file, as text. 19 lines is what the 336-unit box holds at the fixed 14-point field face."}},
             {"frame": {"name": "MirrorStrip", "h": "$size.button",
               "note": "Empty: OZ_VppMenu fills it with one oz_vpp_mirror_row per kind mirror_list reports, so no mod's kind name lives in this repository. Here stood a fixed pair of switches named after the PDA's chat and the factions' roles -- a server with a third mod's kind could not reach it, and a server without the factions was offered a switch for a kind it does not have."}},
             {"hbox": {"name": "RawActions", "h": "$size.button", "children": [
-              {"button": {"name": "BtnRawReload", "w": 150, "text": "RELOAD"}},
+              {"button": {"name": "BtnRawReload", "w": 150, "text": "#STR_OZ_VPP_RELOAD"}},
+              {"gap": {"w": 10}},
+              {"button": {"name": "BtnRawPaste", "w": 190, "text": "#STR_OZ_VPP_PASTE",
+                "note": "Reads the clipboard by script and sets the whole text: the engine's own paste into an edit box stops at 512 bytes (design §4.2)."}},
+              {"gap": {"w": 10}},
+              {"button": {"name": "BtnRawCopy", "w": 130, "text": "#STR_OZ_VPP_COPY"}},
               {"gap": {"w": "fill"}},
-              {"button": {"name": "BtnRawApply", "w": 150, "text": "APPLY", "edge": "$ok", "color": "$ok"}}
+              {"button": {"name": "BtnRawApply", "w": 150, "text": "#STR_OZ_VPP_APPLY", "edge": "$ok", "color": "$ok"}}
             ]}}
           ]}}
         ]}},
