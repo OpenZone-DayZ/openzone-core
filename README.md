@@ -177,6 +177,11 @@ Research gives every group its own tree and pool. It is a **server-side mod**: l
 - It stays off by itself when FFR's file is missing, and when OpenZone Factions is loaded:
   that mod then answers for factions and this one writes one WARNING asking to remove one of
   the two.
+- In the OpenZone window of VPP Admin Tools the factions module then shows "FFR groups":
+  every group of FFR's file with its players and the faction it maps to, and the settings of
+  `OZ_Identity_FFR.json`, edited there and applied at once (the server keeps a backup in
+  `$profile:OpenZone\Backup`). The window finds the page by asking the server who gives the
+  factions, so players still need nothing.
 
 Measured 2026-11-09 on the Linux server 1.30.164289 with OpenZone Research from the Workshop:
 a member of the group mapped to `duty` got the Duty tree as owner and may spend, a member of

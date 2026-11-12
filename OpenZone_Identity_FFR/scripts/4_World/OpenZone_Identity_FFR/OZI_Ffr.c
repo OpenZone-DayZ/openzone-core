@@ -16,6 +16,11 @@
 // ХТО ТРАТИТЬ ПУЛ. Лідерів у FFR немає. Рішення власника 2026-11-09: тратить
 // будь-який член групи. Research питає саме IsLeader, тож з AnyMemberSpends
 // «лідер» тут означає «член групи»; без нього лідерів немає зовсім.
+//
+// THE ADMIN WINDOW (VPP rework 2026-11-12, design §4.3 and §5.2): OZ_Identity_FFR.json
+// is a registered config of the core's files page, and the factions module of the
+// window shows the groups, their mapping and these settings (OZI_FfrAdmin.c). A new
+// text applies at once: UseSettings rebuilds the maps and reads FFR's file again.
 
 class OZI_FfrGroup
 {
@@ -37,6 +42,13 @@ class OZI_FfrMap
     {
         FfrGroup = group;
         FactionId = faction;
+    }
+
+    // A copy made by script (the core's OZ_ConfigBase header): the service reads its
+    // rows long after the file was parsed (the admin window lists them).
+    OZI_FfrMap Copy()
+    {
+        return new OZI_FfrMap(FfrGroup, FactionId);
     }
 }
 
@@ -64,11 +76,64 @@ class OZI_FfrSettings
         GroupFactions.Insert(new OZI_FfrMap("Бандити", "bandit"));
         GroupFactions.Insert(new OZI_FfrMap("Одинаки", "neutral"));
     }
+
+    // Right after a parse, while the reads are honest: every row into one made by
+    // script, rows with an empty name or id dropped, the period kept at 5 s or more.
+    // Returns how many things it fixed (the admin window counts them as problems).
+    int Normalise()
+    {
+        int fixes = 0;
+        array<ref OZI_FfrMap> rows = new array<ref OZI_FfrMap>();
+        if (GroupFactions)
+        {
+            for (int i = 0; i < GroupFactions.Count(); i++)
+            {
+                OZI_FfrMap m = GroupFactions[i];
+                if (!m)
+                {
+                    fixes++;
+                    continue;
+                }
+                OZI_FfrMap c = m.Copy();
+                c.FfrGroup = c.FfrGroup.Trim();
+                c.FactionId = c.FactionId.Trim();
+                if (c.FfrGroup == "" || c.FactionId == "")
+                {
+                    fixes++;
+                    continue;
+                }
+                rows.Insert(c);
+            }
+        }
+        GroupFactions = rows;
+
+        BaseFaction = BaseFaction.Trim();
+        if (ReloadSeconds < 5)
+        {
+            ReloadSeconds = 5;
+            fixes++;
+        }
+        return fixes;
+    }
 }
 
 class OZI_Ffr
 {
     static const string FFR_FILE = "$profile:FFR_Mods\\GroupSpawner\\GroupSpawner.json";
+
+    // The admin section, its ops and the config's name in the core's files page. The
+    // admin window has its own copy of these strings (OZ_VppMenu.c, FFR_*): the glue
+    // is a server mod, so the client never sees this class.
+    static const string SECTION   = "ffr";
+    static const string OP_GROUPS = "ffr_groups";
+    static const string OP_REREAD = "ffr_reread";
+    static const string CFG_NAME  = "IdentityFFR";
+    static const string CFG_OWNER = "factions";
+    static const string TAG       = "identity_ffr";
+
+    // What the last read of our own file did: 1 when it was broken and the built-in
+    // names stand in for it, plus what Normalise fixed (the admin window's problems).
+    static int s_Problems = 0;
 
     static string SettingsPath()
     {
@@ -80,6 +145,7 @@ class OZI_Ffr
     // на засіяних значеннях до наступного старту.
     static OZI_FfrSettings LoadSettings()
     {
+        s_Problems = 0;
         OZI_FfrSettings s = new OZI_FfrSettings();
         string err;
         string path = SettingsPath();
@@ -97,12 +163,10 @@ class OZI_Ffr
             OZ_Log.Error("identity FFR: " + path + " is broken, using the built-in names until it is fixed: " + err);
             s = new OZI_FfrSettings();
             s.Seed();
+            s_Problems = 1;
             return s;
         }
-        if (!s.GroupFactions)
-            s.GroupFactions = new array<ref OZI_FfrMap>();
-        if (s.ReloadSeconds < 5)
-            s.ReloadSeconds = 5;
+        s_Problems = s.Normalise();
         return s;
     }
 }
@@ -114,8 +178,14 @@ class OZI_FfrIdentity : OZ_IdentityService
     protected ref map<string, string> m_FactionToGroup;
     protected ref map<string, string> m_UidToGroup;
     protected ref array<string> m_Unmapped;
+
+    // The groups of FFR's file as the last read found them, in its order, and how many
+    // players each holds (a group without players is still a group).
+    protected ref array<string> m_GroupNames;
+    protected ref map<string, int> m_GroupCounts;
     protected int m_LoadedAt;
     protected bool m_Loaded;
+    protected bool m_FileRead;
     protected string m_LastError;
 
     void OZI_FfrIdentity(OZI_FfrSettings settings)
@@ -125,6 +195,19 @@ class OZI_FfrIdentity : OZ_IdentityService
         m_FactionToGroup = new map<string, string>();
         m_UidToGroup = new map<string, string>();
         m_Unmapped = new array<string>();
+        m_GroupNames = new array<string>();
+        m_GroupCounts = new map<string, int>();
+        BuildMaps();
+        Reload();
+    }
+
+    protected void BuildMaps()
+    {
+        m_GroupToFaction.Clear();
+        m_FactionToGroup.Clear();
+        m_Unmapped.Clear();
+        if (!m_Set || !m_Set.GroupFactions)
+            return;
         foreach (OZI_FfrMap m : m_Set.GroupFactions)
         {
             if (!m || m.FfrGroup == "" || m.FactionId == "")
@@ -133,7 +216,22 @@ class OZI_FfrIdentity : OZ_IdentityService
             if (!m_FactionToGroup.Contains(m.FactionId))
                 m_FactionToGroup.Set(m.FactionId, m.FfrGroup);
         }
+    }
+
+    // A new text of OZ_Identity_FFR.json, checked and saved by the admin window's
+    // applier: the maps follow it at once and FFR's file is read again.
+    void UseSettings(OZI_FfrSettings settings)
+    {
+        if (!settings)
+            return;
+        m_Set = settings;
+        BuildMaps();
         Reload();
+    }
+
+    OZI_FfrSettings CurrentSettings()
+    {
+        return m_Set;
     }
 
     // Скільки гравців знайдено в групах -- для рядка в лозі при старті.
@@ -162,26 +260,109 @@ class OZI_FfrIdentity : OZ_IdentityService
             if (err != m_LastError)
                 OZ_Log.Warn("identity FFR: cannot read " + OZI_Ffr.FFR_FILE + ", keeping the groups read before: " + err);
             m_LastError = err;
+            m_FileRead = false;
             return;
         }
         m_LastError = "";
+        m_FileRead = true;
 
         map<string, string> fresh = new map<string, string>();
+        array<string> names = new array<string>();
+        map<string, int> counts = new map<string, int>();
         if (file.Groups)
         {
             foreach (OZI_FfrGroup g : file.Groups)
             {
-                if (!g || !g.Players)
+                if (!g)
+                    continue;
+                string gname = g.GroupName;
+                if (names.Find(gname) == -1)
+                {
+                    names.Insert(gname);
+                    counts.Set(gname, 0);
+                }
+                if (!g.Players)
                     continue;
                 foreach (string uid : g.Players)
                 {
-                    if (uid != "")
-                        fresh.Set(uid, g.GroupName);
+                    if (uid == "")
+                        continue;
+                    fresh.Set(uid, gname);
+                    counts.Set(gname, counts.Get(gname) + 1);
                 }
             }
         }
         m_UidToGroup = fresh;
+        m_GroupNames = names;
+        m_GroupCounts = counts;
     }
+
+    // ------------------------------------------------- for the admin window
+
+    void FfrFresh()
+    {
+        Fresh();
+    }
+
+    void FfrReread()
+    {
+        Reload();
+    }
+
+    bool FfrFileRead()
+    {
+        return m_FileRead;
+    }
+
+    int FfrReadAgo()
+    {
+        int ms = GetGame().GetTime() - m_LoadedAt;
+        return ms / 1000;
+    }
+
+    int FfrGroupCount()
+    {
+        return m_GroupNames.Count();
+    }
+
+    string FfrGroupName(int i)
+    {
+        if (i < 0 || i >= m_GroupNames.Count())
+            return "";
+        return m_GroupNames[i];
+    }
+
+    int FfrMembers(string group)
+    {
+        int n;
+        if (m_GroupCounts.Find(group, n))
+            return n;
+        return 0;
+    }
+
+    // The faction a group maps to, without the warning FactionOfGroup writes.
+    string FfrMapped(string group)
+    {
+        string f;
+        if (m_GroupToFaction.Find(group, f))
+            return f;
+        return "";
+    }
+
+    // Groups of FFR's file with no row in GroupFactions: their members count as the
+    // base faction only.
+    int FfrUnmapped()
+    {
+        int n = 0;
+        for (int i = 0; i < m_GroupNames.Count(); i++)
+        {
+            if (!m_GroupToFaction.Contains(m_GroupNames[i]))
+                n++;
+        }
+        return n;
+    }
+
+    // ------------------------------------------------- the core's contract
 
     string GroupOf(string uid)
     {

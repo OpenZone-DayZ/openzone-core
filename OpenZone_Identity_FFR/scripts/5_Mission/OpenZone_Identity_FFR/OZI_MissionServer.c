@@ -8,6 +8,11 @@
 // Без файла FFR на старті склейка теж мовчить: тоді FFR на сервері немає, і
 // порожня служба замість заглушки ядра лише ввімкнула б фракційні вкладки,
 // яким нічого показати.
+//
+// The admin window (VPP rework 2026-11-12): only when the glue answers for factions does
+// it bring its admin section, its config file and its card (OZI_FfrAdmin.c). The classes
+// live in 4_World with the service, so the core's registries -- 3_Game and 4_World
+// statics -- never hold an object of a script module unloaded before them.
 
 modded class MissionServer
 {
@@ -28,6 +33,11 @@ modded class MissionServer
         OZI_FfrSettings s = OZI_Ffr.LoadSettings();
         OZI_FfrIdentity svc = new OZI_FfrIdentity(s);
         OZ_Identity.Provide(svc);
+
+        OZ_AdminRegistry.Register(OZI_Ffr.SECTION, new OZI_FfrSection(svc));
+        OZ_AdminCfg.Register(OZI_Ffr.CFG_NAME, OZI_Ffr.SettingsPath(), new OZI_FfrCfgApplier(svc), OZI_Ffr.CFG_OWNER);
+        OZ_AdminFacts.Register(new OZI_FfrFacts(svc));
+
         string spends = "leaders only";
         if (s.AnyMemberSpends)
             spends = "any member";

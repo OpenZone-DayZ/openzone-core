@@ -73,6 +73,157 @@ class OZ_VppJsonProbe
 {
 }
 
+// Фракції › Групи FFR: the answer of the FFR glue's ffr_groups and its settings file, as
+// the window reads them. The glue is a server mod (-serverMod): a client never loads it,
+// so its classes (OZI_FfrGroupsAnswer, OZI_FfrSettings in OpenZone_Identity_FFR) are not
+// here, and these twins of the same shape read the same JSON -- JSON carries field
+// names, not class names. Change a field there, change it here.
+class OZ_VppFfrGroupRow
+{
+    string Name;
+    int    Members;
+    string FactionId;
+
+    OZ_VppFfrGroupRow Copy()
+    {
+        OZ_VppFfrGroupRow c = new OZ_VppFfrGroupRow();
+        c.Name = Name;
+        c.Members = Members;
+        c.FactionId = FactionId;
+        return c;
+    }
+}
+
+class OZ_VppFfrGroups
+{
+    bool   FileRead;
+    int    ReadAgo;
+    string FfrFile;
+    int    Players;
+    ref array<ref OZ_VppFfrGroupRow> Groups;
+    string BaseFaction;
+    bool   AnyMemberSpends;
+    int    ReloadSeconds;
+
+    void OZ_VppFfrGroups()
+    {
+        Groups = new array<ref OZ_VppFfrGroupRow>();
+    }
+
+    // Read through a copy made by script (the core's OZ_ConfigBase header).
+    OZ_VppFfrGroups Copy()
+    {
+        OZ_VppFfrGroups c = new OZ_VppFfrGroups();
+        c.FileRead = FileRead;
+        c.ReadAgo = ReadAgo;
+        c.FfrFile = FfrFile;
+        c.Players = Players;
+        c.BaseFaction = BaseFaction;
+        c.AnyMemberSpends = AnyMemberSpends;
+        c.ReloadSeconds = ReloadSeconds;
+        if (!Groups)
+            return c;
+        for (int i = 0; i < Groups.Count(); i++)
+        {
+            if (Groups[i])
+                c.Groups.Insert(Groups[i].Copy());
+        }
+        return c;
+    }
+}
+
+class OZ_VppFfrMap
+{
+    string FfrGroup;
+    string FactionId;
+
+    OZ_VppFfrMap Copy()
+    {
+        OZ_VppFfrMap c = new OZ_VppFfrMap();
+        c.FfrGroup = FfrGroup;
+        c.FactionId = FactionId;
+        return c;
+    }
+}
+
+// OZ_Identity_FFR.json: what the page edits and sends back whole through cfg_set.
+class OZ_VppFfrSettings
+{
+    int Version;
+    ref array<ref OZ_VppFfrMap> GroupFactions;
+    string BaseFaction;
+    bool AnyMemberSpends;
+    int ReloadSeconds;
+
+    void OZ_VppFfrSettings()
+    {
+        Version = 1;
+        GroupFactions = new array<ref OZ_VppFfrMap>();
+        BaseFaction = "";
+        AnyMemberSpends = true;
+        ReloadSeconds = 30;
+    }
+
+    OZ_VppFfrSettings Copy()
+    {
+        OZ_VppFfrSettings c = new OZ_VppFfrSettings();
+        c.Version = Version;
+        c.BaseFaction = BaseFaction;
+        c.AnyMemberSpends = AnyMemberSpends;
+        c.ReloadSeconds = ReloadSeconds;
+        if (!GroupFactions)
+            return c;
+        for (int i = 0; i < GroupFactions.Count(); i++)
+        {
+            if (GroupFactions[i])
+                c.GroupFactions.Insert(GroupFactions[i].Copy());
+        }
+        return c;
+    }
+
+    // The faction a group maps to here; empty: none.
+    string FactionOf(string gname)
+    {
+        for (int i = 0; i < GroupFactions.Count(); i++)
+        {
+            if (GroupFactions[i].FfrGroup == gname)
+                return GroupFactions[i].FactionId;
+        }
+        return "";
+    }
+
+    // Map a group to a faction, or drop its row when the id is empty.
+    void SetFaction(string gname, string id)
+    {
+        for (int i = 0; i < GroupFactions.Count(); i++)
+        {
+            if (GroupFactions[i].FfrGroup != gname)
+                continue;
+            if (id == "")
+                GroupFactions.RemoveOrdered(i);
+            else
+                GroupFactions[i].FactionId = id;
+            return;
+        }
+        if (id == "")
+            return;
+        OZ_VppFfrMap m = new OZ_VppFfrMap();
+        m.FfrGroup = gname;
+        m.FactionId = id;
+        GroupFactions.Insert(m);
+    }
+
+    string ToJsonText()
+    {
+        string text;
+        string err;
+        if (!JsonFileLoader<OZ_VppFfrSettings>.MakeData(this, text, err, true))
+            return "";
+        return text;
+    }
+}
+
+
 modded class VPPAdminHud
 {
     override void DefineButtons()
@@ -185,6 +336,33 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     protected string m_IdSource;
     protected ref array<string> m_IdFactions;
     protected ref array<string> m_IdNames;
+    protected bool   m_IdAsked;
+
+    // ------------------------------------------------- Фракції › Групи FFR
+    //
+    // The FFR glue's names on the wire: its Source(), its admin section and ops, its
+    // config. The glue is a server mod and the client never sees its class (OZI_Ffr), so
+    // the strings live twice; change one, change both.
+    static const string FFR_SOURCE    = "OpenZone Identity FFR";
+    static const string FFR_SECTION   = "ffr";
+    static const string FFR_OP_GROUPS = "ffr_groups";
+    static const string FFR_OP_REREAD = "ffr_reread";
+    static const string FFR_CFG       = "IdentityFFR";
+
+    // Whether the page is registered, the last ffr_groups, the settings file as saved
+    // and as edited, list row -> group, the picked group, whether this page's own apply
+    // is on its way back, the page's tick and its three fields.
+    protected bool m_FfrOn;
+    protected ref OZ_VppFfrGroups   m_FfrGroups;
+    protected ref OZ_VppFfrSettings m_FfrSaved;
+    protected ref OZ_VppFfrSettings m_FfrDraft;
+    protected ref array<string> m_FfrRowGroup;
+    protected string m_FfrPick;
+    protected bool   m_FfrApplied;
+    protected int    m_FfrTickAt;
+    protected EditBoxWidget m_FfrFacBox;
+    protected EditBoxWidget m_FfrBaseBox;
+    protected EditBoxWidget m_FfrReloadBox;
 
     // ------------------------------------------------- raw
     protected string m_RawPicked = "";
@@ -293,6 +471,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         m_IdSource = "";
         m_IdFactions = new array<string>();
         m_IdNames = new array<string>();
+        m_IdAsked = false;
+        m_FfrOn = false;
+        m_FfrRowGroup = new array<string>();
+        m_FfrPick = "";
+        m_FfrApplied = false;
+        m_FfrTickAt = 0;
         m_NwVoices = new array<string>();
         m_NwPick   = 0;
         m_NwSelf   = "";
@@ -785,6 +969,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             Ask(OZ_AdminSect.CONFIG, "cfg_list", "{}");
             RawPaintStatus(false);
         }
+        if (id == "ffr")
+            FfrAsk();
         if (id == "mirror")
         {
             PaintMirror();
@@ -819,6 +1005,15 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         PaintStatus();
 
         Ask(OZ_AdminSect.CONFIG, "cfg_list", "{}");
+
+        // The source of factions, once per window (it cannot change while the server
+        // runs): the spawns page offers its faction ids, and the factions module shows
+        // FFR's groups when the FFR glue is that source (FfrRegister).
+        if (!m_IdAsked)
+        {
+            m_IdAsked = true;
+            Ask(OZ_AdminSect.CONFIG, "identity", "{}");
+        }
 
         // ПЕРША ЗАРЕЄСТРОВАНА, а не названа рядком.
         //
@@ -1023,6 +1218,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             NwFollow();
         if (m_Shown == "raw")
             RawFollow();
+        if (m_Shown == "ffr")
+            FfrFollow();
         if (m_Shown == "spawns" && GetGame().GetTime() - m_SpDrawnAt >= 500)
             SpDrawScheme();
 
@@ -1360,6 +1557,18 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return;
         }
 
+        // Фракції › Групи FFR.
+        if (action == "ffr:apply")
+        {
+            FfrApply();
+            return;
+        }
+        if (action == "ffr:discard")
+        {
+            FfrDiscard();
+            return;
+        }
+
         if (action.IndexOf("mirror:") == 0)
         {
             MirrorSet(action.Substring(7, action.Length() - 7).ToInt());
@@ -1416,7 +1625,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     {
         if (op.IndexOf("cfg_get:") == 0 || op.IndexOf("player_peek:") == 0)
             return true;
-        array<string> reads = {"cfg_list", "mirror_list", "players_here", "news_voices", "roster", "list", "overview", "identity"};
+        array<string> reads = {"cfg_list", "mirror_list", "players_here", "news_voices", "roster", "list", "overview", "identity", "ffr_groups", "ffr_reread"};
         return reads.Find(op) != -1;
     }
 
@@ -1549,6 +1758,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (sectionId == OZ_AdminSect.PLAYERS)
         {
             OnPlayerAnswer(op, ok, json, error);
+            return;
+        }
+
+        if (sectionId == FFR_SECTION)
+        {
+            OnFfrAnswer(op, ok, json, error);
             return;
         }
 
@@ -1689,8 +1904,11 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         if (op.IndexOf("cfg_set:") == 0)
         {
+            string setName = op.Substring(8, op.Length() - 8);
+            if (setName == FFR_CFG)
+                m_FfrApplied = true;
             string applied = OvTr("#STR_OZ_VPP_FL_APPLIED");
-            Hint(applied + " " + op.Substring(8, op.Length() - 8));
+            Hint(applied + " " + setName);
             OnCfgApplied();
             return;
         }
@@ -2358,6 +2576,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         // поле лишалось порожнім, а APPLY слав порожній рядок як cfg_set.
         if (name == "Spawns")
             SpTakeCfg(body);
+        if (name == FFR_CFG)
+            FfrTakeSettings(body);
 
         // Сирий редактор -- окремим питанням, а не «інакше»: той самий файл може бути
         // потрібен і сторінці, і редактору.
@@ -2371,9 +2591,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (CurrentPane() == "spawns")
             AskCfg("Spawns");
 
-        // The files page shows what the server saved.
+        // The files page shows what the server saved; the FFR page reads its file and
+        // FFR's groups again.
         if (CurrentPane() == "raw" && m_RawPicked != "")
             AskCfg(m_RawPicked);
+        if (CurrentPane() == "ffr")
+            FfrAsk();
     }
 
     // OnCfgListChanged ТУТ БІЛЬШЕ НЕМАЄ: обгортка в один рядок навколо
@@ -2437,6 +2660,9 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         PaintSpawnCycler();
         if (m_Shown == "spawns")
             RebuildSpawnList();
+
+        if (m_IdSource == FFR_SOURCE)
+            FfrRegister();
     }
 
     // The head's switch, as the last Spawns file said.
@@ -3483,6 +3709,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return true;
         }
 
+        if (nm == "FfrList")
+        {
+            FfrPickRow(row);
+            return true;
+        }
+
         // A player's row opens his card; the card asks the server for his character.
         // A question already on the confirm strip was about someone else: it goes.
         if (nm == "PlrList")
@@ -3628,7 +3860,588 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (RawClick(nm))
             return true;
 
+        // Фракції › Групи FFR.
+        if (FfrClick(nm))
+            return true;
+
         return super.OnClick(w, x, y, button);
+    }
+
+    // ---------------------------------------------------------- Фракції › Групи FFR
+    //
+    // Design §4.3, §5.2. The page exists only when the server's source of factions is the
+    // FFR glue (identity says so): that glue is a server mod (-serverMod), so the client
+    // never loads it and cannot know of it at compile time. It shows FFR's groups with
+    // the faction each maps to (ffr_groups of the glue's section "ffr") and edits the
+    // glue's own OZ_Identity_FFR.json through cfg_get/cfg_set; FFR's file is only read.
+
+    protected void FfrRegister()
+    {
+        if (m_FfrOn || !M_SUB_WIDGET)
+            return;
+
+        Widget pane = GetGame().GetWorkspace().CreateWidgets("OpenZone_VPP/gui/layouts/oz_vpp_pane_ffr.layout", M_SUB_WIDGET);
+        if (!pane)
+        {
+            OZ_Log.Error("vpp ffr: layout failed to load");
+            return;
+        }
+
+        m_FfrOn = true;
+        m_FfrFacBox = EditBoxWidget.Cast(pane.FindAnyWidget("FfrFacId"));
+        m_FfrBaseBox = EditBoxWidget.Cast(pane.FindAnyWidget("FfrBase"));
+        m_FfrReloadBox = EditBoxWidget.Cast(pane.FindAnyWidget("FfrReload"));
+        RegisterPage("factions", "#STR_OZ_VPP_MOD_FACTIONS", "ffr", "#STR_OZ_VPP_PAGE_FFR", pane, "");
+    }
+
+    protected void FfrAsk()
+    {
+        Ask(FFR_SECTION, FFR_OP_GROUPS, "{}");
+        AskCfg(FFR_CFG);
+    }
+
+    // The groups of FFR's file as the glue read them. A refusal is in the journal.
+    protected void OnFfrAnswer(string op, bool ok, string json, string error)
+    {
+        if (!ok)
+            return;
+        if (op != FFR_OP_GROUPS && op != FFR_OP_REREAD)
+            return;
+
+        // Root made by the script, read through a copy made by the script.
+        OZ_VppFfrGroups parsed = new OZ_VppFfrGroups();
+        string err;
+        if (!JsonFileLoader<OZ_VppFfrGroups>.LoadData(json, parsed, err) || !parsed)
+            return;
+        m_FfrGroups = parsed.Copy();
+
+        FfrRebuild();
+        FfrPaintAll();
+    }
+
+    // The settings file came (cfg_get). The draft follows it unless it holds edits not
+    // applied yet; after this page's own apply it follows anyway, as the server put the
+    // text in order (empty rows dropped, the period at 5 s or more).
+    protected void FfrTakeSettings(string body)
+    {
+        OZ_VppFfrSettings parsed = new OZ_VppFfrSettings();
+        string err;
+        if (!JsonFileLoader<OZ_VppFfrSettings>.LoadData(body, parsed, err) || !parsed)
+            return;
+        OZ_VppFfrSettings saved = parsed.Copy();
+
+        bool keep = false;
+        if (m_FfrDraft && m_FfrSaved && !m_FfrApplied && FfrChanges() != "")
+            keep = true;
+        m_FfrApplied = false;
+        m_FfrSaved = saved;
+        if (!keep)
+        {
+            m_FfrDraft = saved.Copy();
+            FfrFillFields();
+        }
+
+        FfrRebuild();
+        FfrPaintAll();
+    }
+
+    // The draft's base faction and period into the fields, its spender into the switch.
+    protected void FfrFillFields()
+    {
+        if (!m_FfrDraft)
+            return;
+        if (m_FfrBaseBox)
+            m_FfrBaseBox.SetText(m_FfrDraft.BaseFaction);
+        if (m_FfrReloadBox)
+            m_FfrReloadBox.SetText(m_FfrDraft.ReloadSeconds.ToString());
+        if (m_FfrFacBox)
+            m_FfrFacBox.SetText(FfrDraftFaction(m_FfrPick));
+    }
+
+    // The fields back into the draft, before it is compared or sent. A period that is
+    // not a whole number keeps the draft's.
+    protected void FfrReadFields()
+    {
+        if (!m_FfrDraft)
+            return;
+        if (m_FfrBaseBox)
+        {
+            string baseId = m_FfrBaseBox.GetText().Trim();
+            m_FfrDraft.BaseFaction = baseId;
+        }
+        if (m_FfrReloadBox)
+        {
+            string per = m_FfrReloadBox.GetText().Trim();
+            if (FfrIsNumber(per))
+                m_FfrDraft.ReloadSeconds = per.ToInt();
+        }
+    }
+
+    protected bool FfrIsNumber(string s)
+    {
+        if (s == "" || s.Length() > 6)
+            return false;
+        for (int i = 0; i < s.Length(); i++)
+        {
+            if ("0123456789".IndexOf(s.Substring(i, 1)) == -1)
+                return false;
+        }
+        return true;
+    }
+
+    protected string FfrDraftFaction(string gname)
+    {
+        if (!m_FfrDraft || gname == "")
+            return "";
+        return m_FfrDraft.FactionOf(gname);
+    }
+
+    protected string FfrSavedFaction(string gname)
+    {
+        if (!m_FfrSaved || gname == "")
+            return "";
+        return m_FfrSaved.FactionOf(gname);
+    }
+
+    protected int FfrMembersOf(string gname)
+    {
+        if (!m_FfrGroups)
+            return 0;
+        for (int i = 0; i < m_FfrGroups.Groups.Count(); i++)
+        {
+            if (m_FfrGroups.Groups[i].Name == gname)
+                return m_FfrGroups.Groups[i].Members;
+        }
+        return 0;
+    }
+
+    // A group's state: mapped, changed and not applied yet, or on the base axis only.
+    protected string FfrStateKey(string gname)
+    {
+        string draft = FfrDraftFaction(gname);
+        if (draft != FfrSavedFaction(gname))
+            return "#STR_OZ_VPP_FFR_STATE_CHANGED";
+        if (draft == "")
+            return "#STR_OZ_VPP_FFR_STATE_NONE";
+        return "#STR_OZ_VPP_FFR_STATE_OK";
+    }
+
+    protected void FfrRebuild()
+    {
+        TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("FfrList"));
+        if (!lb || !m_FfrGroups)
+            return;
+
+        m_Repaint = true;
+        lb.ClearItems();
+        m_FfrRowGroup.Clear();
+        for (int i = 0; i < m_FfrGroups.Groups.Count(); i++)
+        {
+            OZ_VppFfrGroupRow g = m_FfrGroups.Groups[i];
+            string fac = FfrDraftFaction(g.Name);
+            if (fac == "")
+                fac = "-";
+            string state = OvTr(FfrStateKey(g.Name));
+            string members = g.Members.ToString();
+            int row = lb.AddItem(g.Name, NULL, 0);
+            lb.SetItem(row, members, NULL, 1);
+            lb.SetItem(row, fac, NULL, 2);
+            lb.SetItem(row, state, NULL, 3);
+            m_FfrRowGroup.Insert(g.Name);
+        }
+        m_Repaint = false;
+        FfrMarkRows();
+    }
+
+    // The picked group's name in the accent colour, each state in its own.
+    protected void FfrMarkRows()
+    {
+        TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("FfrList"));
+        if (!lb)
+            return;
+
+        int ink = ARGBF(1, 0.88, 0.875, 0.855);
+        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        int accent = ARGBF(1, 0.91, 0.47, 0.17);
+        int okInk = ARGBF(1, 0.4, 0.78, 0.36);
+        int alert = ARGBF(1, 0.96, 0.78, 0.25);
+        for (int r = 0; r < m_FfrRowGroup.Count(); r++)
+        {
+            string gname = m_FfrRowGroup[r];
+            int nameInk = ink;
+            if (gname == m_FfrPick)
+                nameInk = accent;
+            string key = FfrStateKey(gname);
+            int stateInk = okInk;
+            if (key == "#STR_OZ_VPP_FFR_STATE_CHANGED")
+                stateInk = accent;
+            else if (key == "#STR_OZ_VPP_FFR_STATE_NONE")
+                stateInk = alert;
+            lb.SetItemColor(r, 0, nameInk);
+            lb.SetItemColor(r, 1, muted);
+            lb.SetItemColor(r, 2, ink);
+            lb.SetItemColor(r, 3, stateInk);
+        }
+    }
+
+    protected void FfrPickRow(int row)
+    {
+        if (row < 0 || row >= m_FfrRowGroup.Count())
+            return;
+        m_FfrPick = m_FfrRowGroup[row];
+        if (m_FfrFacBox)
+            m_FfrFacBox.SetText(FfrDraftFaction(m_FfrPick));
+        FfrMarkRows();
+        FfrPaintPick();
+    }
+
+    protected void FfrPaintAll()
+    {
+        FfrPaintCount();
+        FfrPaintMissing();
+        FfrPaintSpend();
+        FfrPaintTrade();
+        FfrPaintPick();
+        FfrPaintBar();
+    }
+
+    // "Players: 32, groups: 7, read 12 s ago"; an unread file in the bad colour.
+    protected void FfrPaintCount()
+    {
+        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        int badInk = ARGBF(1, 0.88, 0.32, 0.29);
+        if (!m_FfrGroups)
+        {
+            OvText("FfrGroupsCount", "", muted);
+            return;
+        }
+        if (!m_FfrGroups.FileRead)
+        {
+            OvText("FfrGroupsCount", "#STR_OZ_VPP_FFR_UNREAD", badInk);
+            return;
+        }
+
+        string playersWord = OvTr("#STR_OZ_VPP_FFR_N_PLAYERS");
+        string groupsWord = OvTr("#STR_OZ_VPP_FFR_N_GROUPS");
+        string agoWord = OvTr("#STR_OZ_VPP_FFR_READ_AGO");
+        string line = playersWord + " " + m_FfrGroups.Players.ToString();
+        line = line + ", " + groupsWord;
+        line = line + " " + m_FfrGroups.Groups.Count().ToString();
+        line = line + ", " + agoWord;
+        line = line + " " + m_FfrGroups.ReadAgo.ToString();
+        OvText("FfrGroupsCount", line, muted);
+    }
+
+    // The names the draft maps that FFR has no group for now, and the rule of exact names.
+    protected void FfrPaintMissing()
+    {
+        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        string rule = OvTr("#STR_OZ_VPP_FFR_EXACT");
+        if (!m_FfrDraft || !m_FfrGroups)
+        {
+            OvText("FfrMissing", rule, muted);
+            return;
+        }
+
+        string names = "";
+        for (int i = 0; i < m_FfrDraft.GroupFactions.Count(); i++)
+        {
+            string gname = m_FfrDraft.GroupFactions[i].FfrGroup;
+            bool found = false;
+            for (int k = 0; k < m_FfrGroups.Groups.Count(); k++)
+            {
+                if (m_FfrGroups.Groups[k].Name == gname)
+                    found = true;
+            }
+            if (found)
+                continue;
+            if (names != "")
+                names = names + ", ";
+            names = names + gname;
+        }
+
+        if (names == "")
+        {
+            OvText("FfrMissing", rule, muted);
+            return;
+        }
+        string head = OvTr("#STR_OZ_VPP_FFR_MISSING");
+        string tail = OvTr("#STR_OZ_VPP_FFR_MISSING_TAIL");
+        string text = head + " " + names;
+        text = text + ". " + tail;
+        text = text + " " + rule;
+        OvText("FfrMissing", text, muted);
+    }
+
+    // The spender switch: the chosen half in the accent colour.
+    protected void FfrPaintSpend()
+    {
+        bool any = true;
+        if (m_FfrDraft)
+            any = m_FfrDraft.AnyMemberSpends;
+        int accent = ARGBF(1, 0.91, 0.47, 0.17);
+        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        int edge = ARGBF(1, 0.235, 0.235, 0.227);
+        int anyInk = muted;
+        int noneInk = accent;
+        int anyEdge = edge;
+        int noneEdge = accent;
+        if (any)
+        {
+            anyInk = accent;
+            noneInk = muted;
+            anyEdge = accent;
+            noneEdge = edge;
+        }
+        FfrTint("BtnFfrSpendAnyText", anyInk);
+        FfrTint("BtnFfrSpendAnyEdge", anyEdge);
+        FfrTint("BtnFfrSpendNoneText", noneInk);
+        FfrTint("BtnFfrSpendNoneEdge", noneEdge);
+    }
+
+    protected void FfrTint(string name, int color)
+    {
+        Widget w = M_SUB_WIDGET.FindAnyWidget(name);
+        if (w)
+            w.SetColor(color);
+    }
+
+    // What the trader's conditions mean here: a faction works, a post never holds (FFR
+    // has none), a leader is any member while "any member" spends, nobody otherwise.
+    protected void FfrPaintTrade()
+    {
+        bool any = true;
+        if (m_FfrDraft)
+            any = m_FfrDraft.AnyMemberSpends;
+        int alert = ARGBF(1, 0.96, 0.78, 0.25);
+        if (any)
+            OvText("FfrTradeLeader", "#STR_OZ_VPP_FFR_TRADE_LEADER_ANY", alert);
+        else
+            OvText("FfrTradeLeader", "#STR_OZ_VPP_FFR_TRADE_LEADER_NONE", alert);
+    }
+
+    protected void FfrPaintPick()
+    {
+        int ink = ARGBF(1, 0.88, 0.875, 0.855);
+        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        if (m_FfrPick == "")
+        {
+            OvText("FfrPickName", "#STR_OZ_VPP_FFR_PICK", muted);
+            OvText("FfrPickInfo", "", muted);
+            return;
+        }
+        OvText("FfrPickName", m_FfrPick, ink);
+        string word = OvTr("#STR_OZ_VPP_FFR_PICK_INFO");
+        string info = word + " " + FfrMembersOf(m_FfrPick).ToString();
+        OvText("FfrPickInfo", info, muted);
+    }
+
+    // What the draft changes against the file, in short; empty: nothing.
+    protected string FfrChanges()
+    {
+        if (!m_FfrDraft || !m_FfrSaved)
+            return "";
+        FfrReadFields();
+
+        array<string> names = new array<string>();
+        for (int i = 0; i < m_FfrDraft.GroupFactions.Count(); i++)
+        {
+            if (names.Find(m_FfrDraft.GroupFactions[i].FfrGroup) == -1)
+                names.Insert(m_FfrDraft.GroupFactions[i].FfrGroup);
+        }
+        for (int k = 0; k < m_FfrSaved.GroupFactions.Count(); k++)
+        {
+            if (names.Find(m_FfrSaved.GroupFactions[k].FfrGroup) == -1)
+                names.Insert(m_FfrSaved.GroupFactions[k].FfrGroup);
+        }
+
+        string summary = "";
+        for (int n = 0; n < names.Count(); n++)
+        {
+            string now = m_FfrDraft.FactionOf(names[n]);
+            if (now == m_FfrSaved.FactionOf(names[n]))
+                continue;
+            if (now == "")
+                now = "-";
+            if (summary != "")
+                summary = summary + "; ";
+            summary = summary + names[n];
+            summary = summary + " -> " + now;
+        }
+
+        if (m_FfrDraft.BaseFaction != m_FfrSaved.BaseFaction)
+        {
+            string baseWord = OvTr("#STR_OZ_VPP_FFR_CH_BASE");
+            if (summary != "")
+                summary = summary + "; ";
+            summary = summary + baseWord;
+            summary = summary + " " + m_FfrDraft.BaseFaction;
+        }
+        if (m_FfrDraft.AnyMemberSpends != m_FfrSaved.AnyMemberSpends)
+        {
+            string spendWord = OvTr("#STR_OZ_VPP_FFR_CH_SPEND_NONE");
+            if (m_FfrDraft.AnyMemberSpends)
+                spendWord = OvTr("#STR_OZ_VPP_FFR_CH_SPEND_ANY");
+            if (summary != "")
+                summary = summary + "; ";
+            summary = summary + spendWord;
+        }
+        if (m_FfrDraft.ReloadSeconds != m_FfrSaved.ReloadSeconds)
+        {
+            string reloadWord = OvTr("#STR_OZ_VPP_FFR_CH_RELOAD");
+            if (summary != "")
+                summary = summary + "; ";
+            summary = summary + reloadWord;
+            summary = summary + " " + m_FfrDraft.ReloadSeconds.ToString();
+        }
+        return summary;
+    }
+
+    protected void FfrPaintBar()
+    {
+        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        int alert = ARGBF(1, 0.96, 0.78, 0.25);
+        string changes = FfrChanges();
+        Widget dot = M_SUB_WIDGET.FindAnyWidget("FfrBarDot");
+        if (dot)
+            dot.Show(changes != "");
+        if (changes == "")
+        {
+            OvText("FfrBarText", "#STR_OZ_VPP_FFR_NO_CHANGES", muted);
+            return;
+        }
+        string head = OvTr("#STR_OZ_VPP_FFR_CHANGED");
+        OvText("FfrBarText", head + " " + changes, alert);
+    }
+
+    // Every 300 ms on this page (Tick): the bar follows what is typed in the fields.
+    protected void FfrFollow()
+    {
+        int now = GetGame().GetTime();
+        if (now - m_FfrTickAt < 300)
+            return;
+        m_FfrTickAt = now;
+        FfrPaintBar();
+    }
+
+    // The cycler beside the faction field: the ids the draft already uses, the base
+    // faction, then none.
+    protected void FfrCycleFaction()
+    {
+        if (!m_FfrDraft || !m_FfrFacBox)
+            return;
+        array<string> ids = new array<string>();
+        for (int i = 0; i < m_FfrDraft.GroupFactions.Count(); i++)
+        {
+            string id = m_FfrDraft.GroupFactions[i].FactionId;
+            if (id != "" && ids.Find(id) == -1)
+                ids.Insert(id);
+        }
+        FfrReadFields();
+        if (m_FfrDraft.BaseFaction != "" && ids.Find(m_FfrDraft.BaseFaction) == -1)
+            ids.Insert(m_FfrDraft.BaseFaction);
+        ids.Insert("");
+
+        string current = m_FfrFacBox.GetText().Trim();
+        int at = ids.Find(current) + 1;
+        if (at >= ids.Count())
+            at = 0;
+        m_FfrFacBox.SetText(ids[at]);
+    }
+
+    // The page's buttons; false: not one of them.
+    protected bool FfrClick(string nm)
+    {
+        if (nm == "BtnFfrReread")
+        {
+            Ask(FFR_SECTION, FFR_OP_REREAD, "{}");
+            AskCfg(FFR_CFG);
+            return true;
+        }
+
+        if (nm == "BtnFfrFacCycle")
+        {
+            FfrCycleFaction();
+            return true;
+        }
+
+        if (nm == "BtnFfrMap")
+        {
+            if (m_FfrPick == "")
+            {
+                Hint("#STR_OZ_VPP_FFR_PICK");
+                return true;
+            }
+            if (!m_FfrDraft || !m_FfrFacBox)
+                return true;
+            string id = m_FfrFacBox.GetText().Trim();
+            m_FfrDraft.SetFaction(m_FfrPick, id);
+            FfrRebuild();
+            FfrPaintAll();
+            return true;
+        }
+
+        if (nm == "BtnFfrSpendAny" || nm == "BtnFfrSpendNone")
+        {
+            if (!m_FfrDraft)
+                return true;
+            bool any = nm == "BtnFfrSpendAny";
+            m_FfrDraft.AnyMemberSpends = any;
+            FfrPaintSpend();
+            FfrPaintTrade();
+            FfrPaintBar();
+            return true;
+        }
+
+        if (nm == "BtnFfrDiscard")
+        {
+            if (FfrChanges() == "")
+            {
+                Hint("#STR_OZ_VPP_FFR_NO_CHANGES");
+                return true;
+            }
+            Confirm("#STR_OZ_VPP_FFR_DISCARD_ASK", "#STR_OZ_VPP_FFR_YES_DISCARD", "ffr:discard");
+            return true;
+        }
+
+        if (nm == "BtnFfrApply")
+        {
+            if (FfrChanges() == "")
+            {
+                Hint("#STR_OZ_VPP_FFR_NO_CHANGES");
+                return true;
+            }
+            Confirm("#STR_OZ_VPP_FFR_APPLY_ASK", "#STR_OZ_VPP_YES_APPLY", "ffr:apply");
+            return true;
+        }
+
+        return false;
+    }
+
+    // The confirm strip's "yes": the whole draft into OZ_Identity_FFR.json, which the
+    // glue's applier checks, writes (keeping a backup) and uses at once.
+    protected void FfrApply()
+    {
+        if (!m_FfrDraft)
+            return;
+        FfrReadFields();
+        string text = m_FfrDraft.ToJsonText();
+        if (text == "")
+        {
+            OZ_Log.Error("vpp ffr: cannot build the settings text");
+            return;
+        }
+        SendCfg(FFR_CFG, text);
+    }
+
+    protected void FfrDiscard()
+    {
+        if (!m_FfrSaved)
+            return;
+        m_FfrDraft = m_FfrSaved.Copy();
+        FfrFillFields();
+        FfrRebuild();
+        FfrPaintAll();
     }
 
     // ---------------------------------------------------------- Ядро › Дзеркало Discord

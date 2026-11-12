@@ -1,0 +1,227 @@
+{
+  "layout": "oz_vpp_pane_ffr",
+  "note": "Фракції › Групи FFR (VPP rework 2026-11-12, design §5.2; artboard FactionsFfr): the page of a server whose factions come from FFR_GroupSpawner through OpenZone Identity FFR. The groups of FFR's file on the left -- players, the OpenZone faction each maps to, its state -- and the names the mapping looks for that FFR has no group for now; on the right the picked group's faction, the settings for every group (base faction, who spends the research pool, the reload period) and what the trader's faction, post and leader conditions mean on such a server; a draft bar at the bottom: what changed, discard and apply (both on the confirm strip). The glue is a server mod, so this page lives in OpenZone_VPP and is registered only when the server's identity says its source is OpenZone Identity FFR. Edits go to OZ_Identity_FFR.json through cfg_get/cfg_set; FFR's own file is only read. Created by OZ_VppMenu.FfrRegister; the shell moves it into the content area. Laid out at the content size of the default window (1060 x 680). Names FfrList, FfrGroupsCount, FfrMissing, FfrPickName, FfrPickInfo, FfrFacId, FfrBase, FfrReload, FfrTrade*, FfrBarText and the Btn* names are read by OZ_VppMenu.c.",
+  "root": {
+    "frame": {
+      "name": "PaneFfr",
+      "size": "$vpp.content",
+      "at": [0, "$vpp.paneY"],
+      "hidden": true,
+      "priority": 2,
+      "note": "Hidden: ShowPane shows the open page and hides the rest.",
+      "children": [
+        {
+          "vbox": {
+            "name": "FfrBody",
+            "size": "fill",
+            "children": [
+              {
+                "frame": {
+                  "name": "FfrHead",
+                  "h": 60,
+                  "children": [
+                    {"label": {"name": "FfrTitle", "at": [24, 9], "size": [400, 26], "text": "#STR_OZ_VPP_FFR_TITLE", "font": "title", "color": "$vppText"}},
+                    {"label": {"name": "FfrSub", "at": [24, 35], "size": [620, 18], "text": "#STR_OZ_VPP_FFR_SUB", "font": "small", "color": "$vppMuted"}},
+                    {"panel": {"name": "FfrTagBg", "anchor": "right", "at": [236, 18], "size": [180, 24], "color": "$vppRaised"}},
+                    {"label": {"name": "FfrTag", "anchor": "right", "at": [236, 18], "size": [180, 24], "text": "#STR_OZ_VPP_FFR_TAG", "font": "small", "color": "$vppMuted", "align": "center"}},
+                    {"button": {"name": "BtnFfrReread", "anchor": "right", "at": [24, 15], "size": [200, 30], "text": "#STR_OZ_VPP_FFR_REREAD", "font": "small", "bg": "$vppRaised", "edge": "$vppEdge", "color": "$vppText"}},
+                    {"panel": {"name": "FfrHeadRule", "at": [0, 59], "size": [1060, 1], "color": "$vppEdge"}}
+                  ]
+                }
+              },
+              {
+                "hbox": {
+                  "name": "FfrCols",
+                  "h": "fill",
+                  "children": [
+                    {
+                      "panel": {
+                        "name": "FfrLeft",
+                        "w": 600,
+                        "color": "$vppPanel",
+                        "inset": 20,
+                        "children": [
+                          {
+                            "vbox": {
+                              "name": "FfrLeftCol",
+                              "size": "fill",
+                              "gap": 8,
+                              "children": [
+                                {
+                                  "hbox": {
+                                    "name": "FfrLeftHead",
+                                    "h": 24,
+                                    "gap": 8,
+                                    "children": [
+                                      {"label": {"name": "FfrGroupsHead", "w": 230, "text": "#STR_OZ_VPP_FFR_GROUPS", "font": "header", "color": "$vppText"}},
+                                      {"label": {"name": "FfrGroupsCount", "w": "fill", "text": "", "font": "small", "color": "$vppMuted", "align": "right"}}
+                                    ]
+                                  }
+                                },
+                                {
+                                  "hbox": {
+                                    "name": "FfrColCaps",
+                                    "h": 18,
+                                    "children": [
+                                      {"label": {"name": "FfrCapGroup", "w": 190, "text": "#STR_OZ_VPP_FFR_COL_GROUP", "font": "small", "color": "$vppMuted"}},
+                                      {"label": {"name": "FfrCapPlayers", "w": 78, "text": "#STR_OZ_VPP_FFR_COL_PLAYERS", "font": "small", "color": "$vppMuted"}},
+                                      {"label": {"name": "FfrCapFaction", "w": 146, "text": "#STR_OZ_VPP_FFR_COL_FACTION", "font": "small", "color": "$vppMuted"}},
+                                      {"label": {"name": "FfrCapState", "w": "fill", "text": "#STR_OZ_VPP_FFR_COL_STATE", "font": "small", "color": "$vppMuted"}}
+                                    ]
+                                  }
+                                },
+                                {"listbox": {"name": "FfrList", "h": "fill", "font": "field", "color": "$vppText", "props": {"style": "NoScrollBar", "title visible": false, "highlight row": true, "lines": 13, "colums": "group;34;players;14;faction;26;state;26;"}, "note": "One row per group of FFR's file: its name, players, the faction the draft maps it to, its state; the picked one in the accent colour."}},
+                                {
+                                  "panel": {
+                                    "name": "FfrMissingBox",
+                                    "h": 112,
+                                    "color": "$vppHead",
+                                    "inset": 12,
+                                    "children": [
+                                      {"text": {"name": "FfrMissing", "size": "fill", "plain": true, "grow": false, "font": "small", "color": "$vppMuted", "text": "#STR_OZ_VPP_FFR_EXACT"}}
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {"panel": {"name": "FfrRule", "w": 1, "color": "$vppEdge"}},
+                    {
+                      "panel": {
+                        "name": "FfrRight",
+                        "w": "fill",
+                        "color": "$vppHead",
+                        "inset": 16,
+                        "children": [
+                          {
+                            "vbox": {
+                              "name": "FfrRightCol",
+                              "size": "fill",
+                              "gap": 10,
+                              "children": [
+                                {
+                                  "panel": {
+                                    "name": "FfrPickBox",
+                                    "h": 150,
+                                    "color": "$vppPanel",
+                                    "inset": 12,
+                                    "children": [
+                                      {
+                                        "vbox": {
+                                          "name": "FfrPickCol",
+                                          "size": "fill",
+                                          "gap": 6,
+                                          "children": [
+                                            {"label": {"name": "FfrPickName", "h": 24, "text": "#STR_OZ_VPP_FFR_PICK", "font": "header", "color": "$vppText"}},
+                                            {"label": {"name": "FfrPickInfo", "h": 18, "text": "", "font": "small", "color": "$vppMuted"}},
+                                            {"label": {"name": "FfrFacLbl", "h": 16, "text": "#STR_OZ_VPP_FFR_FAC_LBL", "font": "small", "color": "$vppMuted"}},
+                                            {
+                                              "hbox": {
+                                                "name": "FfrFacRow",
+                                                "h": 30,
+                                                "gap": 8,
+                                                "children": [
+                                                  {"field": {"name": "FfrFacId", "w": "fill", "h": 30, "color": "$vppText", "note": "The faction id the picked group maps to; empty: none, the base axis only."}},
+                                                  {"button": {"name": "BtnFfrFacCycle", "w": 40, "h": 30, "text": ">", "font": "header", "glyph": true, "bg": "$vppRaised", "edge": "$vppEdge", "color": "$vppText", "note": "Cycles the ids the draft already uses, the base faction and none."}},
+                                                  {"button": {"name": "BtnFfrMap", "w": 120, "h": 30, "text": "#STR_OZ_VPP_FFR_MAP", "font": "small", "bg": "$vppAccent", "edge": "$vppAccent", "color": "$vppScreen"}}
+                                                ]
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    ]
+                                  }
+                                },
+                                {"label": {"name": "FfrAllTag", "h": 18, "text": "#STR_OZ_VPP_FFR_ALL", "font": "small", "color": "$vppMuted"}},
+                                {
+                                  "hbox": {
+                                    "name": "FfrBaseRow",
+                                    "h": 28,
+                                    "gap": 8,
+                                    "children": [
+                                      {"label": {"name": "FfrBaseLbl", "w": 170, "text": "#STR_OZ_VPP_FFR_BASE", "font": "small", "color": "$vppMuted"}},
+                                      {"field": {"name": "FfrBase", "w": "fill", "color": "$vppText"}}
+                                    ]
+                                  }
+                                },
+                                {"label": {"name": "FfrSpendLbl", "h": 18, "text": "#STR_OZ_VPP_FFR_SPEND", "font": "small", "color": "$vppMuted"}},
+                                {
+                                  "hbox": {
+                                    "name": "FfrSpendRow",
+                                    "h": 30,
+                                    "gap": 8,
+                                    "children": [
+                                      {"button": {"name": "BtnFfrSpendAny", "w": "fill", "text": "#STR_OZ_VPP_FFR_SPEND_ANY", "font": "small", "bg": "$vppPanel", "edge": "$vppEdge", "color": "$vppMuted"}},
+                                      {"button": {"name": "BtnFfrSpendNone", "w": "fill", "text": "#STR_OZ_VPP_FFR_SPEND_NONE", "font": "small", "bg": "$vppPanel", "edge": "$vppEdge", "color": "$vppMuted"}}
+                                    ]
+                                  }
+                                },
+                                {
+                                  "hbox": {
+                                    "name": "FfrReloadRow",
+                                    "h": 28,
+                                    "gap": 8,
+                                    "children": [
+                                      {"label": {"name": "FfrReloadLbl", "w": 250, "text": "#STR_OZ_VPP_FFR_RELOAD", "font": "small", "color": "$vppMuted"}},
+                                      {"field": {"name": "FfrReload", "w": "fill", "color": "$vppText"}}
+                                    ]
+                                  }
+                                },
+                                {
+                                  "panel": {
+                                    "name": "FfrTradeBox",
+                                    "h": 104,
+                                    "color": "$vppPanel",
+                                    "inset": 10,
+                                    "children": [
+                                      {
+                                        "vbox": {
+                                          "name": "FfrTradeCol",
+                                          "size": "fill",
+                                          "gap": 4,
+                                          "children": [
+                                            {"label": {"name": "FfrTradeTag", "h": 16, "text": "#STR_OZ_VPP_FFR_TRADE", "font": "small", "color": "$vppMuted"}},
+                                            {"label": {"name": "FfrTradeFac", "h": 18, "text": "#STR_OZ_VPP_FFR_TRADE_FAC", "font": "small", "color": "$vppOk"}},
+                                            {"label": {"name": "FfrTradePost", "h": 18, "text": "#STR_OZ_VPP_FFR_TRADE_POST", "font": "small", "color": "$vppBad"}},
+                                            {"label": {"name": "FfrTradeLeader", "h": 20, "text": "", "font": "small", "color": "$vppAlert"}}
+                                          ]
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "panel": {
+                  "name": "FfrBar",
+                  "h": 60,
+                  "color": "$vppHead",
+                  "children": [
+                    {"panel": {"name": "FfrBarRule", "at": [0, 0], "size": [1060, 1], "color": "$vppEdge"}},
+                    {"panel": {"name": "FfrBarDot", "at": [24, 26], "size": [8, 8], "color": "$vppAlert", "hidden": true}},
+                    {"label": {"name": "FfrBarText", "at": [40, 0], "size": [420, 60], "text": "", "font": "small", "color": "$vppAlert"}},
+                    {"text": {"name": "FfrBarNote", "at": [470, 10], "size": [250, 40], "plain": true, "grow": false, "text": "#STR_OZ_VPP_FFR_BAR_NOTE", "font": "small", "color": "$vppMuted"}},
+                    {"button": {"name": "BtnFfrDiscard", "anchor": "right", "at": [176, 14], "size": [140, 32], "text": "#STR_OZ_VPP_FFR_DISCARD", "font": "small", "bg": "$vppRaised", "edge": "$vppEdge", "color": "$vppText"}},
+                    {"button": {"name": "BtnFfrApply", "anchor": "right", "at": [24, 14], "size": [140, 32], "text": "#STR_OZ_VPP_APPLY", "font": "small", "bg": "$vppAccent", "edge": "$vppAccent", "color": "$vppScreen"}}
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
