@@ -817,6 +817,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         FitChrome("StatusBar", w, STATUS * s);
         FitChrome("ConfirmBar", content, CONFIRM * s);
         FitChrome("ConfirmLine", content, 1);
+        // The question takes the strip up to its buttons (16 in, 286 of buttons, 12 apart).
+        FitChrome("ConfirmText", content - 314 * s, CONFIRM * s);
 
         for (int i = 0; i < m_TabIds.Count(); i++)
         {
@@ -1076,7 +1078,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     {
         if (op.IndexOf("cfg_get:") == 0 || op.IndexOf("player_peek:") == 0)
             return true;
-        array<string> reads = {"cfg_list", "mirror_list", "players_here", "news_voices", "roster", "list", "overview"};
+        array<string> reads = {"cfg_list", "mirror_list", "players_here", "news_voices", "roster", "list", "overview", "identity"};
         return reads.Find(op) != -1;
     }
 

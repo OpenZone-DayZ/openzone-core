@@ -170,8 +170,9 @@ class OZ_IdentityService
         return false;
     }
 
-    // What IsLeader answers here when it is not "the faction's leader", in
-    // words for an admin. Empty: the leader.
+    // What IsLeader answers here when it is not "the faction's leader", for an
+    // admin: a stringtable key ("#STR_...", the page translates it) or words.
+    // Empty: the leader.
     string LeaderMeans()
     {
         return "";

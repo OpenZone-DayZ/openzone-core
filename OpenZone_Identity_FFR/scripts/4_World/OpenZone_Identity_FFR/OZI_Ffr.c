@@ -276,7 +276,7 @@ class OZI_FfrIdentity : OZ_IdentityService
     override string LeaderMeans()
     {
         if (m_Set.AnyMemberSpends)
-            return "any member of an FFR group";
+            return "#STR_OZ_FFR_LEADER_ANY_MEMBER";
         return "";
     }
 }
