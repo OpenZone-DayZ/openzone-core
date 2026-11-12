@@ -1,21 +1,1074 @@
 {
   "layout": "oz_vpp_pane_overview",
-  "note": "Ядро › Огляд і журнал (VPP rework 2026-11-12, design §3.2): the window's journal -- every request a page sent and what came back, every line a page wrote -- with a filter. Created by OZ_VppMenu.OnCreate under OZ_VppRoot; the shell moves it into the content area. Names JournalList, BtnJrAll, BtnJrErr and JrHint are read by OZ_VppMenu.c.",
-  "root": {"frame": {"name": "PaneOverview", "size": "$vpp.pane", "at": [0, "$vpp.paneY"], "inset": "$vpp.inset",
-    "hidden": true, "priority": 2,
-    "note": "Hidden: ShowPane shows the open page and hides the rest.",
-    "children": [
-      {"vbox": {"name": "JrBody", "gap": "$space.gap", "children": [
-        {"hbox": {"name": "JrHead", "h": "$size.button", "gap": "$space.gap", "children": [
-          {"section": {"name": "SecJr", "w": 400, "text": "#STR_OZ_VPP_JOURNAL"}},
-          {"gap": {"w": "fill"}},
-          {"button": {"name": "BtnJrAll", "w": 150, "text": "#STR_OZ_VPP_JR_ALL"}},
-          {"button": {"name": "BtnJrErr", "w": 150, "text": "#STR_OZ_VPP_JR_ERRORS", "edge": "$bad", "color": "$bad"}}
-        ]}},
-        {"listbox": {"name": "JournalList", "h": "fill", "font": "field", "color": "$text",
-          "props": {"style": "NoScrollBar", "title visible": false, "highlight row": true, "lines": 18},
-          "note": "One row per entry, newest first: time, module, what was asked, what came back. Filled by RebuildJournal."}},
-        {"label": {"name": "JrHint", "h": "$size.hint", "font": "hint", "color": "$muted", "text": "#STR_OZ_VPP_JR_NOTE"}}
-      ]}}
-    ]}}
+  "note": "Ядро › Огляд і журнал (VPP rework 2026-11-12, design §3.2 and §4.3; artboard Overview): the server's state in four tiles, a card per module of the series from `overview`, \"reload every module's configs\" through the confirm strip, and the window's journal with its filter. Created by OZ_VppMenu.OnCreate under OZ_VppRoot; the shell moves it into the content area. Laid out at the content size of the default window (1060 x 680); a smaller window cuts it at the edge. Names OvStat*, OvCard*, BtnOv*, JournalList, BtnJrAll, BtnJrErr and JrHint are read by OZ_VppMenu.c.",
+  "root": {
+    "frame": {
+      "name": "PaneOverview",
+      "size": "$vpp.content",
+      "at": [
+        0,
+        "$vpp.paneY"
+      ],
+      "inset": "$vpp.inset",
+      "hidden": true,
+      "priority": 2,
+      "note": "Hidden: ShowPane shows the open page and hides the rest.",
+      "children": [
+        {
+          "vbox": {
+            "name": "OvBody",
+            "gap": "$space.gap",
+            "children": [
+              {
+                "hbox": {
+                  "name": "OvHead",
+                  "h": 40,
+                  "gap": "$space.gap",
+                  "children": [
+                    {
+                      "vbox": {
+                        "name": "OvTitleCol",
+                        "w": 560,
+                        "gap": 2,
+                        "children": [
+                          {
+                            "label": {
+                              "name": "OvTitle",
+                              "h": 22,
+                              "text": "#STR_OZ_VPP_OV_TITLE",
+                              "font": "title",
+                              "color": "$vppText"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvSub",
+                              "h": 16,
+                              "text": "#STR_OZ_VPP_OV_SUB",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "gap": {
+                        "w": "fill"
+                      }
+                    },
+                    {
+                      "button": {
+                        "name": "BtnOvRefresh",
+                        "w": 120,
+                        "text": "#STR_OZ_VPP_OV_REFRESH",
+                        "font": "small",
+                        "edge": "$vppEdge",
+                        "bg": "$vppRaised",
+                        "color": "$vppText"
+                      }
+                    },
+                    {
+                      "button": {
+                        "name": "BtnOvReload",
+                        "w": 300,
+                        "text": "#STR_OZ_VPP_OV_RELOAD",
+                        "font": "small",
+                        "edge": "$vppAccent",
+                        "bg": "$vppAccent",
+                        "color": "$vppScreen"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "hbox": {
+                  "name": "OvStats",
+                  "h": 62,
+                  "gap": "$space.gap",
+                  "children": [
+                    {
+                      "panel": {
+                        "name": "OvStat0",
+                        "w": 247,
+                        "color": "$vppHead",
+                        "children": [
+                          {
+                            "label": {
+                              "name": "OvStat0Lbl",
+                              "at": [
+                                12,
+                                8
+                              ],
+                              "w": 223,
+                              "h": 18,
+                              "text": "#STR_OZ_VPP_OV_PLAYERS",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvStat0Val",
+                              "at": [
+                                12,
+                                28
+                              ],
+                              "w": 223,
+                              "h": 28,
+                              "text": "-",
+                              "font": "title",
+                              "color": "$vppText"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "panel": {
+                        "name": "OvStat1",
+                        "w": 247,
+                        "color": "$vppHead",
+                        "children": [
+                          {
+                            "label": {
+                              "name": "OvStat1Lbl",
+                              "at": [
+                                12,
+                                8
+                              ],
+                              "w": 223,
+                              "h": 18,
+                              "text": "#STR_OZ_VPP_OV_FPS",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvStat1Val",
+                              "at": [
+                                12,
+                                28
+                              ],
+                              "w": 223,
+                              "h": 28,
+                              "text": "-",
+                              "font": "title",
+                              "color": "$vppText"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "panel": {
+                        "name": "OvStat2",
+                        "w": 247,
+                        "color": "$vppHead",
+                        "children": [
+                          {
+                            "label": {
+                              "name": "OvStat2Lbl",
+                              "at": [
+                                12,
+                                8
+                              ],
+                              "w": 223,
+                              "h": 18,
+                              "text": "#STR_OZ_VPP_OV_BRIDGE",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvStat2Val",
+                              "at": [
+                                12,
+                                28
+                              ],
+                              "w": 223,
+                              "h": 28,
+                              "text": "-",
+                              "font": "title",
+                              "color": "$vppText"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "panel": {
+                        "name": "OvStat3",
+                        "w": 247,
+                        "color": "$vppHead",
+                        "children": [
+                          {
+                            "label": {
+                              "name": "OvStat3Lbl",
+                              "at": [
+                                12,
+                                8
+                              ],
+                              "w": 223,
+                              "h": 18,
+                              "text": "#STR_OZ_VPP_OV_PROBLEMS",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvStat3Val",
+                              "at": [
+                                12,
+                                28
+                              ],
+                              "w": 223,
+                              "h": 28,
+                              "text": "-",
+                              "font": "title",
+                              "color": "$vppText"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "hbox": {
+                  "name": "OvCards0",
+                  "h": 76,
+                  "gap": "$space.gap",
+                  "children": [
+                    {
+                      "panel": {
+                        "name": "OvCard0",
+                        "w": 333,
+                        "color": "$vppHead",
+                        "hidden": true,
+                        "children": [
+                          {
+                            "label": {
+                              "name": "OvCardName0",
+                              "at": [
+                                12,
+                                8
+                              ],
+                              "w": 160,
+                              "h": 24,
+                              "text": "",
+                              "font": "header",
+                              "color": "$vppText"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardState0",
+                              "at": [
+                                176,
+                                11
+                              ],
+                              "w": 96,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppOk"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardProb0",
+                              "anchor": "right",
+                              "at": [
+                                12,
+                                11
+                              ],
+                              "w": 56,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted",
+                              "align": "right"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardFacts0",
+                              "at": [
+                                12,
+                                36
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardMore0",
+                              "at": [
+                                12,
+                                54
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "panel": {
+                        "name": "OvCard1",
+                        "w": 333,
+                        "color": "$vppHead",
+                        "hidden": true,
+                        "children": [
+                          {
+                            "label": {
+                              "name": "OvCardName1",
+                              "at": [
+                                12,
+                                8
+                              ],
+                              "w": 160,
+                              "h": 24,
+                              "text": "",
+                              "font": "header",
+                              "color": "$vppText"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardState1",
+                              "at": [
+                                176,
+                                11
+                              ],
+                              "w": 96,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppOk"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardProb1",
+                              "anchor": "right",
+                              "at": [
+                                12,
+                                11
+                              ],
+                              "w": 56,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted",
+                              "align": "right"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardFacts1",
+                              "at": [
+                                12,
+                                36
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardMore1",
+                              "at": [
+                                12,
+                                54
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "panel": {
+                        "name": "OvCard2",
+                        "w": 333,
+                        "color": "$vppHead",
+                        "hidden": true,
+                        "children": [
+                          {
+                            "label": {
+                              "name": "OvCardName2",
+                              "at": [
+                                12,
+                                8
+                              ],
+                              "w": 160,
+                              "h": 24,
+                              "text": "",
+                              "font": "header",
+                              "color": "$vppText"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardState2",
+                              "at": [
+                                176,
+                                11
+                              ],
+                              "w": 96,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppOk"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardProb2",
+                              "anchor": "right",
+                              "at": [
+                                12,
+                                11
+                              ],
+                              "w": 56,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted",
+                              "align": "right"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardFacts2",
+                              "at": [
+                                12,
+                                36
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardMore2",
+                              "at": [
+                                12,
+                                54
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "hbox": {
+                  "name": "OvCards1",
+                  "h": 76,
+                  "gap": "$space.gap",
+                  "children": [
+                    {
+                      "panel": {
+                        "name": "OvCard3",
+                        "w": 333,
+                        "color": "$vppHead",
+                        "hidden": true,
+                        "children": [
+                          {
+                            "label": {
+                              "name": "OvCardName3",
+                              "at": [
+                                12,
+                                8
+                              ],
+                              "w": 160,
+                              "h": 24,
+                              "text": "",
+                              "font": "header",
+                              "color": "$vppText"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardState3",
+                              "at": [
+                                176,
+                                11
+                              ],
+                              "w": 96,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppOk"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardProb3",
+                              "anchor": "right",
+                              "at": [
+                                12,
+                                11
+                              ],
+                              "w": 56,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted",
+                              "align": "right"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardFacts3",
+                              "at": [
+                                12,
+                                36
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardMore3",
+                              "at": [
+                                12,
+                                54
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "panel": {
+                        "name": "OvCard4",
+                        "w": 333,
+                        "color": "$vppHead",
+                        "hidden": true,
+                        "children": [
+                          {
+                            "label": {
+                              "name": "OvCardName4",
+                              "at": [
+                                12,
+                                8
+                              ],
+                              "w": 160,
+                              "h": 24,
+                              "text": "",
+                              "font": "header",
+                              "color": "$vppText"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardState4",
+                              "at": [
+                                176,
+                                11
+                              ],
+                              "w": 96,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppOk"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardProb4",
+                              "anchor": "right",
+                              "at": [
+                                12,
+                                11
+                              ],
+                              "w": 56,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted",
+                              "align": "right"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardFacts4",
+                              "at": [
+                                12,
+                                36
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardMore4",
+                              "at": [
+                                12,
+                                54
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "panel": {
+                        "name": "OvCard5",
+                        "w": 333,
+                        "color": "$vppHead",
+                        "hidden": true,
+                        "children": [
+                          {
+                            "label": {
+                              "name": "OvCardName5",
+                              "at": [
+                                12,
+                                8
+                              ],
+                              "w": 160,
+                              "h": 24,
+                              "text": "",
+                              "font": "header",
+                              "color": "$vppText"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardState5",
+                              "at": [
+                                176,
+                                11
+                              ],
+                              "w": 96,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppOk"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardProb5",
+                              "anchor": "right",
+                              "at": [
+                                12,
+                                11
+                              ],
+                              "w": 56,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted",
+                              "align": "right"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardFacts5",
+                              "at": [
+                                12,
+                                36
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardMore5",
+                              "at": [
+                                12,
+                                54
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "hbox": {
+                  "name": "OvCards2",
+                  "h": 76,
+                  "gap": "$space.gap",
+                  "children": [
+                    {
+                      "panel": {
+                        "name": "OvCard6",
+                        "w": 333,
+                        "color": "$vppHead",
+                        "hidden": true,
+                        "children": [
+                          {
+                            "label": {
+                              "name": "OvCardName6",
+                              "at": [
+                                12,
+                                8
+                              ],
+                              "w": 160,
+                              "h": 24,
+                              "text": "",
+                              "font": "header",
+                              "color": "$vppText"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardState6",
+                              "at": [
+                                176,
+                                11
+                              ],
+                              "w": 96,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppOk"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardProb6",
+                              "anchor": "right",
+                              "at": [
+                                12,
+                                11
+                              ],
+                              "w": 56,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted",
+                              "align": "right"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardFacts6",
+                              "at": [
+                                12,
+                                36
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardMore6",
+                              "at": [
+                                12,
+                                54
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "panel": {
+                        "name": "OvCard7",
+                        "w": 333,
+                        "color": "$vppHead",
+                        "hidden": true,
+                        "children": [
+                          {
+                            "label": {
+                              "name": "OvCardName7",
+                              "at": [
+                                12,
+                                8
+                              ],
+                              "w": 160,
+                              "h": 24,
+                              "text": "",
+                              "font": "header",
+                              "color": "$vppText"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardState7",
+                              "at": [
+                                176,
+                                11
+                              ],
+                              "w": 96,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppOk"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardProb7",
+                              "anchor": "right",
+                              "at": [
+                                12,
+                                11
+                              ],
+                              "w": 56,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted",
+                              "align": "right"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardFacts7",
+                              "at": [
+                                12,
+                                36
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardMore7",
+                              "at": [
+                                12,
+                                54
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "panel": {
+                        "name": "OvCard8",
+                        "w": 333,
+                        "color": "$vppHead",
+                        "hidden": true,
+                        "children": [
+                          {
+                            "label": {
+                              "name": "OvCardName8",
+                              "at": [
+                                12,
+                                8
+                              ],
+                              "w": 160,
+                              "h": 24,
+                              "text": "",
+                              "font": "header",
+                              "color": "$vppText"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardState8",
+                              "at": [
+                                176,
+                                11
+                              ],
+                              "w": 96,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppOk"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardProb8",
+                              "anchor": "right",
+                              "at": [
+                                12,
+                                11
+                              ],
+                              "w": 56,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted",
+                              "align": "right"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardFacts8",
+                              "at": [
+                                12,
+                                36
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          },
+                          {
+                            "label": {
+                              "name": "OvCardMore8",
+                              "at": [
+                                12,
+                                54
+                              ],
+                              "w": 309,
+                              "h": 18,
+                              "text": "",
+                              "font": "small",
+                              "color": "$vppMuted"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "hbox": {
+                  "name": "JrHead",
+                  "h": "$size.button",
+                  "gap": "$space.gap",
+                  "children": [
+                    {
+                      "section": {
+                        "name": "SecJr",
+                        "w": 400,
+                        "text": "#STR_OZ_VPP_JOURNAL"
+                      }
+                    },
+                    {
+                      "gap": {
+                        "w": "fill"
+                      }
+                    },
+                    {
+                      "button": {
+                        "name": "BtnJrAll",
+                        "w": 150,
+                        "text": "#STR_OZ_VPP_JR_ALL"
+                      }
+                    },
+                    {
+                      "button": {
+                        "name": "BtnJrErr",
+                        "w": 150,
+                        "text": "#STR_OZ_VPP_JR_ERRORS",
+                        "edge": "$vppBad",
+                        "color": "$vppBad"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "listbox": {
+                  "name": "JournalList",
+                  "h": "fill",
+                  "font": "field",
+                  "color": "$vppText",
+                  "props": {
+                    "style": "NoScrollBar",
+                    "title visible": false,
+                    "highlight row": true,
+                    "lines": 8
+                  },
+                  "note": "One row per entry, newest first: time, module, what was asked, what came back. Filled by RebuildJournal."
+                }
+              },
+              {
+                "label": {
+                  "name": "JrHint",
+                  "h": "$size.hint",
+                  "font": "hint",
+                  "color": "$vppMuted",
+                  "text": "#STR_OZ_VPP_JR_NOTE"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
 }

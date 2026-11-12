@@ -62,6 +62,11 @@ class OZ_AdminCfg
         return null;
     }
 
+    static int Count()
+    {
+        return s_All.Count();
+    }
+
     static void Names(array<string> outNames, array<string> outOwners)
     {
         for (int i = 0; i < s_All.Count(); i++)
@@ -133,11 +138,111 @@ class OZ_ConfigSection : OZ_AdminSection
         // that decide who may do what dim the fields its source does not know.
         if (op == "identity")
             return IdentityInfo(ok, error);
+
+        // Ядро › Огляд (design §4.3): the server's state and a card per module;
+        // every module's files read again from disk.
+        if (op == "overview")
+            return Overview(ok, error);
+        if (op == "reload_all")
+            return ReloadAll(ok, error);
         if (op.IndexOf("mirror_set:") == 0)
             return OZ_MirrorOps.Set(op.Substring(11, op.Length() - 11), op, sender, ok, error);
 
         error = "STR_OZ_ERR_UNKNOWN_OP";
         return "";
+    }
+
+    private string Overview(out bool ok, out string error)
+    {
+        OZ_AdminOverview ov = new OZ_AdminOverview();
+        array<Man> men = new array<Man>();
+        GetGame().GetPlayers(men);
+        ov.Players = men.Count();
+        ov.MaxPlayers = GetGame().ServerConfigGetInt("maxPlayers");
+        ov.Fps = GetGame().GetFps();
+        ov.Bridge = BridgeState();
+
+        int problems = 0;
+        for (int i = 0; i < OZ_AdminFacts.Count(); i++)
+        {
+            OZ_AdminFactsProvider p = OZ_AdminFacts.At(i);
+            if (!p)
+                continue;
+            OZ_AdminModuleCard card = new OZ_AdminModuleCard();
+            p.Fill(card);
+            if (card.Id == "")
+                continue;
+            if (card.Problems > 0)
+                problems += card.Problems;
+            ov.Modules.Insert(card);
+        }
+        ov.Problems = problems;
+
+        string outJson;
+        string err;
+        if (!JsonFileLoader<OZ_AdminOverview>.MakeData(ov, outJson, err, false))
+        {
+            error = "STR_OZ_ERR_INTERNAL";
+            return "";
+        }
+        ok = true;
+        return outJson;
+    }
+
+    private int BridgeState()
+    {
+        OZ_Settings s = OZ_Settings.Get();
+        if (!s || !s.Bridge || !s.Bridge.Enabled)
+            return OZ_AdminBridge.OFF;
+        if (OZ_BridgeClient.Alive())
+            return OZ_AdminBridge.UP;
+        return OZ_AdminBridge.DOWN;
+    }
+
+    // Every module reads its files again, as at the start; each says what it did.
+    private string ReloadAll(out bool ok, out string error)
+    {
+        OZ_AdminReloadReport rep = new OZ_AdminReloadReport();
+        int done = 0;
+        int problems = 0;
+        for (int i = 0; i < OZ_AdminFacts.Count(); i++)
+        {
+            OZ_AdminFactsProvider p = OZ_AdminFacts.At(i);
+            if (!p)
+                continue;
+            OZ_AdminReloadLine line = new OZ_AdminReloadLine();
+            bool did = p.Reload(line.Said);
+            OZ_AdminModuleCard card = new OZ_AdminModuleCard();
+            p.Fill(card);
+            if (card.Id == "")
+                continue;
+            line.Id = card.Id;
+            line.Name = card.Name;
+            line.Problems = card.Problems;
+            if (did)
+            {
+                line.Done = 1;
+                done++;
+            }
+            if (card.Problems > 0)
+                problems += card.Problems;
+            rep.Lines.Insert(line);
+        }
+        rep.Done = done;
+        rep.Problems = problems;
+        string said = "admin: every module's files read again: " + done.ToString();
+        said += " modules, problems=" + problems.ToString();
+        OZ_Log.Info(said);
+
+        string outJson;
+        string err;
+        if (!JsonFileLoader<OZ_AdminReloadReport>.MakeData(rep, outJson, err, false))
+        {
+            error = "STR_OZ_ERR_INTERNAL";
+            return "";
+        }
+        ok = true;
+        return outJson;
     }
 
     private string IdentityInfo(out bool ok, out string error)

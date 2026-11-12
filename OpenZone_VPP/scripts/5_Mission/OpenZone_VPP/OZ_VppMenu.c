@@ -127,6 +127,11 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     protected bool m_JournalErrors = false;
     protected bool m_RepaintQueued = false;
 
+    // Ядро › Огляд: the last overview the server gave, as a copy made by script, and
+    // how many module cards the page holds.
+    protected ref OZ_AdminOverview m_Ov;
+    static const int OV_CARDS = 9;
+
     // Ім'я віджета підказки для кожної панелі -- називає сама панель.
     protected ref map<string, string> m_PaneHints;
 
@@ -683,7 +688,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     protected void OnPaneShown(string id)
     {
         if (id == "overview")
+        {
             RebuildJournal();
+            AskOverview();
+        }
         if (id == "spawns")
             AskCfg("Spawns");
         if (id == "raw")
@@ -977,6 +985,209 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         m_Repaint = false;
     }
 
+    // ---------------------------------------------------------- Ядро › Огляд
+
+    // The server's state and a card per module (design §4.3). A read: not journaled.
+    protected void AskOverview()
+    {
+        OvText("OvStat0Val", "#STR_OZ_VPP_OV_ASKING", ARGBF(1, 0.627, 0.624, 0.6));
+        Ask(OZ_AdminSect.CONFIG, "overview", "{}");
+    }
+
+    protected void OnOverviewAnswer(bool ok, string json, string error)
+    {
+        if (!ok)
+        {
+            Hint("#" + error);
+            return;
+        }
+        // Root made by the script, then read from a copy made by the script (the
+        // core's OZ_ConfigBase header): nothing is read from what the serializer made.
+        OZ_AdminOverview parsed = new OZ_AdminOverview();
+        string err;
+        if (!JsonFileLoader<OZ_AdminOverview>.LoadData(json, parsed, err) || !parsed)
+        {
+            Hint("#STR_OZ_ERR_INTERNAL");
+            return;
+        }
+        m_Ov = parsed.Copy();
+        PaintOverview();
+    }
+
+    protected void OnReloadAnswer(bool ok, string json, string error)
+    {
+        if (!ok)
+        {
+            Hint("#" + error);
+            return;
+        }
+        OZ_AdminReloadReport parsed = new OZ_AdminReloadReport();
+        string err;
+        if (!JsonFileLoader<OZ_AdminReloadReport>.LoadData(json, parsed, err) || !parsed)
+        {
+            Hint("#STR_OZ_ERR_INTERNAL");
+            return;
+        }
+        OZ_AdminReloadReport rep = parsed.Copy();
+
+        // A journal line for each thing a module said, then the sum. Every translated
+        // piece goes into a local before it meets another (two translations in one
+        // expression lose one: dayz-modding mod-structure.md, strings from SCRIPT).
+        for (int i = 0; i < rep.Lines.Count(); i++)
+        {
+            OZ_AdminReloadLine rl = rep.Lines[i];
+            string modName = OvTr(rl.Name);
+            for (int k = 0; k < rl.Said.Count(); k++)
+            {
+                string said = OvTr(rl.Said[k]);
+                NoteHint(modName + ": " + said);
+            }
+        }
+        string doneWord = OvTr("#STR_OZ_VPP_OV_RELOADED");
+        string probWord = OvTr("#STR_OZ_VPP_OV_PROBLEMS_N");
+        string sum = doneWord + " " + rep.Done.ToString();
+        sum = sum + ", " + probWord;
+        sum = sum + " " + rep.Problems.ToString();
+        Hint(sum);
+        AskOverview();
+    }
+
+    protected void PaintOverview()
+    {
+        if (!M_SUB_WIDGET || !m_Ov)
+            return;
+
+        int ink = ARGBF(1, 0.88, 0.875, 0.855);
+        int inkOk = ARGBF(1, 0.4, 0.78, 0.36);
+        int inkAlert = ARGBF(1, 0.96, 0.78, 0.25);
+        int inkBad = ARGBF(1, 0.88, 0.32, 0.29);
+        int inkMuted = ARGBF(1, 0.627, 0.624, 0.6);
+
+        string players = m_Ov.Players.ToString();
+        if (m_Ov.MaxPlayers > 0)
+            players = players + " / " + m_Ov.MaxPlayers.ToString();
+        OvText("OvStat0Val", players, ink);
+
+        // The server ticks at 30; under 25 players feel it, under 15 it is unplayable
+        // (dayz-modding toolchain.md, server performance).
+        int fps = m_Ov.Fps;
+        int fpsInk = inkOk;
+        if (fps < 25)
+            fpsInk = inkAlert;
+        if (fps < 15)
+            fpsInk = inkBad;
+        OvText("OvStat1Val", fps.ToString(), fpsInk);
+
+        string bridge = "#STR_OZ_VPP_OV_BRIDGE_OFF";
+        int bridgeInk = inkMuted;
+        if (m_Ov.Bridge == OZ_AdminBridge.UP)
+        {
+            bridge = "#STR_OZ_VPP_OV_BRIDGE_UP";
+            bridgeInk = inkOk;
+        }
+        else if (m_Ov.Bridge == OZ_AdminBridge.DOWN)
+        {
+            bridge = "#STR_OZ_VPP_OV_BRIDGE_DOWN";
+            bridgeInk = inkBad;
+        }
+        OvText("OvStat2Val", bridge, bridgeInk);
+
+        int probInk = inkOk;
+        if (m_Ov.Problems > 0)
+            probInk = inkAlert;
+        OvText("OvStat3Val", m_Ov.Problems.ToString(), probInk);
+
+        if (m_Ov.Modules.Count() > OV_CARDS)
+            OZ_Log.Warn("vpp overview: " + m_Ov.Modules.Count().ToString() + " modules, the page shows " + OV_CARDS.ToString());
+        for (int k = 0; k < OV_CARDS; k++)
+        {
+            Widget card = M_SUB_WIDGET.FindAnyWidget("OvCard" + k.ToString());
+            if (!card)
+                continue;
+            if (k >= m_Ov.Modules.Count())
+            {
+                card.Show(false);
+                continue;
+            }
+            card.Show(true);
+            PaintOvCard(k, m_Ov.Modules[k]);
+        }
+    }
+
+    // One module's card: its name, whether it has pages here, its problems, its facts
+    // on two lines (two facts on the first, the rest on the second).
+    protected void PaintOvCard(int k, OZ_AdminModuleCard c)
+    {
+        string n = k.ToString();
+        int ink = ARGBF(1, 0.88, 0.875, 0.855);
+        int inkOk = ARGBF(1, 0.4, 0.78, 0.36);
+        int inkAlert = ARGBF(1, 0.96, 0.78, 0.25);
+        int inkMuted = ARGBF(1, 0.627, 0.624, 0.6);
+
+        string shownName = OvTr(c.Name);
+        OvText("OvCardName" + n, shownName, ink);
+
+        if (c.Pages == 1)
+            OvText("OvCardState" + n, "#STR_OZ_VPP_OV_WORKING", inkOk);
+        else
+            OvText("OvCardState" + n, "#STR_OZ_VPP_OV_NO_PAGES", inkMuted);
+
+        string prob = "";
+        int probInk = inkMuted;
+        if (c.Problems >= 0)
+        {
+            string probWord = OvTr("#STR_OZ_VPP_OV_PROBLEMS_N");
+            prob = probWord + " " + c.Problems.ToString();
+            if (c.Problems > 0)
+                probInk = inkAlert;
+        }
+        OvText("OvCardProb" + n, prob, probInk);
+
+        string first = "";
+        string second = "";
+        for (int i = 0; i < c.Facts.Count(); i++)
+        {
+            OZ_AdminFact f = c.Facts[i];
+            string lab = OvTr(f.Label);
+            string val = OvTr(f.Value);
+            string one = lab + ": ";
+            one = one + val;
+            if (i < 2)
+            {
+                if (first != "")
+                    first = first + "  |  ";
+                first = first + one;
+            }
+            else
+            {
+                if (second != "")
+                    second = second + "  |  ";
+                second = second + one;
+            }
+        }
+        OvText("OvCardFacts" + n, first, inkMuted);
+        OvText("OvCardMore" + n, second, inkMuted);
+    }
+
+    // A stringtable key translated; anything else as it is.
+    protected string OvTr(string s)
+    {
+        if (s.IndexOf("#") != 0)
+            return s;
+        return Widget.TranslateString(s);
+    }
+
+    protected void OvText(string name, string text, int color)
+    {
+        if (!M_SUB_WIDGET)
+            return;
+        TextWidget t = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget(name));
+        if (!t)
+            return;
+        t.SetText(text);
+        t.SetColor(color);
+    }
+
     // ---------------------------------------------------------- the confirm strip
 
     // A destructive action asks here, at the bottom of the page (design §3.4); "yes"
@@ -1011,6 +1222,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // The strip's "yes". A glue's layer overrides it for its own actions and calls super.
     protected void OnConfirmed(string action)
     {
+        if (action == "reload_all")
+        {
+            Ask(OZ_AdminSect.CONFIG, "reload_all", "{}");
+            return;
+        }
+
         if (action.IndexOf("wipe:") == 0)
         {
             string wuid = action.Substring(5, action.Length() - 5);
@@ -1216,6 +1433,17 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         if (sectionId != OZ_AdminSect.CONFIG)
             return;
+
+        if (op == "overview")
+        {
+            OnOverviewAnswer(ok, json, error);
+            return;
+        }
+        if (op == "reload_all")
+        {
+            OnReloadAnswer(ok, json, error);
+            return;
+        }
 
         if (!ok)
         {
@@ -1928,6 +2156,18 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             bool errs = nm == "BtnJrErr";
             m_JournalErrors = errs;
             RebuildJournal();
+            return true;
+        }
+
+        if (nm == "BtnOvRefresh")
+        {
+            AskOverview();
+            return true;
+        }
+
+        if (nm == "BtnOvReload")
+        {
+            Confirm("#STR_OZ_VPP_OV_ASK", "#STR_OZ_VPP_OV_YES", "reload_all");
             return true;
         }
 

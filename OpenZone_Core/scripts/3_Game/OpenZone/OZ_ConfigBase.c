@@ -112,6 +112,31 @@ class OZ_ConfigBase
     void Validate(out int warnings) { warnings = 0; }
 }
 
+// Problems of the last load per config (VPP rework 2026-11-12, design §4.3): what
+// Validate fixed or warned about, plus one for a file that could not be used and
+// was set aside or left alone. Ядро › Огляд shows each module's sum on its card.
+// Keyed by the loader's tag. The core's player files ("player_", "grave_") are no
+// config of the server and are not kept: there is one per player.
+class OZ_ConfigProblems
+{
+    private static ref map<string, int> s_Of = new map<string, int>();
+
+    static void Record(string tag, int found)
+    {
+        if (tag.IndexOf("player_") == 0 || tag.IndexOf("grave_") == 0)
+            return;
+        s_Of.Set(tag, found);
+    }
+
+    static int Of(string tag)
+    {
+        int found = 0;
+        if (!s_Of.Find(tag, found))
+            return 0;
+        return found;
+    }
+}
+
 class OZ_ConfigLoader<Class T>
 {
     // cfg приходить УЖЕ створеним. new T() всередині дженерика в Enforce
@@ -261,6 +286,11 @@ class OZ_ConfigLoader<Class T>
         // було відновитись, зникла б через один зіпсований старт.
         if (write && !keepFile)
             Save(path, tag, cfg, backupOnWrite && !salvaged);
+
+        int found = warnings;
+        if (salvaged)
+            found++;
+        OZ_ConfigProblems.Record(tag, found);
 
         return !keepFile;
     }

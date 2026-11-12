@@ -149,6 +149,9 @@ class OZ_Module : CF_ModuleWorld
 
         OZ_AdminCfg.Register("Spawns", OZ_Const.PROFILE_DIR + "\\OZ_Core_Spawns.json", new OZ_SpawnsCfgApplier());
 
+        // The core's card on Ядро › Огляд; every module adds its own (design §4.3).
+        OZ_AdminFacts.Register(new OZ_CoreFacts());
+
         OZ_Rpc.RegisterServer(this);
 
         m_FlushTimer = new Timer(CALL_CATEGORY_SYSTEM);
