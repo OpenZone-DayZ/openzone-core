@@ -408,16 +408,27 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             m_ModOpen.Insert(0);
         }
 
+        // A pane registered before under another page id is shared: it is set up once.
+        bool shared = false;
+        for (int k = 0; k < m_TabIds.Count(); k++)
+        {
+            if (m_Panes.Get(m_TabIds[k]) == pane)
+                shared = true;
+        }
+
         m_TabIds.Insert(id);
         m_PageModule.Insert(module);
         m_PageLabel.Insert(label);
         m_Panes.Set(id, pane);
         m_PaneHints.Set(id, hintName);
 
-        // A window smaller than its page cuts the page at its edge (measured 2026-11-09).
-        pane.SetFlags(WidgetFlags.CLIPCHILDREN);
-        OZ_VppPaint.Repaint(pane);
-        PlacePane(pane);
+        if (!shared)
+        {
+            // A window smaller than its page cuts the page at its edge (measured 2026-11-09).
+            pane.SetFlags(WidgetFlags.CLIPCHILDREN);
+            OZ_VppPaint.Repaint(pane);
+            PlacePane(pane);
+        }
         LayoutRail();
     }
 
@@ -617,12 +628,19 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             CloseConfirm();
 
         m_Shown = id;
+
+        // Several pages may share one pane (a glue that switches its own inner
+        // page in OnPaneShown, as research's editor does): a pane is shown when
+        // it is the shown page's pane, whichever id it was registered under.
+        Widget shownPane = m_Panes.Get(id);
         for (int i = 0; i < m_TabIds.Count(); i++)
         {
             Widget pane = m_Panes.Get(m_TabIds[i]);
-            if (pane)
-                pane.Show(m_TabIds[i] == id);
+            if (pane && pane != shownPane)
+                pane.Show(false);
         }
+        if (shownPane)
+            shownPane.Show(true);
 
         int m = m_ModIds.Find(ModuleOf(id));
         if (m != -1)
@@ -1147,6 +1165,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
     protected string CurrentPane()
     {
+        // The shown page first: pages may share a pane, and the shown id is the
+        // one that page's answers belong to.
+        Widget shown = m_Panes.Get(m_Shown);
+        if (shown && shown.IsVisible())
+            return m_Shown;
+
         for (int i = 0; i < m_TabIds.Count(); i++)
         {
             Widget pane = m_Panes.Get(m_TabIds[i]);
