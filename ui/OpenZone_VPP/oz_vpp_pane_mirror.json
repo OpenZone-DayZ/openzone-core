@@ -1,0 +1,58 @@
+{
+  "layout": "oz_vpp_pane_mirror",
+  "note": "Ядро › Дзеркало Discord (VPP rework 2026-11-12, design §5.1; not drawn in the mockup): one row per kind a module of the series registered for mirroring (mirror_list), with its state, the server's own sentence on what switching it does, and a switch that asks on the window's confirm strip before mirror_set. Moved here from the files page. THE KIND NAMES ARE NOT HERE: they come from the modules (OZ_MirrorOps.List), so the core neither names another mod's kind nor caps how many there may be; the rows are generated into MirrorStrip from oz_vpp_mirror_row. Created by OZ_VppMenu.OnCreate; the shell moves it into the content area. Names MirrorStrip and BtnMrRefresh are read by OZ_VppMenu.c.",
+  "root": {
+    "frame": {
+      "name": "PaneMirror",
+      "size": "$vpp.content",
+      "at": [0, "$vpp.paneY"],
+      "hidden": true,
+      "priority": 2,
+      "note": "Hidden: ShowPane shows the open page and hides the rest.",
+      "children": [
+        {
+          "vbox": {
+            "name": "MrBody",
+            "size": "fill",
+            "children": [
+              {
+                "frame": {
+                  "name": "MrHead",
+                  "h": 60,
+                  "children": [
+                    {"label": {"name": "MrTitle", "at": [24, 9], "size": [520, 26], "text": "#STR_OZ_VPP_MR_TITLE", "font": "title", "color": "$vppText"}},
+                    {"label": {"name": "MrSub", "at": [24, 35], "size": [760, 18], "text": "#STR_OZ_VPP_MR_SUB", "font": "small", "color": "$vppMuted"}},
+                    {"button": {"name": "BtnMrRefresh", "anchor": "right", "at": [24, 15], "size": [160, 30], "text": "#STR_OZ_VPP_MR_REFRESH", "font": "small", "bg": "$vppRaised", "edge": "$vppEdge", "color": "$vppText"}},
+                    {"panel": {"name": "MrHeadRule", "at": [0, 59], "size": [1060, 1], "color": "$vppEdge"}}
+                  ]
+                }
+              },
+              {
+                "panel": {
+                  "name": "MrMain",
+                  "h": "fill",
+                  "color": "$vppPanel",
+                  "inset": 24,
+                  "children": [
+                    {
+                      "vbox": {
+                        "name": "MrCol",
+                        "size": "fill",
+                        "gap": 12,
+                        "children": [
+                          {"text": {"name": "MrIntro", "h": 40, "plain": true, "grow": false, "font": "small", "color": "$vppMuted", "text": "#STR_OZ_VPP_MR_INTRO"}},
+                          {"frame": {"name": "MirrorStrip", "h": "fill", "note": "One generated oz_vpp_mirror_row per kind, placed by OZ_VppMenu.LayoutMirror."}},
+                          {"text": {"name": "MrNote", "h": 40, "plain": true, "grow": false, "font": "small", "color": "$vppMuted", "text": "#STR_OZ_VPP_MR_NOTE"}}
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

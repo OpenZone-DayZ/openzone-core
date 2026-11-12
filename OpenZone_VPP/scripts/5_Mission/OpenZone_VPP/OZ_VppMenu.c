@@ -300,6 +300,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         m_MirrorOn    = new array<int>();
         m_MirrorNotes = new array<string>();
         m_MirrorBtns  = new array<Widget>();
+        m_MrRows      = new array<Widget>();
 
         // Ядро's pages (VPP rework 2026-11-12): the journal first, the config files last.
         AddOwnPane("overview", "#STR_OZ_VPP_PAGE_OVERVIEW", "JrHint");
@@ -314,6 +315,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         // No hint label of its own: its lines go to the journal, and the status bar
         // shows the newest (design §3.2).
         AddOwnPane("players", "#STR_OZ_VPP_PAGE_PLAYERS", "");
+        AddOwnPane("mirror",  "#STR_OZ_VPP_PAGE_MIRROR",  "");
         AddOwnPane("raw",     "#STR_OZ_VPP_PAGE_FILES",   "");
         m_PlrFindBox = EditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("PlrFind"));
         m_NwTitleBox = EditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("NwTitle"));
@@ -356,8 +358,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // МІСТ (news_voices); панель його лише малює й по колу перебирає. Вона
     // не вирішує прав і не вигадує імен: список -- підказка, грант -- факт,
     // і маршрут запису перевіряє це ще раз (R3.2).
-    // Дзеркала Discord (ТЗ-2 §8): стан приходить mirror_list, перемикання --
-    // mirror_set у два натискання, бо вмикання заливає в Discord усю
+    // Ядро › Дзеркало Discord (ТЗ-2 §8): стан приходить mirror_list, перемикання --
+    // mirror_set через смугу підтвердження, бо вмикання заливає в Discord усю
     // історію, а це дія назовні.
     //
     // ПО РЯДКУ НА РІД, І РОДИ ПРИХОДЯТЬ ІЗ СЕРВЕРА (дизайн платформи §4).
@@ -377,12 +379,9 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     protected ref array<string> m_MirrorNotes;
     protected ref array<Widget> m_MirrorBtns;
 
-    // Який рядок зведений на друге натискання. -1 -- жоден.
-    protected int m_MirrorArmed = -1;
-
-    // Ширина шаблону рядка -- з першої створеної кнопки, до того як
-    // LayoutMirror її стисне. Те саме, що m_TabW для вкладок.
-    protected float m_MirrorW = 0;
+    // The rows themselves (m_MirrorBtns holds each row's switch): unlinked when the
+    // next mirror_list builds them again.
+    protected ref array<Widget> m_MrRows;
 
     // ------------------------------------------------- Ядро › Новини
     //
@@ -785,7 +784,9 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         {
             Ask(OZ_AdminSect.CONFIG, "cfg_list", "{}");
             RawPaintStatus(false);
-            m_MirrorArmed = -1;
+        }
+        if (id == "mirror")
+        {
             PaintMirror();
             Ask(OZ_AdminSect.CONFIG, "mirror_list", "{}");
         }
@@ -1583,10 +1584,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
                     RawPaintHead(OZ_VppJournal.Words(error));
             }
             if (op.IndexOf("mirror_set:") == 0)
-            {
-                m_MirrorArmed = -1;
                 PaintMirror();
-            }
             Hint("#" + error);
             return;
         }
@@ -1619,13 +1617,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             // сирої пам'яті ще до знімання в локальні змінні нижче.
             OZ_MirrorReport mrep = new OZ_MirrorReport();
             string rerr;
-            m_MirrorArmed = -1;
             if (JsonFileLoader<OZ_MirrorReport>.LoadData(json, mrep, rerr) && mrep)
             {
-                // ЗНІМАЄМО ВСЕ ВІДРАЗУ, а вже тоді складаємо рядок. Складання
-                // рядка -- це виділення пам'яті, а конверт виділив
-                // серіалізатор (шапка OZ_ConfigBase): читати з нього далі,
-                // між двома склейками, означає читати з чужої сторінки.
+                // ЗНІМАЄМО ВСЕ ВІДРАЗУ, а вже тоді складаємо рядок: складання
+                // рядка -- це виділення пам'яті, а конверт виділив серіалізатор.
                 string kind    = mrep.Kind;
                 bool   on      = mrep.On;
                 int    pushed  = mrep.Pushed;
@@ -1633,9 +1628,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
                 int    failed  = mrep.Failed;
                 string note    = mrep.Note;
 
-                // Рядок цього роду -- по імені, а не по гілці «ролі чи все
-                // інше»: рід приходить з відповіді, і панель не мусить знати
-                // жодного імені наперед.
+                // Рядок цього роду -- по імені: рід приходить з відповіді, і
+                // сторінка не мусить знати жодного імені наперед.
                 int row = m_MirrorKinds.Find(kind);
                 if (row != -1)
                 {
@@ -1645,25 +1639,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
                     else
                         m_MirrorOn.Set(row, 0);
                 }
-
-                string line = kind + " mirror ";
-                if (on)
-                    line += "ON";
-                else
-                    line += "OFF";
-                if (skipped == 1 && pushed == 0 && failed == 0 && note.IndexOf("already") == 0)
-                    line += " (unchanged)";
-                else
-                    line += ": pushed " + pushed.ToString() + ", skipped " + skipped.ToString() + ", failed " + failed.ToString();
-                if (note != "")
-                    line += " - " + note;
-                Hint(line);
+                MrReport(kind, on, pushed, skipped, failed, note);
             }
             PaintMirror();
 
             // Речення «що буде, як натиснути» складає СЕРВЕР і воно щойно
-            // застаріло -- стан протилежний. Перепитуємо: дія рідка, лист
-            // порожній, а підказка інакше обіцяла б те, що вже сталося.
+            // застаріло -- стан протилежний. Перепитуємо.
             Ask(OZ_AdminSect.CONFIG, "mirror_list", "{}");
             return;
         }
@@ -3628,6 +3609,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return true;
         }
 
+        if (nm == "BtnMrRefresh")
+        {
+            Ask(OZ_AdminSect.CONFIG, "mirror_list", "{}");
+            return true;
+        }
+
         // ДЗЕРКАЛА -- ПО ВІДЖЕТУ, А НЕ ПО ІМЕНІ. Рядки згенеровані, і всі
         // їхні кнопки звуться однаково (MirrorRowBtn): рід везе сам рядок.
         int mrow = m_MirrorBtns.Find(w);
@@ -3644,10 +3631,11 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         return super.OnClick(w, x, y, button);
     }
 
-    // Порожня смуга з розмітки панелі -- дім згенерованих рядків. Немає її
+    // ---------------------------------------------------------- Ядро › Дзеркало Discord
+
+    // Порожня смуга з розмітки сторінки -- дім згенерованих рядків. Немає її
     // (стара .layout поруч із новим скриптом) -- рядки лишаються дітьми
-    // панелі: гірше на вигляд, але не порожньо. Той самий прийом, що й у
-    // TabStrip().
+    // вікна: гірше на вигляд, але не порожньо.
     protected Widget MirrorStrip()
     {
         if (!M_SUB_WIDGET)
@@ -3661,7 +3649,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     }
 
     // Рядки будуються З ВІДПОВІДІ СЕРВЕРА, а не з розмітки: скільки родів
-    // зареєстрували моди, стільки й кнопок.
+    // зареєстрували моди, стільки й рядків.
     protected void BuildMirrorRows(OZ_MirrorState st)
     {
         Widget strip = MirrorStrip();
@@ -3670,16 +3658,16 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         // Старі рядки знімаємо руками: Unlink() на кожному, бо смуга живе
         // далі й наступний mirror_list інакше домалював би другий комплект.
-        for (int d = 0; d < m_MirrorBtns.Count(); d++)
+        for (int d = 0; d < m_MrRows.Count(); d++)
         {
-            if (m_MirrorBtns[d])
-                m_MirrorBtns[d].Unlink();
+            if (m_MrRows[d])
+                m_MrRows[d].Unlink();
         }
+        m_MrRows.Clear();
         m_MirrorBtns.Clear();
         m_MirrorKinds.Clear();
         m_MirrorOn.Clear();
         m_MirrorNotes.Clear();
-        m_MirrorArmed = -1;
 
         for (int i = 0; i < st.Mirrors.Count(); i++)
         {
@@ -3694,12 +3682,6 @@ class OZ_VppAdminMenu : AdminHudSubMenu
                 continue;
             }
 
-            if (m_MirrorW <= 0)
-            {
-                float rowH;
-                row.GetSize(m_MirrorW, rowH);
-            }
-
             m_MirrorKinds.Insert(km.Kind);
             if (km.Mirror)
                 m_MirrorOn.Insert(1);
@@ -3711,127 +3693,101 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             else
                 m_MirrorNotes.Insert("");
 
-            m_MirrorBtns.Insert(row);
+            m_MrRows.Insert(row);
+            m_MirrorBtns.Insert(row.FindAnyWidget("MirrorRowBtn"));
         }
 
         LayoutMirror();
         PaintMirror();
     }
 
-    // A button and its children (edge, ground, caption) narrower -- or wider -- by one
-    // number, in PIXELS: SetSize on an exact-size widget writes screen pixels (measured
-    // 2026-09-03, gui-layouts §24). The tab strip had it first; the mirror rows keep it.
-    private void ShrinkTab(Widget b, float width)
-    {
-        float w, h;
-        b.GetScreenSize(w, h);
-        float d = w - width;
-        b.SetSize(width, h);
-        Widget c = b.GetChildren();
-        while (c)
-        {
-            c.GetScreenSize(w, h);
-            c.SetSize(w - d, h);
-            c = c.GetSibling();
-        }
-    }
-
-    // The rows along the strip, narrower when they no longer fit: the arithmetic the
-    // tab strip used, without its first-frame guard -- the strip is on screen when the
-    // mirror_list answer comes.
+    // The rows down the strip, 72 units and 8 apart: SetPos takes pixels on an
+    // exact-size widget (gui-layouts §31), so units times UnitScale().
     protected void LayoutMirror()
     {
-        int n = m_MirrorBtns.Count();
-        Widget strip = MirrorStrip();
-        if (n == 0 || !strip)
-            return;
-
-        float room, striph;
-        strip.GetScreenSize(room, striph);
-
-        int scrW, scrH;
-        GetScreenSize(scrW, scrH);
-        float scrHf = scrH;
-
-        if (room <= 0 || m_MirrorW <= 0 || scrHf <= 0)
-            return;
-
-        float s    = scrHf / 1080.0;
-        float gap  = TAB_GAP * s;
-        float want = m_MirrorW;
-        if (want * n + gap * (n - 1) > room)
-            want = (room - gap * (n - 1)) / n;
-
-        for (int i = 0; i < n; i++)
+        float s = UnitScale();
+        for (int i = 0; i < m_MrRows.Count(); i++)
         {
-            Widget b = m_MirrorBtns[i];
-            b.SetPos(i * (want + gap), 0);
-
-            float bw, bh;
-            b.GetScreenSize(bw, bh);
-            if (bw > want)
-                ShrinkTab(b, want);
+            Widget row = m_MrRows[i];
+            if (row)
+                row.SetPos(0, i * 80 * s);
         }
     }
 
-    // Напис кнопки несе ВСЕ: рід, стан і зведеність. Мітки поруч більше
-    // немає -- при п'яти родах на неї просто немає ширини, а «CHAT: ON»
-    // читається так само, як «chat mirror: ON» читалось раніше.
+    // Each row: the kind, its state, the server's sentence on what switching it does,
+    // and the switch's caption.
     protected void PaintMirror()
     {
-        for (int i = 0; i < m_MirrorBtns.Count(); i++)
+        int ink = ARGBF(1, 0.88, 0.875, 0.855);
+        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        int okInk = ARGBF(1, 0.4, 0.78, 0.36);
+
+        for (int i = 0; i < m_MrRows.Count(); i++)
         {
-            Widget row = m_MirrorBtns[i];
+            Widget row = m_MrRows[i];
             if (!row)
                 continue;
 
-            TextWidget t = TextWidget.Cast(row.FindAnyWidget("MirrorRowBtnText"));
-            if (!t)
-                continue;
-
-            if (i == m_MirrorArmed)
-            {
-                t.SetText("PRESS AGAIN");
-                continue;
-            }
-
             string cap = m_MirrorKinds[i];
             cap.ToUpper();
+            MrRowText(row, "MirrorRowKind", cap, ink);
+            MrRowText(row, "MirrorRowNote", m_MirrorNotes[i], muted);
+
             if (!m_MirrorKnown)
-                t.SetText(cap + ": ?");
-            else if (m_MirrorOn[i] == 1)
-                t.SetText(cap + ": ON");
+            {
+                MrRowText(row, "MirrorRowState", "?", muted);
+                MrRowText(row, "MirrorRowBtnText", "", ink);
+                continue;
+            }
+            if (m_MirrorOn[i] == 1)
+            {
+                MrRowText(row, "MirrorRowState", "#STR_OZ_VPP_MR_ON", okInk);
+                MrRowText(row, "MirrorRowBtnText", "#STR_OZ_VPP_MR_TURN_OFF", ink);
+            }
             else
-                t.SetText(cap + ": OFF");
+            {
+                MrRowText(row, "MirrorRowState", "#STR_OZ_VPP_MR_OFF", muted);
+                MrRowText(row, "MirrorRowBtnText", "#STR_OZ_VPP_MR_TURN_ON", ink);
+            }
         }
     }
 
-    // Один перемикач на рід. Перше натискання каже, що саме станеться,
-    // друге робить (R5.2). Речення про наслідок складає СЕРВЕР -- панель у
-    // ядрі не знає, чим чат відрізняється від ролей (дизайн платформи §4).
+    protected void MrRowText(Widget row, string name, string text, int color)
+    {
+        TextWidget t = TextWidget.Cast(row.FindAnyWidget(name));
+        if (!t)
+            return;
+        t.SetText(text);
+        t.SetColor(color);
+    }
+
+    // Один перемикач на рід, через смугу підтвердження (design §3.4). Речення про
+    // наслідок складає СЕРВЕР -- сторінка в ядрі не знає, чим чат відрізняється
+    // від ролей (дизайн платформи §4).
     protected void MirrorClick(int row)
     {
         if (row < 0 || row >= m_MirrorKinds.Count())
             return;
 
-        string kind = m_MirrorKinds[row];
-        bool   on   = m_MirrorOn[row] == 1;
-
         if (!m_MirrorKnown)
         {
-            Hint("the mirror state has not arrived yet");
             Ask(OZ_AdminSect.CONFIG, "mirror_list", "{}");
             return;
         }
 
-        string what = m_MirrorNotes[row];
-        if (what == "")
-            what = "switching the " + kind + " mirror";
-
-        string verb = "Turn the " + kind + " mirror ON? ";
-        if (on)
-            verb = "Turn the " + kind + " mirror OFF? ";
-        Confirm(verb + what, "#STR_OZ_VPP_YES", "mirror:" + row.ToString());
+        string kind = m_MirrorKinds[row];
+        string ask = OvTr("#STR_OZ_VPP_MR_ASK_ON");
+        string yes = "#STR_OZ_VPP_MR_YES_ON";
+        if (m_MirrorOn[row] == 1)
+        {
+            ask = OvTr("#STR_OZ_VPP_MR_ASK_OFF");
+            yes = "#STR_OZ_VPP_MR_YES_OFF";
+        }
+        string line = ask + " " + kind;
+        line = line + "?";
+        if (m_MirrorNotes[row] != "")
+            line = line + " " + m_MirrorNotes[row];
+        Confirm(line, yes, "mirror:" + row.ToString());
     }
 
     // The confirm strip's "yes" for a mirror row.
@@ -3841,12 +3797,44 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return;
 
         string kind = m_MirrorKinds[row];
-        bool on = m_MirrorOn[row] == 1;
-        Hint("switching the " + kind + " mirror...");
-        if (on)
+        if (m_MirrorOn[row] == 1)
             Ask(OZ_AdminSect.CONFIG, "mirror_set:" + kind + ":off", "{}");
         else
             Ask(OZ_AdminSect.CONFIG, "mirror_set:" + kind + ":on", "{}");
+    }
+
+    // What the switch did, for the journal: the state, and the history it pushed.
+    protected void MrReport(string kind, bool on, int pushed, int skipped, int failed, string note)
+    {
+        string state = OvTr("#STR_OZ_VPP_MR_OFF");
+        if (on)
+            state = OvTr("#STR_OZ_VPP_MR_ON");
+        string line = kind + ": " + state;
+
+        // A switch to the state it was in pushes nothing and says so.
+        bool unchanged = false;
+        if (skipped == 1 && pushed == 0 && failed == 0 && note.IndexOf("already") == 0)
+            unchanged = true;
+        if (unchanged)
+        {
+            string same = OvTr("#STR_OZ_VPP_MR_UNCHANGED");
+            line = line + ", " + same;
+        }
+        else
+        {
+            string pushedWord = OvTr("#STR_OZ_VPP_MR_PUSHED");
+            string skippedWord = OvTr("#STR_OZ_VPP_MR_SKIPPED");
+            string failedWord = OvTr("#STR_OZ_VPP_MR_FAILED");
+            line = line + "; " + pushedWord;
+            line = line + " " + pushed.ToString();
+            line = line + ", " + skippedWord;
+            line = line + " " + skipped.ToString();
+            line = line + ", " + failedWord;
+            line = line + " " + failed.ToString();
+        }
+        if (note != "")
+            line = line + " - " + note;
+        Hint(line);
     }
 
     // ---------------------------------------------------------- дрібне

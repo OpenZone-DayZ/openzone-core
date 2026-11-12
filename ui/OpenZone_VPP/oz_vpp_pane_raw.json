@@ -1,6 +1,6 @@
 {
   "layout": "oz_vpp_pane_raw",
-  "note": "Ядро › Файли конфігів (VPP rework 2026-11-12, design §4.2; artboard CoreFiles): every config a module registered, grouped by the module that owns it, on the left; the picked file in an editor on the right, its path and size above it, a status line under it that says whether the text parses as JSON and where the caret is. Reload from disk (cfg_get again), apply (cfg_set, through the window's confirm strip), paste the clipboard whole by script (not the engine's paste, which stops at 512 bytes) and copy. The Discord mirror switches still sit under the editor (MirrorStrip) until they get a page of their own. Created by OZ_VppMenu.OnCreate; the shell moves it into the content area. Laid out at the content size of the default window (1060 x 680); a smaller window cuts it at the edge. Names RawCount, RawList, RawPath, RawSize, RawEdit, RawJson, RawWhere, MirrorStrip, BtnRawReload, BtnRawPaste, BtnRawCopy and BtnRawApply are read by OZ_VppMenu.c.",
+  "note": "Ядро › Файли конфігів (VPP rework 2026-11-12, design §4.2; artboard CoreFiles): every config a module registered, grouped by the module that owns it, on the left; the picked file in an editor on the right, its path and size above it, a status line under it that says whether the text parses as JSON and where the caret is. Reload from disk (cfg_get again), apply (cfg_set, through the window's confirm strip), paste the clipboard whole by script (not the engine's paste, which stops at 512 bytes) and copy. The Discord mirror switches that sat under the editor have a page of their own (oz_vpp_pane_mirror). Created by OZ_VppMenu.OnCreate; the shell moves it into the content area. Laid out at the content size of the default window (1060 x 680); a smaller window cuts it at the edge. Names RawCount, RawList, RawPath, RawSize, RawEdit, RawJson, RawWhere, BtnRawReload, BtnRawPaste, BtnRawCopy and BtnRawApply are read by OZ_VppMenu.c.",
   "root": {
     "frame": {
       "name": "PaneRaw",
@@ -73,7 +73,6 @@
                               ]
                             }
                           },
-                          {"frame": {"name": "MirrorStrip", "h": 30, "note": "The Discord mirror switches, one generated oz_vpp_mirror_row per kind, until the mirror gets its own page."}},
                           {
                             "panel": {
                               "name": "RawStatus",
