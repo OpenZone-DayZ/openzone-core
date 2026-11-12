@@ -51,6 +51,11 @@ class OZI_FfrSection : OZ_AdminSection
         m_Svc = svc;
     }
 
+    override bool IsRead(string op)
+    {
+        return op == OZI_Ffr.OP_GROUPS;
+    }
+
     override string Handle(string op, string json, PlayerIdentity sender, out bool ok, out string error)
     {
         ok = false;

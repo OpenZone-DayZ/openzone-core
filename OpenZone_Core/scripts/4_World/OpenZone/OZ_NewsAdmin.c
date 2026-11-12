@@ -148,6 +148,11 @@ class OZ_NewsAdminReply : OZ_BridgeReply
 
 class OZ_NewsSection : OZ_AdminSection
 {
+    override bool IsRead(string op)
+    {
+        return op == OZ_NewsOp.VOICES;
+    }
+
     override string Handle(string op, string json, PlayerIdentity sender, out bool ok, out string error)
     {
         ok    = false;

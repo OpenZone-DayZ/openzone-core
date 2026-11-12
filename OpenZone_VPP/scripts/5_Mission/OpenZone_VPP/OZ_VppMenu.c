@@ -285,6 +285,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // The journal as the status bar last showed it, and the filter of Ядро › Огляд.
     protected int  m_JournalSeen = -1;
     protected bool m_JournalErrors = false;
+    // "Only mine": the entries of other admins left out.
+    protected bool m_JournalMine = false;
     protected bool m_RepaintQueued = false;
 
     // Ядро › Огляд: the last overview the server gave, as a copy made by script, and
@@ -515,6 +517,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         {
             m_Ears = true;
             OZ_ClientState.AdminWatch().Insert(this.OnAdminResponse);
+            OZ_ClientState.AdminEchoWatch().Insert(this.OnAdminEcho);
         }
 
         // Панель покаже OnMenuShow: ShowSubMenu приходить одразу після
@@ -529,6 +532,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (m_Ears)
         {
             OZ_ClientState.AdminWatch().Remove(this.OnAdminResponse);
+            OZ_ClientState.AdminEchoWatch().Remove(this.OnAdminEcho);
         }
 
         GetGame().GetCallQueue(CALL_CATEGORY_GUI).Remove(this.RepaintShown);
@@ -1247,9 +1251,21 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         return ARGBF(1, 0.627, 0.624, 0.6);
     }
 
+    // Another admin's request, told by the server (design §3.2, phase 6). Reads stay out,
+    // as this window's own do.
+    void OnAdminEcho(string who, string sectionId, string op, bool ok, string error)
+    {
+        if (IsReadOp(op))
+            return;
+        OZ_VppJournal.Other(who, sectionId, op, ok, error);
+    }
+
     protected string JournalLine(OZ_VppJournalEntry e)
     {
-        string line = e.Time + "   " + OZ_VppJournal.Text(e.Module);
+        string line = e.Time;
+        if (e.Who != "")
+            line += "   [" + e.Who + "]";
+        line += "   " + OZ_VppJournal.Text(e.Module);
         line += "   " + OZ_VppJournal.Text(e.What);
         if (e.Result != "")
             line += "   ->   " + OZ_VppJournal.Text(e.Result);
@@ -1285,6 +1301,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         {
             OZ_VppJournalEntry e = OZ_VppJournal.At(i);
             if (m_JournalErrors && e.Level != OZ_VppJournal.LV_ERR)
+                continue;
+            if (m_JournalMine && e.Who != "")
                 continue;
             int row = lb.AddItem(JournalLine(e), NULL, 0);
             lb.SetItemColor(row, 0, LevelColor(e.Level));
@@ -3769,10 +3787,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return true;
         }
 
-        if (nm == "BtnJrAll" || nm == "BtnJrErr")
+        if (nm == "BtnJrAll" || nm == "BtnJrErr" || nm == "BtnJrMine")
         {
             bool errs = nm == "BtnJrErr";
+            bool mine = nm == "BtnJrMine";
             m_JournalErrors = errs;
+            m_JournalMine = mine;
             RebuildJournal();
             return true;
         }

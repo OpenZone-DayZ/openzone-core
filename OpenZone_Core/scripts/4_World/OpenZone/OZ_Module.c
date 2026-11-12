@@ -152,6 +152,9 @@ class OZ_Module : CF_ModuleWorld
         // The core's card on Ядро › Огляд; every module adds its own (design §4.3).
         OZ_AdminFacts.Register(new OZ_CoreFacts());
 
+        // Other admins hear what an admin did (design §3.2, phase 6).
+        OZ_Rpc.AdminAnswered().Insert(this.OZ_AdminTold);
+
         OZ_Rpc.RegisterServer(this);
 
         m_FlushTimer = new Timer(CALL_CATEGORY_SYSTEM);
@@ -861,6 +864,12 @@ class OZ_Module : CF_ModuleWorld
     // рядка готовності. Причина в OnMissionStart -- обидві дії чекають на ту
     // саму мить, коли всі чужі OnMissionStart відпрацювали, і двох таймерів
     // на одну мить не треба.
+
+    // Every admin answer sent: the other admins online are told (OZ_AdminTell).
+    void OZ_AdminTold(PlayerIdentity to, string sectionId, string op, bool ok, string error)
+    {
+        OZ_AdminTell.Answered(to, sectionId, op, ok, error);
+    }
 
     override void OnMissionFinish(Class sender, CF_EventArgs args)
     {

@@ -106,6 +106,11 @@ class OZ_Rpc
     // який працює: сервер зробив -- сервер і сказав.
     static const string RPC_SHOW = "OZ_Show";
 
+    // Another admin's request and its outcome, to every other admin online (VPP rework
+    // 2026-11-12, design §3.2, phase 6). Its own channel, not OZ_Notice: the listeners
+    // of the notice channel take every notice as theirs.
+    static const string RPC_ADMIN_ECHO = "OZ_AdminEcho";
+
     // СЛУЖБА -- третя пара клієнт -> сервер, і третя не з примхи (2026-09-20).
     //
     // Сторінки проходять крізь OZ_PageAccess -- «чи є ця сторінка на приладі
@@ -165,6 +170,7 @@ class OZ_Rpc
         GetRPCManager().AddRPC(OZ_Const.MOD, RPC_ADMIN_RES, inst, SingleplayerExecutionType.Client);
         GetRPCManager().AddRPC(OZ_Const.MOD, RPC_SHOW, inst, SingleplayerExecutionType.Client);
         GetRPCManager().AddRPC(OZ_Const.MOD, RPC_SVC_RES, inst, SingleplayerExecutionType.Client);
+        GetRPCManager().AddRPC(OZ_Const.MOD, RPC_ADMIN_ECHO, inst, SingleplayerExecutionType.Client);
     }
 
     // guaranteed за замовчуванням FALSE. Усе, що тут надсилається, має
@@ -294,6 +300,35 @@ class OZ_Rpc
             new Param6<int, string, string, bool, string, string>(id, sectionId, op, ok, last, error);
 
         GetRPCManager().SendRPC(OZ_Const.MOD, RPC_ADMIN_RES, p, true, to);
+
+        // Every admin answer, a deferred one too, passes here: the server's echo to the
+        // other admins hangs on it (OZ_AdminTell, 4_World).
+        if (s_AdminAnswered)
+            s_AdminAnswered.Invoke(to, sectionId, op, ok, error);
+    }
+
+    // Server: who listens to every admin answer sent. Emptied at mission end
+    // (OZ_MissionServer): the listener is a 4_World instance.
+    private static ref ScriptInvoker s_AdminAnswered;
+
+    static ScriptInvoker AdminAnswered()
+    {
+        if (!s_AdminAnswered)
+            s_AdminAnswered = new ScriptInvoker();
+        return s_AdminAnswered;
+    }
+
+    static void ForgetAdminAnswered()
+    {
+        s_AdminAnswered = null;
+    }
+
+    // Another admin's request: who asked, the section, the op, how it ended.
+    static void AdminEcho(PlayerIdentity to, string who, string sectionId, string op, bool ok, string error)
+    {
+        Param5<string, string, string, bool, string> p =
+            new Param5<string, string, string, bool, string>(who, sectionId, op, ok, error);
+        GetRPCManager().SendRPC(OZ_Const.MOD, RPC_ADMIN_ECHO, p, true, to);
     }
 
     // ---------------------------------------------------------------- служба

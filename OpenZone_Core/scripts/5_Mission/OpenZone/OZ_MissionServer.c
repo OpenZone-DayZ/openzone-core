@@ -57,6 +57,7 @@ modded class MissionServer
         OZ_ServiceRegistry.Clear();
         OZ_PageRegistry.Clear();
         OZ_AdminFacts.Clear();
+        OZ_Rpc.ForgetAdminAnswered();
         OZ_PageAccess.Bind(NULL);
     }
 }

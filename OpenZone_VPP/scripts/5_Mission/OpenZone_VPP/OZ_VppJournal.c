@@ -20,6 +20,8 @@ class OZ_VppJournalEntry
     string Section;
     string Op;
     int    Asked;
+    // Another admin's name; empty: this window's own.
+    string Who;
 }
 
 class OZ_VppJournal
@@ -99,6 +101,22 @@ class OZ_VppJournal
         e.Asked = GetGame().GetTime();
     }
 
+    // Another admin's request, told by the server (design §3.2, phase 6).
+    static void Other(string who, string section, string op, bool ok, string error)
+    {
+        string result = "#STR_OZ_VPP_DONE";
+        int level = LV_OK;
+        if (!ok)
+        {
+            result = Words(error);
+            level = LV_ERR;
+        }
+        OZ_VppJournalEntry e = Add(section, section + " / " + op, result, level);
+        e.Section = section;
+        e.Op = op;
+        e.Who = who;
+    }
+
     // The answer closes the oldest request with the same section and op. An answer
     // nobody asked for here (a refresh another pane started) is written as its own
     // entry only when it failed.
@@ -107,7 +125,7 @@ class OZ_VppJournal
         for (int i = 0; i < s_Entries.Count(); i++)
         {
             OZ_VppJournalEntry e = s_Entries[i];
-            if (e.Level != LV_WAIT || e.Section != section || e.Op != op)
+            if (e.Level != LV_WAIT || e.Section != section || e.Op != op || e.Who != "")
                 continue;
             Close(e, ok, error);
             return;

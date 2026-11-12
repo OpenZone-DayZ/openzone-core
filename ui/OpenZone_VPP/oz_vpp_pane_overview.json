@@ -1,6 +1,6 @@
 {
   "layout": "oz_vpp_pane_overview",
-  "note": "Ядро › Огляд і журнал (VPP rework 2026-11-12, design §3.2 and §4.3; artboard Overview): the server's state in four tiles, a card per module of the series from `overview`, \"reload every module's configs\" through the confirm strip, and the window's journal with its filter. Created by OZ_VppMenu.OnCreate under OZ_VppRoot; the shell moves it into the content area. Laid out at the content size of the default window (1060 x 680); a smaller window cuts it at the edge. Names OvStat*, OvCard*, BtnOv*, JournalList, BtnJrAll, BtnJrErr and JrHint are read by OZ_VppMenu.c.",
+  "note": "Ядро › Огляд і журнал (VPP rework 2026-11-12, design §3.2 and §4.3; artboard Overview): the server's state in four tiles, a card per module of the series from `overview`, \"reload every module's configs\" through the confirm strip, and the window's journal with its filter. Created by OZ_VppMenu.OnCreate under OZ_VppRoot; the shell moves it into the content area. Laid out at the content size of the default window (1060 x 680); a smaller window cuts it at the edge. Names OvStat*, OvCard*, BtnOv*, JournalList, BtnJrAll, BtnJrErr, BtnJrMine and JrHint are read by OZ_VppMenu.c.",
   "root": {
     "frame": {
       "name": "PaneOverview",
@@ -1036,6 +1036,13 @@
                         "text": "#STR_OZ_VPP_JR_ERRORS",
                         "edge": "$vppBad",
                         "color": "$vppBad"
+                      }
+                    },
+                    {
+                      "button": {
+                        "name": "BtnJrMine",
+                        "w": 150,
+                        "text": "#STR_OZ_VPP_JR_MINE"
                       }
                     }
                   ]

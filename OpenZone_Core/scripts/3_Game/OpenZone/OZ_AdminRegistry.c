@@ -30,6 +30,13 @@ class OZ_AdminSection
         error = "STR_OZ_ERR_UNKNOWN_OP";
         return "";
     }
+
+    // A read changes nothing: other admins are not told about it (OZ_AdminTell). A
+    // section that names no reads stays quiet anyway in a window that knows them.
+    bool IsRead(string op)
+    {
+        return false;
+    }
 }
 
 class OZ_AdminRegistry

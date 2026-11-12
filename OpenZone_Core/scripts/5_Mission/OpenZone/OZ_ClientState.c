@@ -34,6 +34,7 @@ class OZ_ClientState
         s_Watch = null;
         s_AdminWatch = null;
         s_ServiceWatch = null;
+        s_AdminEchoWatch = null;
         if (s_Inst)
             s_Inst.m_ResParts.Clear();
 
@@ -71,6 +72,16 @@ class OZ_ClientState
         if (!s_AdminWatch)
             s_AdminWatch = new ScriptInvoker();
         return s_AdminWatch;
+    }
+
+    // Other admins' requests (OZ_Rpc.RPC_ADMIN_ECHO): the VPP window journals them.
+    private static ref ScriptInvoker s_AdminEchoWatch;
+
+    static ScriptInvoker AdminEchoWatch()
+    {
+        if (!s_AdminEchoWatch)
+            s_AdminEchoWatch = new ScriptInvoker();
+        return s_AdminEchoWatch;
     }
 
     // Відповіді СЛУЖБ -- третій інвокер, з тієї ж причини, що й другий: слухає
@@ -233,6 +244,21 @@ class OZ_ClientState
             return;
 
         OZ_Notice.Take(data.param1, data.param2, data.param3);
+    }
+
+    // Another admin's request and how it ended (who, section, op, ok, error). The
+    // method's name is the string on the wire (OZ_Rpc.RPC_ADMIN_ECHO).
+    void OZ_AdminEcho(CallType type, ParamsReadContext ctx, PlayerIdentity sender, Object target)
+    {
+        if (type != CallType.Client)
+            return;
+
+        Param5<string, string, string, bool, string> data;
+        if (!ctx.Read(data))
+            return;
+
+        if (s_AdminEchoWatch)
+            s_AdminEchoWatch.Invoke(data.param1, data.param2, data.param3, data.param4, data.param5);
     }
 
     // «Покажи це». Ядро не знає, що саме -- лише розносить команду тим, хто

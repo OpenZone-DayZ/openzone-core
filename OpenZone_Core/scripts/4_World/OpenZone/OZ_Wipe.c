@@ -492,6 +492,13 @@ class OZ_PlayerPeeked
 // операції. Межа безпеки одна на всі розділи всіх модів (ТЗ-5 §C3).
 class OZ_PlayerSection : OZ_AdminSection
 {
+    override bool IsRead(string op)
+    {
+        if (op == OZ_PlayerOp.HERE)
+            return true;
+        return op.IndexOf(OZ_PlayerOp.PEEK + ":") == 0;
+    }
+
     override string Handle(string op, string json, PlayerIdentity sender, out bool ok, out string error)
     {
         ok = false;

@@ -145,6 +145,14 @@ class OZ_AdminIdentity
 
 class OZ_ConfigSection : OZ_AdminSection
 {
+    override bool IsRead(string op)
+    {
+        if (op.IndexOf("cfg_get:") == 0)
+            return true;
+        array<string> reads = {"cfg_list", "mirror_list", "identity", "overview"};
+        return reads.Find(op) != -1;
+    }
+
     override string Handle(string op, string json, PlayerIdentity sender, out bool ok, out string error)
     {
         ok = false;
