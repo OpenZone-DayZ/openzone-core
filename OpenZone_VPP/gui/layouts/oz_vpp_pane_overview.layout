@@ -438,7 +438,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 110 24
+         size 160 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -545,7 +545,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 110 24
+         size 160 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -652,7 +652,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 110 24
+         size 160 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -771,7 +771,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 110 24
+         size 160 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -878,7 +878,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 110 24
+         size 160 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -985,7 +985,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 110 24
+         size 160 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -1104,7 +1104,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 110 24
+         size 160 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -1211,7 +1211,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 110 24
+         size 160 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -1318,7 +1318,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 110 24
+         size 160 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
