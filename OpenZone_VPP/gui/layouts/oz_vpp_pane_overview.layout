@@ -182,7 +182,7 @@ FrameWidgetClass PaneOverview {
          vexactpos 1
          hexactsize 1
          vexactsize 1
-         color 0.035 0.035 0.035 0.97
+         color 0.88 0.875 0.855 1
          priority 2
          text "#STR_OZ_VPP_OV_RELOAD"
          font "gui/fonts/sdf_MetronBook24"
@@ -438,7 +438,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 160 24
+         size 110 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -455,8 +455,9 @@ FrameWidgetClass PaneOverview {
         TextWidgetClass OvCardState0 {
          visible 1
          ignorepointer 1
-         position 176 11
-         size 96 18
+         halign right_ref
+         position 100 11
+         size 110 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -467,7 +468,7 @@ FrameWidgetClass PaneOverview {
          font "gui/fonts/sdf_MetronBook24"
          "exact text" 1
          "exact text size" 13
-         "text halign" left
+         "text halign" right
          "text valign" center
         }
         TextWidgetClass OvCardProb0 {
@@ -475,7 +476,7 @@ FrameWidgetClass PaneOverview {
          ignorepointer 1
          halign right_ref
          position 12 11
-         size 56 18
+         size 84 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -544,7 +545,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 160 24
+         size 110 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -561,8 +562,9 @@ FrameWidgetClass PaneOverview {
         TextWidgetClass OvCardState1 {
          visible 1
          ignorepointer 1
-         position 176 11
-         size 96 18
+         halign right_ref
+         position 100 11
+         size 110 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -573,7 +575,7 @@ FrameWidgetClass PaneOverview {
          font "gui/fonts/sdf_MetronBook24"
          "exact text" 1
          "exact text size" 13
-         "text halign" left
+         "text halign" right
          "text valign" center
         }
         TextWidgetClass OvCardProb1 {
@@ -581,7 +583,7 @@ FrameWidgetClass PaneOverview {
          ignorepointer 1
          halign right_ref
          position 12 11
-         size 56 18
+         size 84 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -650,7 +652,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 160 24
+         size 110 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -667,8 +669,9 @@ FrameWidgetClass PaneOverview {
         TextWidgetClass OvCardState2 {
          visible 1
          ignorepointer 1
-         position 176 11
-         size 96 18
+         halign right_ref
+         position 100 11
+         size 110 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -679,7 +682,7 @@ FrameWidgetClass PaneOverview {
          font "gui/fonts/sdf_MetronBook24"
          "exact text" 1
          "exact text size" 13
-         "text halign" left
+         "text halign" right
          "text valign" center
         }
         TextWidgetClass OvCardProb2 {
@@ -687,7 +690,7 @@ FrameWidgetClass PaneOverview {
          ignorepointer 1
          halign right_ref
          position 12 11
-         size 56 18
+         size 84 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -768,7 +771,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 160 24
+         size 110 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -785,8 +788,9 @@ FrameWidgetClass PaneOverview {
         TextWidgetClass OvCardState3 {
          visible 1
          ignorepointer 1
-         position 176 11
-         size 96 18
+         halign right_ref
+         position 100 11
+         size 110 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -797,7 +801,7 @@ FrameWidgetClass PaneOverview {
          font "gui/fonts/sdf_MetronBook24"
          "exact text" 1
          "exact text size" 13
-         "text halign" left
+         "text halign" right
          "text valign" center
         }
         TextWidgetClass OvCardProb3 {
@@ -805,7 +809,7 @@ FrameWidgetClass PaneOverview {
          ignorepointer 1
          halign right_ref
          position 12 11
-         size 56 18
+         size 84 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -874,7 +878,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 160 24
+         size 110 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -891,8 +895,9 @@ FrameWidgetClass PaneOverview {
         TextWidgetClass OvCardState4 {
          visible 1
          ignorepointer 1
-         position 176 11
-         size 96 18
+         halign right_ref
+         position 100 11
+         size 110 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -903,7 +908,7 @@ FrameWidgetClass PaneOverview {
          font "gui/fonts/sdf_MetronBook24"
          "exact text" 1
          "exact text size" 13
-         "text halign" left
+         "text halign" right
          "text valign" center
         }
         TextWidgetClass OvCardProb4 {
@@ -911,7 +916,7 @@ FrameWidgetClass PaneOverview {
          ignorepointer 1
          halign right_ref
          position 12 11
-         size 56 18
+         size 84 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -980,7 +985,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 160 24
+         size 110 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -997,8 +1002,9 @@ FrameWidgetClass PaneOverview {
         TextWidgetClass OvCardState5 {
          visible 1
          ignorepointer 1
-         position 176 11
-         size 96 18
+         halign right_ref
+         position 100 11
+         size 110 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -1009,7 +1015,7 @@ FrameWidgetClass PaneOverview {
          font "gui/fonts/sdf_MetronBook24"
          "exact text" 1
          "exact text size" 13
-         "text halign" left
+         "text halign" right
          "text valign" center
         }
         TextWidgetClass OvCardProb5 {
@@ -1017,7 +1023,7 @@ FrameWidgetClass PaneOverview {
          ignorepointer 1
          halign right_ref
          position 12 11
-         size 56 18
+         size 84 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -1098,7 +1104,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 160 24
+         size 110 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -1115,8 +1121,9 @@ FrameWidgetClass PaneOverview {
         TextWidgetClass OvCardState6 {
          visible 1
          ignorepointer 1
-         position 176 11
-         size 96 18
+         halign right_ref
+         position 100 11
+         size 110 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -1127,7 +1134,7 @@ FrameWidgetClass PaneOverview {
          font "gui/fonts/sdf_MetronBook24"
          "exact text" 1
          "exact text size" 13
-         "text halign" left
+         "text halign" right
          "text valign" center
         }
         TextWidgetClass OvCardProb6 {
@@ -1135,7 +1142,7 @@ FrameWidgetClass PaneOverview {
          ignorepointer 1
          halign right_ref
          position 12 11
-         size 56 18
+         size 84 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -1204,7 +1211,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 160 24
+         size 110 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -1221,8 +1228,9 @@ FrameWidgetClass PaneOverview {
         TextWidgetClass OvCardState7 {
          visible 1
          ignorepointer 1
-         position 176 11
-         size 96 18
+         halign right_ref
+         position 100 11
+         size 110 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -1233,7 +1241,7 @@ FrameWidgetClass PaneOverview {
          font "gui/fonts/sdf_MetronBook24"
          "exact text" 1
          "exact text size" 13
-         "text halign" left
+         "text halign" right
          "text valign" center
         }
         TextWidgetClass OvCardProb7 {
@@ -1241,7 +1249,7 @@ FrameWidgetClass PaneOverview {
          ignorepointer 1
          halign right_ref
          position 12 11
-         size 56 18
+         size 84 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -1310,7 +1318,7 @@ FrameWidgetClass PaneOverview {
          visible 1
          ignorepointer 1
          position 12 8
-         size 160 24
+         size 110 24
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -1327,8 +1335,9 @@ FrameWidgetClass PaneOverview {
         TextWidgetClass OvCardState8 {
          visible 1
          ignorepointer 1
-         position 176 11
-         size 96 18
+         halign right_ref
+         position 100 11
+         size 110 18
          hexactpos 1
          vexactpos 1
          hexactsize 1
@@ -1339,7 +1348,7 @@ FrameWidgetClass PaneOverview {
          font "gui/fonts/sdf_MetronBook24"
          "exact text" 1
          "exact text size" 13
-         "text halign" left
+         "text halign" right
          "text valign" center
         }
         TextWidgetClass OvCardProb8 {
@@ -1347,7 +1356,7 @@ FrameWidgetClass PaneOverview {
          ignorepointer 1
          halign right_ref
          position 12 11
-         size 56 18
+         size 84 18
          hexactpos 1
          vexactpos 1
          hexactsize 1

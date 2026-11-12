@@ -28,6 +28,13 @@
 
 modded class MissionServer
 {
+    // Server FPS for Ядро › Огляд (OZ_ServerFps): the mission's own frames, counted.
+    override void OnUpdate(float timeslice)
+    {
+        super.OnUpdate(timeslice);
+        OZ_ServerFps.Tick(timeslice);
+    }
+
     override PlayerBase OnClientNewEvent(PlayerIdentity identity, vector pos, ParamsReadContext ctx)
     {
         vector where = OZ_Spawns.Resolve(identity, pos);

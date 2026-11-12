@@ -126,7 +126,7 @@
                                                 "children": [
                                                   {"field": {"name": "FfrFacId", "w": "fill", "h": 30, "color": "$vppText", "note": "The faction id the picked group maps to; empty: none, the base axis only."}},
                                                   {"button": {"name": "BtnFfrFacCycle", "w": 40, "h": 30, "text": ">", "font": "header", "glyph": true, "bg": "$vppRaised", "edge": "$vppEdge", "color": "$vppText", "note": "Cycles the ids the draft already uses, the base faction and none."}},
-                                                  {"button": {"name": "BtnFfrMap", "w": 120, "h": 30, "text": "#STR_OZ_VPP_FFR_MAP", "font": "small", "bg": "$vppAccent", "edge": "$vppAccent", "color": "$vppScreen"}}
+                                                  {"button": {"name": "BtnFfrMap", "w": 120, "h": 30, "text": "#STR_OZ_VPP_FFR_MAP", "font": "small", "bg": "$vppAccent", "edge": "$vppAccent", "color": "$vppText"}}
                                                 ]
                                               }
                                             }
@@ -214,7 +214,7 @@
                     {"label": {"name": "FfrBarText", "at": [40, 0], "size": [420, 60], "text": "", "font": "small", "color": "$vppAlert"}},
                     {"text": {"name": "FfrBarNote", "at": [470, 10], "size": [250, 40], "plain": true, "grow": false, "text": "#STR_OZ_VPP_FFR_BAR_NOTE", "font": "small", "color": "$vppMuted"}},
                     {"button": {"name": "BtnFfrDiscard", "anchor": "right", "at": [176, 14], "size": [140, 32], "text": "#STR_OZ_VPP_FFR_DISCARD", "font": "small", "bg": "$vppRaised", "edge": "$vppEdge", "color": "$vppText"}},
-                    {"button": {"name": "BtnFfrApply", "anchor": "right", "at": [24, 14], "size": [140, 32], "text": "#STR_OZ_VPP_APPLY", "font": "small", "bg": "$vppAccent", "edge": "$vppAccent", "color": "$vppScreen"}}
+                    {"button": {"name": "BtnFfrApply", "anchor": "right", "at": [24, 14], "size": [140, 32], "text": "#STR_OZ_VPP_APPLY", "font": "small", "bg": "$vppAccent", "edge": "$vppAccent", "color": "$vppText"}}
                   ]
                 }
               }

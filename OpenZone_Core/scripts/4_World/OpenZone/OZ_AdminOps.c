@@ -206,7 +206,9 @@ class OZ_ConfigSection : OZ_AdminSection
         GetGame().GetPlayers(men);
         ov.Players = men.Count();
         ov.MaxPlayers = GetGame().ServerConfigGetInt("maxPlayers");
-        ov.Fps = GetGame().GetFps();
+        ov.Fps = OZ_ServerFps.Get();
+        if (ov.Fps <= 0)
+            ov.Fps = GetGame().GetFps();
         ov.Bridge = BridgeState();
 
         int problems = 0;

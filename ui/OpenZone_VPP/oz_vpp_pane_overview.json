@@ -76,7 +76,7 @@
                         "font": "small",
                         "edge": "$vppAccent",
                         "bg": "$vppAccent",
-                        "color": "$vppScreen"
+                        "color": "$vppText"
                       }
                     }
                   ]
@@ -259,7 +259,7 @@
                                 12,
                                 8
                               ],
-                              "w": 160,
+                              "w": 110,
                               "h": 24,
                               "text": "",
                               "font": "header",
@@ -269,15 +269,17 @@
                           {
                             "label": {
                               "name": "OvCardState0",
-                              "at": [
-                                176,
-                                11
-                              ],
-                              "w": 96,
+                              "w": 110,
                               "h": 18,
                               "text": "",
                               "font": "small",
-                              "color": "$vppOk"
+                              "color": "$vppOk",
+                              "anchor": "right",
+                              "at": [
+                                100,
+                                11
+                              ],
+                              "align": "right"
                             }
                           },
                           {
@@ -288,7 +290,7 @@
                                 12,
                                 11
                               ],
-                              "w": 56,
+                              "w": 84,
                               "h": 18,
                               "text": "",
                               "font": "small",
@@ -341,7 +343,7 @@
                                 12,
                                 8
                               ],
-                              "w": 160,
+                              "w": 110,
                               "h": 24,
                               "text": "",
                               "font": "header",
@@ -351,15 +353,17 @@
                           {
                             "label": {
                               "name": "OvCardState1",
-                              "at": [
-                                176,
-                                11
-                              ],
-                              "w": 96,
+                              "w": 110,
                               "h": 18,
                               "text": "",
                               "font": "small",
-                              "color": "$vppOk"
+                              "color": "$vppOk",
+                              "anchor": "right",
+                              "at": [
+                                100,
+                                11
+                              ],
+                              "align": "right"
                             }
                           },
                           {
@@ -370,7 +374,7 @@
                                 12,
                                 11
                               ],
-                              "w": 56,
+                              "w": 84,
                               "h": 18,
                               "text": "",
                               "font": "small",
@@ -423,7 +427,7 @@
                                 12,
                                 8
                               ],
-                              "w": 160,
+                              "w": 110,
                               "h": 24,
                               "text": "",
                               "font": "header",
@@ -433,15 +437,17 @@
                           {
                             "label": {
                               "name": "OvCardState2",
-                              "at": [
-                                176,
-                                11
-                              ],
-                              "w": 96,
+                              "w": 110,
                               "h": 18,
                               "text": "",
                               "font": "small",
-                              "color": "$vppOk"
+                              "color": "$vppOk",
+                              "anchor": "right",
+                              "at": [
+                                100,
+                                11
+                              ],
+                              "align": "right"
                             }
                           },
                           {
@@ -452,7 +458,7 @@
                                 12,
                                 11
                               ],
-                              "w": 56,
+                              "w": 84,
                               "h": 18,
                               "text": "",
                               "font": "small",
@@ -514,7 +520,7 @@
                                 12,
                                 8
                               ],
-                              "w": 160,
+                              "w": 110,
                               "h": 24,
                               "text": "",
                               "font": "header",
@@ -524,15 +530,17 @@
                           {
                             "label": {
                               "name": "OvCardState3",
-                              "at": [
-                                176,
-                                11
-                              ],
-                              "w": 96,
+                              "w": 110,
                               "h": 18,
                               "text": "",
                               "font": "small",
-                              "color": "$vppOk"
+                              "color": "$vppOk",
+                              "anchor": "right",
+                              "at": [
+                                100,
+                                11
+                              ],
+                              "align": "right"
                             }
                           },
                           {
@@ -543,7 +551,7 @@
                                 12,
                                 11
                               ],
-                              "w": 56,
+                              "w": 84,
                               "h": 18,
                               "text": "",
                               "font": "small",
@@ -596,7 +604,7 @@
                                 12,
                                 8
                               ],
-                              "w": 160,
+                              "w": 110,
                               "h": 24,
                               "text": "",
                               "font": "header",
@@ -606,15 +614,17 @@
                           {
                             "label": {
                               "name": "OvCardState4",
-                              "at": [
-                                176,
-                                11
-                              ],
-                              "w": 96,
+                              "w": 110,
                               "h": 18,
                               "text": "",
                               "font": "small",
-                              "color": "$vppOk"
+                              "color": "$vppOk",
+                              "anchor": "right",
+                              "at": [
+                                100,
+                                11
+                              ],
+                              "align": "right"
                             }
                           },
                           {
@@ -625,7 +635,7 @@
                                 12,
                                 11
                               ],
-                              "w": 56,
+                              "w": 84,
                               "h": 18,
                               "text": "",
                               "font": "small",
@@ -678,7 +688,7 @@
                                 12,
                                 8
                               ],
-                              "w": 160,
+                              "w": 110,
                               "h": 24,
                               "text": "",
                               "font": "header",
@@ -688,15 +698,17 @@
                           {
                             "label": {
                               "name": "OvCardState5",
-                              "at": [
-                                176,
-                                11
-                              ],
-                              "w": 96,
+                              "w": 110,
                               "h": 18,
                               "text": "",
                               "font": "small",
-                              "color": "$vppOk"
+                              "color": "$vppOk",
+                              "anchor": "right",
+                              "at": [
+                                100,
+                                11
+                              ],
+                              "align": "right"
                             }
                           },
                           {
@@ -707,7 +719,7 @@
                                 12,
                                 11
                               ],
-                              "w": 56,
+                              "w": 84,
                               "h": 18,
                               "text": "",
                               "font": "small",
@@ -769,7 +781,7 @@
                                 12,
                                 8
                               ],
-                              "w": 160,
+                              "w": 110,
                               "h": 24,
                               "text": "",
                               "font": "header",
@@ -779,15 +791,17 @@
                           {
                             "label": {
                               "name": "OvCardState6",
-                              "at": [
-                                176,
-                                11
-                              ],
-                              "w": 96,
+                              "w": 110,
                               "h": 18,
                               "text": "",
                               "font": "small",
-                              "color": "$vppOk"
+                              "color": "$vppOk",
+                              "anchor": "right",
+                              "at": [
+                                100,
+                                11
+                              ],
+                              "align": "right"
                             }
                           },
                           {
@@ -798,7 +812,7 @@
                                 12,
                                 11
                               ],
-                              "w": 56,
+                              "w": 84,
                               "h": 18,
                               "text": "",
                               "font": "small",
@@ -851,7 +865,7 @@
                                 12,
                                 8
                               ],
-                              "w": 160,
+                              "w": 110,
                               "h": 24,
                               "text": "",
                               "font": "header",
@@ -861,15 +875,17 @@
                           {
                             "label": {
                               "name": "OvCardState7",
-                              "at": [
-                                176,
-                                11
-                              ],
-                              "w": 96,
+                              "w": 110,
                               "h": 18,
                               "text": "",
                               "font": "small",
-                              "color": "$vppOk"
+                              "color": "$vppOk",
+                              "anchor": "right",
+                              "at": [
+                                100,
+                                11
+                              ],
+                              "align": "right"
                             }
                           },
                           {
@@ -880,7 +896,7 @@
                                 12,
                                 11
                               ],
-                              "w": 56,
+                              "w": 84,
                               "h": 18,
                               "text": "",
                               "font": "small",
@@ -933,7 +949,7 @@
                                 12,
                                 8
                               ],
-                              "w": 160,
+                              "w": 110,
                               "h": 24,
                               "text": "",
                               "font": "header",
@@ -943,15 +959,17 @@
                           {
                             "label": {
                               "name": "OvCardState8",
-                              "at": [
-                                176,
-                                11
-                              ],
-                              "w": 96,
+                              "w": 110,
                               "h": 18,
                               "text": "",
                               "font": "small",
-                              "color": "$vppOk"
+                              "color": "$vppOk",
+                              "anchor": "right",
+                              "at": [
+                                100,
+                                11
+                              ],
+                              "align": "right"
                             }
                           },
                           {
@@ -962,7 +980,7 @@
                                 12,
                                 11
                               ],
-                              "w": 56,
+                              "w": 84,
                               "h": 18,
                               "text": "",
                               "font": "small",

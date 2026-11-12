@@ -71,7 +71,7 @@
                                     "h": 34,
                                     "gap": 10,
                                     "children": [
-                                      {"button": {"name": "BtnNwPost", "w": "fill", "h": 34, "text": "#STR_OZ_VPP_NW_POST", "font": "small", "bg": "$vppAccent", "edge": "$vppAccent", "color": "$vppScreen"}},
+                                      {"button": {"name": "BtnNwPost", "w": "fill", "h": 34, "text": "#STR_OZ_VPP_NW_POST", "font": "small", "bg": "$vppAccent", "edge": "$vppAccent", "color": "$vppText"}},
                                       {"button": {"name": "BtnNwClear", "w": 130, "h": 34, "text": "#STR_OZ_VPP_NW_CLEAR", "font": "small", "bg": "$vppRaised", "edge": "$vppEdge", "color": "$vppText"}}
                                     ]
                                   }

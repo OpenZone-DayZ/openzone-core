@@ -67,6 +67,33 @@ class OZ_AdminModuleCard
     }
 }
 
+// Server frames a second, counted from the mission's own frames: GetGame().GetFps()
+// read 0 on the dedicated server (measured on the stand 2026-11-12). OZ_MissionServer
+// ticks it every frame; the value is the mean of the last five seconds.
+class OZ_ServerFps
+{
+    protected static int s_Frames = 0;
+    protected static float s_Time = 0;
+    protected static float s_Fps = 0;
+
+    static void Tick(float timeslice)
+    {
+        s_Frames++;
+        s_Time += timeslice;
+        if (s_Time < 5.0)
+            return;
+        float frames = s_Frames;
+        s_Fps = frames / s_Time;
+        s_Frames = 0;
+        s_Time = 0;
+    }
+
+    static float Get()
+    {
+        return s_Fps;
+    }
+}
+
 // The bridge as the overview names it.
 class OZ_AdminBridge
 {

@@ -849,9 +849,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         Widget bar = row.FindAnyWidget("RailRowBar");
         if (bar)
             bar.Show(current);
+        // The pick is opaque: a see-through one turned pale under the cursor on the
+        // stand (2026-11-12), the rail's opaque rows did not. The accent at 0.25 over
+        // the rail, mixed here.
         Widget bg = row.FindAnyWidget("RailRowBg");
         if (bg && current)
-            bg.SetColor(ARGBF(0.16, 0.91, 0.47, 0.17));
+            bg.SetColor(ARGB(255, 65, 37, 17));
 
         return y + ROW * s;
     }
@@ -915,9 +918,15 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (shownPane)
             shownPane.Show(true);
 
+        // One module open at a time: four open modules pushed research's pages under the
+        // window's edge on the stand (2026-11-12), and the rail does not scroll.
         int m = m_ModIds.Find(ModuleOf(id));
         if (m != -1)
+        {
+            for (int k = 0; k < m_ModOpen.Count(); k++)
+                m_ModOpen[k] = 0;
             m_ModOpen[m] = 1;
+        }
 
         PaintCrumb();
         LayoutRail();
@@ -3665,8 +3674,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         // in an edit box (dayz-modding gui-layouts §22; design §4.2).
         if (nm == "BtnRawPaste")
         {
-            string clip;
-            GetGame().CopyFromClipboard(clip);
+            // Recoded from the system's ANSI text (OZ_VppClip).
+            string clip = OZ_VppClip.Read();
             if (!m_RawEditBox || clip == "")
                 return true;
             m_RawEditBox.SetText(clip);
@@ -3684,7 +3693,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (nm == "BtnRawCopy")
         {
             string whole = RawText();
-            GetGame().CopyToClipboard(whole);
+            OZ_VppClip.Write(whole);
             string copied = OvTr("#STR_OZ_VPP_FL_COPIED");
             Hint(copied + " " + whole.Length().ToString());
             return true;

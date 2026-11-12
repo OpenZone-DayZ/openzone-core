@@ -132,7 +132,7 @@
                                     "h": 32,
                                     "gap": 8,
                                     "children": [
-                                      {"button": {"name": "BtnSpHere", "w": "fill", "text": "#STR_OZ_VPP_SP_HERE", "font": "small", "bg": "$vppAccent", "edge": "$vppAccent", "color": "$vppScreen"}},
+                                      {"button": {"name": "BtnSpHere", "w": "fill", "text": "#STR_OZ_VPP_SP_HERE", "font": "small", "bg": "$vppAccent", "edge": "$vppAccent", "color": "$vppText"}},
                                       {"button": {"name": "BtnSpClear", "w": "fill", "text": "#STR_OZ_VPP_SP_CLEAR", "font": "small", "bg": "$vppHead", "edge": "$vppBad", "color": "$vppBad"}}
                                     ]
                                   }

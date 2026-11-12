@@ -57,7 +57,7 @@
                                 {"label": {"name": "RawPath", "at": [20, 10], "size": [440, 22], "text": "#STR_OZ_VPP_FL_PICK", "font": "body", "color": "$vppText"}},
                                 {"label": {"name": "RawSize", "at": [20, 34], "size": [440, 18], "text": "", "font": "small", "color": "$vppMuted"}},
                                 {"button": {"name": "BtnRawReload", "anchor": "right", "at": [162, 16], "size": [190, 32], "text": "#STR_OZ_VPP_FL_RELOAD", "font": "small", "bg": "$vppRaised", "edge": "$vppEdge", "color": "$vppText"}},
-                                {"button": {"name": "BtnRawApply", "anchor": "right", "at": [16, 16], "size": [136, 32], "text": "#STR_OZ_VPP_APPLY", "font": "small", "bg": "$vppAccent", "edge": "$vppAccent", "color": "$vppScreen", "note": "Asks on the confirm strip; the server parses the text before it touches the file."}},
+                                {"button": {"name": "BtnRawApply", "anchor": "right", "at": [16, 16], "size": [136, 32], "text": "#STR_OZ_VPP_APPLY", "font": "small", "bg": "$vppAccent", "edge": "$vppAccent", "color": "$vppText", "note": "Asks on the confirm strip; the server parses the text before it touches the file."}},
                                 {"panel": {"name": "RawEdRule", "at": [0, 63], "size": [799, 1], "color": "$vppEdge"}}
                               ]
                             }
