@@ -1,35 +1,102 @@
 {
   "layout": "oz_vpp_pane_raw",
-  "note": "Ядро › Файли конфігів (VPP rework 2026-11-12, design §4.2): every config a module registered, by module and name, on the left; the file itself in an editor on the right; the Discord mirror switches under it -- one per mirrorable kind, generated; reload, paste from the clipboard, copy and apply at the bottom. Created by OZ_VppMenu.OnCreate; the shell moves it into the content area. Names RawList, RawEdit, MirrorStrip, RawHint, BtnRawReload, BtnRawPaste, BtnRawCopy and BtnRawApply are read by OZ_VppMenu.c.",
-  "root": {"frame": {"name": "PaneRaw", "size": "$vpp.pane", "at": [0, "$vpp.paneY"], "inset": "$vpp.inset",
-    "hidden": true, "priority": 2,
-    "note": "Hidden: ShowPane shows the open tab's pane and hides the rest.",
-    "children": [
-      {"vbox": {"name": "RawBody", "gap": "$space.gap", "children": [
-        {"section": {"name": "SecRaw", "text": "#STR_OZ_VPP_FILES_HEAD"}},
-        {"hbox": {"name": "RawCols", "h": "fill", "gap": "$space.column", "children": [
-          {"listbox": {"name": "RawList", "w": 240, "font": "field", "color": "$text",
-            "props": {"style": "NoScrollBar", "title visible": false, "highlight row": true, "lines": 13},
-            "note": "Every registered config, 'module · name': the files page of the whole window (design §1 item 5). A module's own rail entry opens it on that module's files."}},
-          {"vbox": {"name": "RawSide", "w": 700, "gap": 8, "children": [
-            {"field": {"name": "RawEdit", "h": "fill", "lines": 19,
-              "note": "The whole file, as text. 19 lines is what the 336-unit box holds at the fixed 14-point field face."}},
-            {"frame": {"name": "MirrorStrip", "h": "$size.button",
-              "note": "Empty: OZ_VppMenu fills it with one oz_vpp_mirror_row per kind mirror_list reports, so no mod's kind name lives in this repository. Here stood a fixed pair of switches named after the PDA's chat and the factions' roles -- a server with a third mod's kind could not reach it, and a server without the factions was offered a switch for a kind it does not have."}},
-            {"hbox": {"name": "RawActions", "h": "$size.button", "children": [
-              {"button": {"name": "BtnRawReload", "w": 150, "text": "#STR_OZ_VPP_RELOAD"}},
-              {"gap": {"w": 10}},
-              {"button": {"name": "BtnRawPaste", "w": 190, "text": "#STR_OZ_VPP_PASTE",
-                "note": "Reads the clipboard by script and sets the whole text: the engine's own paste into an edit box stops at 512 bytes (design §4.2)."}},
-              {"gap": {"w": 10}},
-              {"button": {"name": "BtnRawCopy", "w": 130, "text": "#STR_OZ_VPP_COPY"}},
-              {"gap": {"w": "fill"}},
-              {"button": {"name": "BtnRawApply", "w": 150, "text": "#STR_OZ_VPP_APPLY", "edge": "$ok", "color": "$ok"}}
-            ]}}
-          ]}}
-        ]}},
-        {"label": {"name": "RawHint", "h": "$size.hint", "font": "hint", "color": "$muted",
-          "note": "Empty: every answer of the config route lands here."}}
-      ]}}
-    ]}}
+  "note": "Ядро › Файли конфігів (VPP rework 2026-11-12, design §4.2; artboard CoreFiles): every config a module registered, grouped by the module that owns it, on the left; the picked file in an editor on the right, its path and size above it, a status line under it that says whether the text parses as JSON and where the caret is. Reload from disk (cfg_get again), apply (cfg_set, through the window's confirm strip), paste the clipboard whole by script (not the engine's paste, which stops at 512 bytes) and copy. The Discord mirror switches still sit under the editor (MirrorStrip) until they get a page of their own. Created by OZ_VppMenu.OnCreate; the shell moves it into the content area. Laid out at the content size of the default window (1060 x 680); a smaller window cuts it at the edge. Names RawCount, RawList, RawPath, RawSize, RawEdit, RawJson, RawWhere, MirrorStrip, BtnRawReload, BtnRawPaste, BtnRawCopy and BtnRawApply are read by OZ_VppMenu.c.",
+  "root": {
+    "frame": {
+      "name": "PaneRaw",
+      "size": "$vpp.content",
+      "at": [0, "$vpp.paneY"],
+      "hidden": true,
+      "priority": 2,
+      "note": "Hidden: ShowPane shows the open page and hides the rest.",
+      "children": [
+        {
+          "vbox": {
+            "name": "RawBody",
+            "size": "fill",
+            "children": [
+              {
+                "frame": {
+                  "name": "RawHead",
+                  "h": 60,
+                  "children": [
+                    {"label": {"name": "RawTitle", "at": [24, 9], "size": [520, 26], "text": "#STR_OZ_VPP_FL_TITLE", "font": "title", "color": "$vppText"}},
+                    {"label": {"name": "RawSub", "at": [24, 35], "size": [660, 18], "text": "#STR_OZ_VPP_FL_SUB", "font": "small", "color": "$vppMuted"}},
+                    {"label": {"name": "RawCount", "anchor": "right", "at": [24, 20], "size": [320, 20], "text": "", "font": "small", "color": "$vppMuted", "align": "right"}},
+                    {"panel": {"name": "RawHeadRule", "at": [0, 59], "size": [1060, 1], "color": "$vppEdge"}}
+                  ]
+                }
+              },
+              {
+                "hbox": {
+                  "name": "RawCols",
+                  "h": "fill",
+                  "children": [
+                    {
+                      "panel": {
+                        "name": "RawLeft",
+                        "w": 260,
+                        "color": "$vppHead",
+                        "inset": 12,
+                        "children": [
+                          {"listbox": {"name": "RawList", "size": "fill", "font": "field", "color": "$vppText", "props": {"style": "NoScrollBar", "title visible": false, "highlight row": true, "lines": 24, "colums": "file;100;"}, "note": "A caption row per module that owns files, then its files; the picked one in the accent colour."}}
+                        ]
+                      }
+                    },
+                    {"panel": {"name": "RawRule", "w": 1, "color": "$vppEdge"}},
+                    {
+                      "vbox": {
+                        "name": "RawSide",
+                        "w": "fill",
+                        "children": [
+                          {
+                            "frame": {
+                              "name": "RawEdHead",
+                              "h": 64,
+                              "children": [
+                                {"label": {"name": "RawPath", "at": [20, 10], "size": [440, 22], "text": "#STR_OZ_VPP_FL_PICK", "font": "body", "color": "$vppText"}},
+                                {"label": {"name": "RawSize", "at": [20, 34], "size": [440, 18], "text": "", "font": "small", "color": "$vppMuted"}},
+                                {"button": {"name": "BtnRawReload", "anchor": "right", "at": [162, 16], "size": [190, 32], "text": "#STR_OZ_VPP_FL_RELOAD", "font": "small", "bg": "$vppRaised", "edge": "$vppEdge", "color": "$vppText"}},
+                                {"button": {"name": "BtnRawApply", "anchor": "right", "at": [16, 16], "size": [136, 32], "text": "#STR_OZ_VPP_APPLY", "font": "small", "bg": "$vppAccent", "edge": "$vppAccent", "color": "$vppScreen", "note": "Asks on the confirm strip; the server parses the text before it touches the file."}},
+                                {"panel": {"name": "RawEdRule", "at": [0, 63], "size": [799, 1], "color": "$vppEdge"}}
+                              ]
+                            }
+                          },
+                          {
+                            "panel": {
+                              "name": "RawEdBox",
+                              "h": "fill",
+                              "color": "$vppCell",
+                              "inset": 8,
+                              "children": [
+                                {"field": {"name": "RawEdit", "size": "fill", "lines": 22, "color": "$vppText", "note": "No wrap on purpose: every break the engine makes would be a real line break inside a JSON value."}}
+                              ]
+                            }
+                          },
+                          {"frame": {"name": "MirrorStrip", "h": 30, "note": "The Discord mirror switches, one generated oz_vpp_mirror_row per kind, until the mirror gets its own page."}},
+                          {
+                            "panel": {
+                              "name": "RawStatus",
+                              "h": 44,
+                              "color": "$vppHead",
+                              "children": [
+                                {"label": {"name": "RawJson", "at": [20, 0], "size": [300, 44], "text": "", "font": "small", "color": "$vppMuted"}},
+                                {"label": {"name": "RawWhere", "at": [330, 0], "size": [130, 44], "text": "", "font": "small", "color": "$vppMuted"}},
+                                {"button": {"name": "BtnRawPaste", "anchor": "right", "at": [162, 6], "size": [190, 32], "text": "#STR_OZ_VPP_PASTE", "font": "small", "bg": "$vppRaised", "edge": "$vppEdge", "color": "$vppText", "note": "The clipboard read by script and set whole: not the engine's paste, which stops at 512 bytes (design §4.2)."}},
+                                {"button": {"name": "BtnRawCopy", "anchor": "right", "at": [16, 6], "size": [136, 32], "text": "#STR_OZ_VPP_COPY", "font": "small", "bg": "$vppRaised", "edge": "$vppEdge", "color": "$vppText"}}
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
 }

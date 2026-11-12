@@ -67,12 +67,15 @@ class OZ_AdminCfg
         return s_All.Count();
     }
 
-    static void Names(array<string> outNames, array<string> outOwners)
+    // The files page shows where each file lives (outPaths, VPP rework 2026-11-12).
+    static void Names(array<string> outNames, array<string> outOwners, array<string> outPaths = null)
     {
         for (int i = 0; i < s_All.Count(); i++)
         {
             outNames.Insert(s_All[i].Name);
             outOwners.Insert(s_All[i].Owner);
+            if (outPaths)
+                outPaths.Insert(s_All[i].Path);
         }
     }
 }
@@ -85,11 +88,14 @@ class OZ_AdminCfgList
 {
     ref array<string> Names;
     ref array<string> Owners;
+    // Where each file lives ($profile:...), side by side with Names.
+    ref array<string> Paths;
 
     void OZ_AdminCfgList()
     {
         Names  = new array<string>();
         Owners = new array<string>();
+        Paths  = new array<string>();
     }
 }
 
@@ -314,7 +320,7 @@ class OZ_ConfigSection : OZ_AdminSection
     private string CfgList(out bool ok, out string error)
     {
         OZ_AdminCfgList l = new OZ_AdminCfgList();
-        OZ_AdminCfg.Names(l.Names, l.Owners);
+        OZ_AdminCfg.Names(l.Names, l.Owners, l.Paths);
 
         string outJson;
         string err;

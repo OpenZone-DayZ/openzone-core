@@ -67,6 +67,12 @@ class OZ_VppFactionSlugs
     // за два рядки нижче.
 }
 
+// A JSON root with no fields (Ядро › Файли конфігів): reading a text into it judges the
+// text's syntax alone, as the serializer skips every key a class does not have.
+class OZ_VppJsonProbe
+{
+}
+
 modded class VPPAdminHud
 {
     override void DefineButtons()
@@ -138,6 +144,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // Перелік редагованих конфігів з сервера: ім'я + власник (core/pda).
     protected ref array<string> m_CfgNames;
     protected ref array<string> m_CfgOwners;
+    protected ref array<string> m_CfgPaths;
 
     // ЧЕРГА cfg_get: рівно один запит у польоті.
     //
@@ -182,6 +189,17 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // ------------------------------------------------- raw
     protected string m_RawPicked = "";
     protected ref array<string> m_RawRows;
+
+    // Ядро › Файли конфігів: the editor's text as last seen and when it changed (the
+    // size follows at once, the JSON check once typing pauses), the text last judged
+    // and the verdict, the page's own tick, the editor.
+    protected string m_RawSeen;
+    protected int    m_RawSeenAt;
+    protected string m_RawChecked;
+    protected bool   m_RawCheckedOk;
+    protected string m_RawCheckedErr;
+    protected int    m_RawTickAt;
+    protected MultilineEditBoxWidget m_RawEditBox;
 
     // ------------------------------------------------- Ядро › Гравці
     //
@@ -247,6 +265,13 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         m_PaneHints = new map<string, string>();
         m_CfgNames  = new array<string>();
         m_CfgOwners = new array<string>();
+        m_CfgPaths  = new array<string>();
+        m_RawSeen = "";
+        m_RawSeenAt = 0;
+        m_RawChecked = "";
+        m_RawCheckedOk = false;
+        m_RawCheckedErr = "";
+        m_RawTickAt = 0;
         m_CfgQ      = new array<string>();
         m_RawRows = new array<string>();
         m_PlrNames  = new array<string>();
@@ -289,9 +314,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         // No hint label of its own: its lines go to the journal, and the status bar
         // shows the newest (design §3.2).
         AddOwnPane("players", "#STR_OZ_VPP_PAGE_PLAYERS", "");
-        AddOwnPane("raw",     "#STR_OZ_VPP_PAGE_FILES",   "RawHint");
+        AddOwnPane("raw",     "#STR_OZ_VPP_PAGE_FILES",   "");
         m_PlrFindBox = EditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("PlrFind"));
         m_NwTitleBox = EditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("NwTitle"));
+        m_RawEditBox = MultilineEditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("RawEdit"));
         m_NwBodyBox = MultilineEditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("NwBody"));
         m_NwSeenTitle = "";
         m_NwSeenBody = "";
@@ -758,6 +784,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (id == "raw")
         {
             Ask(OZ_AdminSect.CONFIG, "cfg_list", "{}");
+            RawPaintStatus(false);
             m_MirrorArmed = -1;
             PaintMirror();
             Ask(OZ_AdminSect.CONFIG, "mirror_list", "{}");
@@ -993,6 +1020,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             PlrFollowFind();
         if (m_Shown == "news")
             NwFollow();
+        if (m_Shown == "raw")
+            RawFollow();
         if (m_Shown == "spawns" && GetGame().GetTime() - m_SpDrawnAt >= 500)
             SpDrawScheme();
 
@@ -1339,12 +1368,9 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (action.IndexOf("cfg:") == 0)
         {
             string cname = action.Substring(4, action.Length() - 4);
-            MultilineEditBoxWidget ed = MultilineEditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("RawEdit"));
-            if (!ed)
+            if (!m_RawEditBox)
                 return;
-            string body;
-            ed.GetText(body);
-            SendCfg(cname, body);
+            SendCfg(cname, RawText());
         }
     }
 
@@ -1546,9 +1572,16 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         if (!ok)
         {
-            // Відмова на cfg_get мусить звільнити чергу, інакше вона стане.
+            // Відмова на cfg_get мусить звільнити чергу, інакше вона стане. The
+            // files page says it in place of the size line: the editor keeps what
+            // it had, and APPLY would not send an empty text for a missing file.
             if (op.IndexOf("cfg_get:") == 0)
-                CfgDone(op.Substring(8, op.Length() - 8));
+            {
+                string refused = op.Substring(8, op.Length() - 8);
+                CfgDone(refused);
+                if (refused == m_RawPicked)
+                    RawPaintHead(OZ_VppJournal.Words(error));
+            }
             if (op.IndexOf("mirror_set:") == 0)
             {
                 m_MirrorArmed = -1;
@@ -1647,6 +1680,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             {
                 m_CfgNames.Clear();
                 m_CfgOwners.Clear();
+                m_CfgPaths.Clear();
                 for (int i = 0; i < l.Names.Count(); i++)
                 {
                     m_CfgNames.Insert(l.Names[i]);
@@ -1654,6 +1688,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
                         m_CfgOwners.Insert(l.Owners[i]);
                     else
                         m_CfgOwners.Insert("core");
+                    if (l.Paths && i < l.Paths.Count())
+                        m_CfgPaths.Insert(l.Paths[i]);
+                    else
+                        m_CfgPaths.Insert("");
                 }
                 RebuildRawList();
             }
@@ -1670,7 +1708,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         if (op.IndexOf("cfg_set:") == 0)
         {
-            Hint(op.Substring(8, op.Length() - 8) + " applied");
+            string applied = OvTr("#STR_OZ_VPP_FL_APPLIED");
+            Hint(applied + " " + op.Substring(8, op.Length() - 8));
             OnCfgApplied();
             return;
         }
@@ -2339,19 +2378,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (name == "Spawns")
             SpTakeCfg(body);
 
-        // Сирий редактор -- окремим питанням, а не «інакше».
+        // Сирий редактор -- окремим питанням, а не «інакше»: той самий файл може бути
+        // потрібен і сторінці, і редактору.
         if (name == m_RawPicked)
-        {
-            MultilineEditBoxWidget ed = MultilineEditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("RawEdit"));
-            if (ed)
-                ed.SetText(body);
-
-            // Підказку -- ЛИШЕ коли редактор на екрані. Рядок підказки в
-            // панелі один, i «Spawns loaded», написане поверх повідомлення
-            // сусідньої панелі, стирає саме те, заради чого воно писалось.
-            if (CurrentPane() == "raw")
-                Hint(name + " loaded");
-        }
+            RawTake(body);
     }
 
     // Після вдалого cfg_set перечитуємо те, що на екрані.
@@ -2359,6 +2389,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     {
         if (CurrentPane() == "spawns")
             AskCfg("Spawns");
+
+        // The files page shows what the server saved.
+        if (CurrentPane() == "raw" && m_RawPicked != "")
+            AskCfg(m_RawPicked);
     }
 
     // OnCfgListChanged ТУТ БІЛЬШЕ НЕМАЄ: обгортка в один рядок навколо
@@ -3113,21 +3147,332 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
     // ---------------------------------------------------------- raw
 
+    // ---------------------------------------------------------- Ядро › Файли конфігів
+
+    // The module a file's owner names, as the rail calls it; an owner with no page
+    // in this window, by its own id.
+    protected string RawOwnerLabel(string owner)
+    {
+        int m = m_ModIds.Find(owner);
+        if (m != -1)
+            return OvTr(m_ModLabels[m]);
+        string up = owner;
+        up.ToUpper();
+        return up;
+    }
+
+    // The files grouped by the module that owns them, in the rail's order; owners
+    // with no page here after them. A caption row per module (its row names no file).
     protected void RebuildRawList()
     {
         TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("RawList"));
         if (!lb)
             return;
 
+        array<string> owners = new array<string>();
+        for (int m = 0; m < m_ModIds.Count(); m++)
+        {
+            if (m_CfgOwners.Find(m_ModIds[m]) != -1)
+                owners.Insert(m_ModIds[m]);
+        }
+        for (int o = 0; o < m_CfgOwners.Count(); o++)
+        {
+            if (owners.Find(m_CfgOwners[o]) == -1)
+                owners.Insert(m_CfgOwners[o]);
+        }
+
+        m_Repaint = true;
         lb.ClearItems();
         m_RawRows.Clear();
-
-        // Every module's configs (design §1 item 5): the owner names the module.
-        for (int i = 0; i < m_CfgNames.Count(); i++)
+        for (int g = 0; g < owners.Count(); g++)
         {
-            lb.AddItem(m_CfgOwners[i] + " / " + m_CfgNames[i], NULL, 0);
-            m_RawRows.Insert(m_CfgNames[i]);
+            string caption = RawOwnerLabel(owners[g]);
+            lb.AddItem(caption, NULL, 0);
+            m_RawRows.Insert("");
+            for (int i = 0; i < m_CfgNames.Count(); i++)
+            {
+                if (m_CfgOwners[i] != owners[g])
+                    continue;
+                lb.AddItem("   " + m_CfgNames[i], NULL, 0);
+                m_RawRows.Insert(m_CfgNames[i]);
+            }
         }
+        m_Repaint = false;
+
+        RawMarkRows();
+
+        string filesWord = OvTr("#STR_OZ_VPP_FL_FILES");
+        string modsWord = OvTr("#STR_OZ_VPP_FL_MODULES");
+        string count = filesWord + " " + m_CfgNames.Count().ToString();
+        count = count + ", " + modsWord;
+        count = count + " " + owners.Count().ToString();
+        OvText("RawCount", count, ARGBF(1, 0.627, 0.624, 0.6));
+    }
+
+    // Captions muted, the picked file in the accent colour.
+    protected void RawMarkRows()
+    {
+        TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("RawList"));
+        if (!lb)
+            return;
+        int ink = ARGBF(1, 0.88, 0.875, 0.855);
+        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        int accent = ARGBF(1, 0.91, 0.47, 0.17);
+        for (int r = 0; r < m_RawRows.Count(); r++)
+        {
+            int c = ink;
+            if (m_RawRows[r] == "")
+                c = muted;
+            else if (m_RawRows[r] == m_RawPicked)
+                c = accent;
+            lb.SetItemColor(r, 0, c);
+        }
+    }
+
+    // The editor is emptied before the file is asked: a file that does not come (not
+    // written yet) must not leave the last file's text under its name, ready to apply.
+    protected void RawPick(string name)
+    {
+        if (name == "")
+            return;
+        m_RawPicked = name;
+        if (m_RawEditBox)
+            m_RawEditBox.SetText("");
+        m_RawSeen = "";
+        m_RawChecked = "";
+        m_RawCheckedOk = false;
+        m_RawCheckedErr = "";
+        RawMarkRows();
+        RawPaintHead("#STR_OZ_VPP_FL_ASKING");
+        RawPaintStatus(false);
+        AskCfg(name);
+    }
+
+    protected string RawText()
+    {
+        string text = "";
+        if (m_RawEditBox)
+            m_RawEditBox.GetText(text);
+        return text;
+    }
+
+    // The head of the editor: where the file lives and how big its text is now.
+    protected void RawPaintHead(string sizeLine)
+    {
+        int ink = ARGBF(1, 0.88, 0.875, 0.855);
+        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        if (m_RawPicked == "")
+        {
+            OvText("RawPath", "#STR_OZ_VPP_FL_PICK", muted);
+            OvText("RawSize", "", muted);
+            return;
+        }
+
+        string path = m_RawPicked;
+        int at = m_CfgNames.Find(m_RawPicked);
+        if (at != -1 && at < m_CfgPaths.Count() && m_CfgPaths[at] != "")
+            path = m_CfgPaths[at];
+        OvText("RawPath", path, ink);
+        OvText("RawSize", sizeLine, muted);
+    }
+
+    // "4.2 KB" or "312 bytes" of the text as it is in the editor now, and what the
+    // module of the file does when it is applied.
+    protected string RawSizeLine(int bytes)
+    {
+        string amount;
+        if (bytes < 1024)
+        {
+            string bWord = OvTr("#STR_OZ_VPP_NW_BYTES");
+            amount = bytes.ToString() + " " + bWord;
+        }
+        else
+        {
+            int tenths = Math.Round(bytes * 10.0 / 1024.0);
+            int whole = tenths / 10;
+            int part = tenths % 10;
+            string kbWord = OvTr("#STR_OZ_VPP_FL_KB");
+            amount = whole.ToString() + "." + part.ToString();
+            amount = amount + " " + kbWord;
+        }
+        string note = OvTr("#STR_OZ_VPP_FL_SIZE_NOTE");
+        return amount + " -- " + note;
+    }
+
+    // Does the text parse as JSON at all? Read into an object with no fields: the
+    // serializer still walks the whole text and skips every key it does not know, so
+    // only the syntax is judged (what the module's applier then checks is its own).
+    protected void RawCheck(string text)
+    {
+        m_RawChecked = text;
+        m_RawCheckedErr = "";
+        if (text.Trim() == "")
+        {
+            m_RawCheckedOk = false;
+            return;
+        }
+        OZ_VppJsonProbe probe = new OZ_VppJsonProbe();
+        JsonSerializer js = new JsonSerializer();
+        string jerr;
+        bool parsed = js.ReadFromString(probe, text, jerr);
+        m_RawCheckedOk = parsed;
+        if (!parsed)
+            m_RawCheckedErr = jerr;
+    }
+
+    protected void RawPaintStatus(bool pending)
+    {
+        int okInk = ARGBF(1, 0.4, 0.78, 0.36);
+        int badInk = ARGBF(1, 0.88, 0.32, 0.29);
+        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+
+        if (m_RawPicked == "")
+        {
+            OvText("RawJson", "", muted);
+            OvText("RawWhere", "", muted);
+            return;
+        }
+
+        if (pending)
+            OvText("RawJson", "#STR_OZ_VPP_FL_JSON_WAIT", muted);
+        else if (m_RawCheckedOk)
+            OvText("RawJson", "#STR_OZ_VPP_FL_JSON_OK", okInk);
+        else
+        {
+            string bad = OvTr("#STR_OZ_VPP_FL_JSON_BAD");
+            if (m_RawCheckedErr != "")
+                bad = bad + ": " + m_RawCheckedErr;
+            OvText("RawJson", bad, badInk);
+        }
+
+        if (!m_RawEditBox)
+            return;
+        int line = m_RawEditBox.GetCarriageLine() + 1;
+        int lines = m_RawEditBox.GetLinesCount();
+        string lineWord = OvTr("#STR_OZ_VPP_FL_LINE");
+        string ofWord = OvTr("#STR_OZ_VPP_PLR_OF");
+        string where = lineWord + " " + line.ToString();
+        where = where + " " + ofWord;
+        where = where + " " + lines.ToString();
+        OvText("RawWhere", where, muted);
+    }
+
+    // Every 300 ms on this page (Tick): the size follows the text at once, the JSON
+    // check once typing has paused (a broken text is judged once, not per key).
+    protected void RawFollow()
+    {
+        int now = GetGame().GetTime();
+        if (now - m_RawTickAt < 300)
+            return;
+        m_RawTickAt = now;
+        if (m_RawPicked == "" || !m_RawEditBox)
+            return;
+
+        string text = RawText();
+        if (text != m_RawSeen)
+        {
+            m_RawSeen = text;
+            m_RawSeenAt = now;
+            RawPaintHead(RawSizeLine(text.Length()));
+        }
+
+        bool pending = m_RawChecked != m_RawSeen;
+        if (pending && now - m_RawSeenAt >= 800)
+        {
+            RawCheck(m_RawSeen);
+            pending = false;
+        }
+        RawPaintStatus(pending);
+    }
+
+    // The text of the picked file came from the server (cfg_get).
+    protected void RawTake(string body)
+    {
+        if (m_RawEditBox)
+            m_RawEditBox.SetText(body);
+        m_RawSeen = body;
+        m_RawSeenAt = GetGame().GetTime();
+        RawCheck(body);
+        RawPaintHead(RawSizeLine(body.Length()));
+        RawPaintStatus(false);
+    }
+
+    // The page's buttons; false: not one of them.
+    protected bool RawClick(string nm)
+    {
+        if (nm == "BtnRawReload")
+        {
+            if (m_RawPicked != "")
+                RawPick(m_RawPicked);
+            return true;
+        }
+
+        if (nm == "BtnRawApply")
+        {
+            if (m_RawPicked == "")
+            {
+                Hint("#STR_OZ_VPP_FL_PICK_FIRST");
+                return true;
+            }
+
+            // A text that does not parse never leaves the client: the server would
+            // refuse it with the same verdict, a round trip later.
+            string current = RawText();
+            RawCheck(current);
+            RawPaintStatus(false);
+            if (!m_RawCheckedOk)
+            {
+                Hint("#STR_OZ_VPP_FL_NOT_SENT");
+                return true;
+            }
+
+            string applyAsk = OvTr("#STR_OZ_VPP_APPLY_ASK");
+            string whose = RawOwnerLabel(RawOwnerOf(m_RawPicked));
+            string ask = applyAsk + " " + m_RawPicked;
+            ask = ask + " (" + whose;
+            ask = ask + ")?";
+            Confirm(ask, "#STR_OZ_VPP_YES_APPLY", "cfg:" + m_RawPicked);
+            return true;
+        }
+
+        // The clipboard by script, not the engine's paste: that one stops at 512 bytes
+        // in an edit box (dayz-modding gui-layouts §22; design §4.2).
+        if (nm == "BtnRawPaste")
+        {
+            string clip;
+            GetGame().CopyFromClipboard(clip);
+            if (!m_RawEditBox || clip == "")
+                return true;
+            m_RawEditBox.SetText(clip);
+            m_RawSeen = clip;
+            m_RawSeenAt = GetGame().GetTime();
+            RawCheck(clip);
+            RawPaintHead(RawSizeLine(clip.Length()));
+            RawPaintStatus(false);
+            string pasted = OvTr("#STR_OZ_VPP_FL_PASTED");
+            string sizeNow = RawSizeLine(clip.Length());
+            Hint(pasted + " " + sizeNow);
+            return true;
+        }
+
+        if (nm == "BtnRawCopy")
+        {
+            string whole = RawText();
+            GetGame().CopyToClipboard(whole);
+            string copied = OvTr("#STR_OZ_VPP_FL_COPIED");
+            Hint(copied + " " + whole.Length().ToString());
+            return true;
+        }
+
+        return false;
+    }
+
+    protected string RawOwnerOf(string name)
+    {
+        int at = m_CfgNames.Find(name);
+        if (at == -1 || at >= m_CfgOwners.Count())
+            return "core";
+        return m_CfgOwners[at];
     }
 
     // ---------------------------------------------------------- ввід
@@ -3147,10 +3492,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (nm == "RawList")
         {
             if (row >= 0 && row < m_RawRows.Count())
-            {
-                m_RawPicked = m_RawRows[row];
-                AskCfg(m_RawPicked);
-            }
+                RawPick(m_RawRows[row]);
             return true;
         }
 
@@ -3295,52 +3637,9 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return true;
         }
 
-        if (nm == "BtnRawReload")
-        {
-            if (m_RawPicked != "")
-                AskCfg(m_RawPicked);
+        // Ядро › Файли конфігів.
+        if (RawClick(nm))
             return true;
-        }
-
-        if (nm == "BtnRawApply")
-        {
-            if (m_RawPicked == "")
-            {
-                Hint("pick a config first");
-                return true;
-            }
-            string applyAsk = Widget.TranslateString("#STR_OZ_VPP_APPLY_ASK") + " " + m_RawPicked;
-            Confirm(applyAsk, "#STR_OZ_VPP_YES_APPLY", "cfg:" + m_RawPicked);
-            return true;
-        }
-
-        // The clipboard by script, not the engine's paste: that one stops at 512 bytes
-        // in an edit box (dayz-modding gui-layouts §22; design §4.2).
-        if (nm == "BtnRawPaste")
-        {
-            string clip;
-            GetGame().CopyFromClipboard(clip);
-            MultilineEditBoxWidget pasteTo = MultilineEditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("RawEdit"));
-            if (pasteTo && clip != "")
-            {
-                pasteTo.SetText(clip);
-                Hint("pasted " + clip.Length().ToString() + " b from the clipboard");
-            }
-            return true;
-        }
-
-        if (nm == "BtnRawCopy")
-        {
-            MultilineEditBoxWidget copyFrom = MultilineEditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("RawEdit"));
-            if (copyFrom)
-            {
-                string whole;
-                copyFrom.GetText(whole);
-                GetGame().CopyToClipboard(whole);
-                Hint("copied " + whole.Length().ToString() + " b");
-            }
-            return true;
-        }
 
         return super.OnClick(w, x, y, button);
     }
