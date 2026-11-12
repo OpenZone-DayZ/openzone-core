@@ -212,6 +212,13 @@ class OZ_AdminFacts
             return null;
         return s_All[i];
     }
+
+    // The registry lives one mission, as the core's other registries do
+    // (OZ_AdminRegistry.Clear): the next mission registers its cards again.
+    static void Clear()
+    {
+        s_All.Clear();
+    }
 }
 
 // The core's own card: its zones, the config files the window edits, the kinds
