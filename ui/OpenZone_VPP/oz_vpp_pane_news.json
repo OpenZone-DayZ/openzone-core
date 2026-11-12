@@ -1,33 +1,171 @@
 {
   "layout": "oz_vpp_pane_news",
-  "note": "NEWS pane of the admin window: a post to the bridge, and from there to Discord and every PDA. Created by OZ_VppMenu.OnCreate under OZ_VppRoot at [0, vpp.paneY]. Names NwTitle, NwBody, NewsHint, BtnNwWhoText and the two button names are read by OZ_VppMenu.c. The title and body fields are wider than vpp.fieldW on purpose: this pane is one column across the whole window, and a headline typed into 260 units would be unreadable.",
-  "root": {"frame": {"name": "PaneNews", "size": "$vpp.pane", "at": [0, "$vpp.paneY"], "inset": "$vpp.inset",
-    "hidden": true, "priority": 2,
-    "note": "Hidden: ShowPane shows the open tab's pane and hides the rest.",
-    "children": [
-      {"vbox": {"name": "NwForm", "gap": 8, "children": [
-        {"section": {"name": "SecNw", "text": "NEWS (ADMIN)"}},
-        {"label": {"name": "NwHelp1", "font": "small", "color": "$muted",
-          "text": "A post goes to the bridge and from there to Discord and every PDA. Title, body, and whose name signs it."}},
-        {"hrow": {"h": "$size.field", "children": [
-          {"label": {"name": "NwTitleLbl", "w": "$vpp.labelW", "text": "TITLE", "font": "small", "color": "$muted"}},
-          {"field": {"name": "NwTitle", "w": 760}}
-        ]}},
-        {"label": {"name": "NwBodyLbl", "text": "BODY", "font": "small", "color": "$muted"}},
-        {"field": {"name": "NwBody", "h": "fill", "lines": 12,
-          "note": "The post itself. 12 lines is what the 214-unit box holds at the fixed 14-point field face."}},
-        {"hbox": {"name": "NwSign", "h": "$size.button", "gap": "$space.gap", "children": [
-          {"label": {"name": "NwWhoLbl", "w": "$vpp.labelW", "text": "SIGNED BY", "font": "small", "color": "$muted"}},
-          {"button": {"name": "BtnNwWho", "w": 360, "text": "myself"}}
-        ]}},
-        {"label": {"name": "NwHelp2", "font": "small", "color": "$muted",
-          "text": "Click to cycle: your own name, then every persona the bridge lists for you."}},
-        {"hbox": {"name": "NwActions", "h": "$size.button", "children": [
-          {"gap": {"w": "fill"}},
-          {"button": {"name": "BtnNwPost", "w": 150, "text": "POST", "edge": "$ok", "color": "$ok"}}
-        ]}},
-        {"label": {"name": "NewsHint", "h": "$size.hint", "font": "hint", "color": "$muted",
-          "note": "Empty: every answer of the news route lands here."}}
-      ]}}
-    ]}}
+  "note": "Ядро › Новини (VPP rework 2026-11-12, design §5.1; artboard CoreNews): the form on the left -- title, text with a live byte counter against the bridge's 1000-byte ceiling, the signature cycler (your own name, then every persona the bridge lists for you), publish and clear; in the middle the post as a PDA will show it, in the PDA's own blue (the vppPda* tokens, a shade off the series colours so OZ_VppPaint leaves them alone); on the right the place of the recent posts, which the bridge keeps and the core does not. Created by OZ_VppMenu.OnCreate; the shell moves it into the content area. Laid out at the content size of the default window (1060 x 680); a smaller window cuts it at the edge. Names NwTitle, NwBody, NwBytes, NwBytesText, BtnNwWho, BtnNwPost, BtnNwClear, NwPrevTitle, NwPrevWho and NwPrevBody are read by OZ_VppMenu.c.",
+  "root": {
+    "frame": {
+      "name": "PaneNews",
+      "size": "$vpp.content",
+      "at": [0, "$vpp.paneY"],
+      "hidden": true,
+      "priority": 2,
+      "note": "Hidden: ShowPane shows the open page and hides the rest.",
+      "children": [
+        {
+          "vbox": {
+            "name": "NwBody0",
+            "size": "fill",
+            "children": [
+              {
+                "frame": {
+                  "name": "NwHead",
+                  "h": 60,
+                  "children": [
+                    {"label": {"name": "NwHeadTitle", "at": [24, 9], "size": [520, 26], "text": "#STR_OZ_VPP_NW_HEAD", "font": "title", "color": "$vppText"}},
+                    {"label": {"name": "NwHeadSub", "at": [24, 35], "size": [760, 18], "text": "#STR_OZ_VPP_NW_SUB", "font": "small", "color": "$vppMuted"}},
+                    {"panel": {"name": "NwHeadRule", "at": [0, 59], "size": [1060, 1], "color": "$vppEdge"}}
+                  ]
+                }
+              },
+              {
+                "hbox": {
+                  "name": "NwCols",
+                  "h": "fill",
+                  "children": [
+                    {
+                      "panel": {
+                        "name": "NwLeft",
+                        "w": 440,
+                        "color": "$vppPanel",
+                        "inset": 16,
+                        "children": [
+                          {
+                            "vbox": {
+                              "name": "NwForm",
+                              "size": "fill",
+                              "gap": 8,
+                              "children": [
+                                {"label": {"name": "NwFormHead", "h": 24, "text": "#STR_OZ_VPP_NW_NEW", "font": "header", "color": "$vppText"}},
+                                {"label": {"name": "NwTitleLbl", "h": 18, "text": "#STR_OZ_VPP_NW_TITLE_LBL", "font": "small", "color": "$vppMuted"}},
+                                {"field": {"name": "NwTitle", "color": "$vppText"}},
+                                {"label": {"name": "NwBodyLbl", "h": 18, "text": "#STR_OZ_VPP_NW_BODY_LBL", "font": "small", "color": "$vppMuted"}},
+                                {"field": {"name": "NwBody", "h": 190, "lines": 9, "color": "$vppText", "note": "No wrap on purpose: every break the engine makes is a real line break in the text, and the post would carry them to Discord."}},
+                                {
+                                  "hbox": {
+                                    "name": "NwBytesRow",
+                                    "h": 18,
+                                    "gap": 10,
+                                    "children": [
+                                      {"bar": {"name": "NwBytes", "w": "fill", "h": 4, "track": "$vppRaised", "fill": "$vppAccent", "note": "The text's bytes against the ceiling: OZ_VppMenu.NwPaint widens NwBytesFill."}},
+                                      {"label": {"name": "NwBytesText", "w": 150, "text": "", "font": "small", "color": "$vppText", "align": "right"}}
+                                    ]
+                                  }
+                                },
+                                {"text": {"name": "NwBytesNote", "h": 34, "plain": true, "grow": false, "font": "small", "color": "$vppMuted", "text": "#STR_OZ_VPP_NW_BYTES_NOTE"}},
+                                {"label": {"name": "NwWhoLbl", "h": 18, "text": "#STR_OZ_VPP_NW_WHO_LBL", "font": "small", "color": "$vppMuted"}},
+                                {"button": {"name": "BtnNwWho", "text": "", "font": "small", "bg": "$vppCell", "edge": "$vppEdge", "color": "$vppText", "note": "Cycles the signature: your own name, then every persona the bridge lists for you (news_voices)."}},
+                                {"text": {"name": "NwWhoNote", "h": 34, "plain": true, "grow": false, "font": "small", "color": "$vppMuted", "text": "#STR_OZ_VPP_NW_WHO_NOTE"}},
+                                {"gap": {"h": "fill"}},
+                                {
+                                  "hbox": {
+                                    "name": "NwActions",
+                                    "h": 34,
+                                    "gap": 10,
+                                    "children": [
+                                      {"button": {"name": "BtnNwPost", "w": "fill", "h": 34, "text": "#STR_OZ_VPP_NW_POST", "font": "small", "bg": "$vppAccent", "edge": "$vppAccent", "color": "$vppScreen"}},
+                                      {"button": {"name": "BtnNwClear", "w": 130, "h": 34, "text": "#STR_OZ_VPP_NW_CLEAR", "font": "small", "bg": "$vppRaised", "edge": "$vppEdge", "color": "$vppText"}}
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {"panel": {"name": "NwRuleA", "w": 1, "color": "$vppEdge"}},
+                    {
+                      "panel": {
+                        "name": "NwMid",
+                        "w": 340,
+                        "color": "$vppPanel",
+                        "inset": 16,
+                        "children": [
+                          {
+                            "vbox": {
+                              "name": "NwPrevCol",
+                              "size": "fill",
+                              "gap": 10,
+                              "children": [
+                                {"label": {"name": "NwPrevTag", "h": 18, "text": "#STR_OZ_VPP_NW_PREVIEW", "font": "small", "color": "$vppMuted"}},
+                                {
+                                  "panel": {
+                                    "name": "NwCard",
+                                    "h": 300,
+                                    "color": "$vppPdaGround",
+                                    "inset": 14,
+                                    "children": [
+                                      {
+                                        "vbox": {
+                                          "name": "NwCardCol",
+                                          "size": "fill",
+                                          "gap": 6,
+                                          "children": [
+                                            {
+                                              "hbox": {
+                                                "name": "NwCardHead",
+                                                "h": 18,
+                                                "children": [
+                                                  {"label": {"name": "NwCardKind", "w": "fill", "text": "#STR_OZ_VPP_NW_CARD_KIND", "font": "small", "color": "$vppPdaAccent"}},
+                                                  {"label": {"name": "NwCardNew", "w": 80, "text": "#STR_OZ_VPP_NW_CARD_NEW", "font": "small", "color": "$vppPdaAccent", "align": "right"}}
+                                                ]
+                                              }
+                                            },
+                                            {"panel": {"name": "NwCardRule", "h": 1, "color": "$vppPdaEdge"}},
+                                            {"text": {"name": "NwPrevTitle", "h": 44, "plain": true, "grow": false, "font": "header", "color": "$vppPdaText", "text": ""}},
+                                            {"label": {"name": "NwPrevWho", "h": 18, "text": "", "font": "small", "color": "$vppPdaMuted"}},
+                                            {"text": {"name": "NwPrevBody", "h": "fill", "plain": true, "grow": false, "font": "small", "color": "$vppPdaText", "text": ""}}
+                                          ]
+                                        }
+                                      }
+                                    ]
+                                  }
+                                },
+                                {"text": {"name": "NwPrevNote", "h": 52, "plain": true, "grow": false, "font": "small", "color": "$vppMuted", "text": "#STR_OZ_VPP_NW_PREVIEW_NOTE"}}
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {"panel": {"name": "NwRuleB", "w": 1, "color": "$vppEdge"}},
+                    {
+                      "panel": {
+                        "name": "NwRight",
+                        "w": "fill",
+                        "color": "$vppHead",
+                        "inset": 16,
+                        "children": [
+                          {
+                            "vbox": {
+                              "name": "NwRecentCol",
+                              "size": "fill",
+                              "gap": 8,
+                              "children": [
+                                {"label": {"name": "NwRecentHead", "h": 24, "text": "#STR_OZ_VPP_NW_RECENT", "font": "header", "color": "$vppText"}},
+                                {"text": {"name": "NwRecentNote", "h": 170, "plain": true, "grow": false, "font": "small", "color": "$vppMuted", "text": "#STR_OZ_VPP_NW_RECENT_NOTE", "note": "The bridge keeps the posts (v1/news/list), the core keeps none: no list here until the core learns to ask the bridge for it."}}
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
 }

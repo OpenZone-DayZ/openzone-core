@@ -279,7 +279,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         // Ядро's pages (VPP rework 2026-11-12): the journal first, the config files last.
         AddOwnPane("overview", "#STR_OZ_VPP_PAGE_OVERVIEW", "JrHint");
         AddOwnPane("spawns",   "#STR_OZ_VPP_PAGE_SPAWNS",   "");
-        AddOwnPane("news",     "#STR_OZ_VPP_PAGE_NEWS",     "NewsHint");
+        AddOwnPane("news",     "#STR_OZ_VPP_PAGE_NEWS",     "");
 
         // PLAYERS -- ЯДРОВА, і саме тому вона тут (дизайн 2026-09-08).
         // Пермадес переїхав у ядро службою; без цієї панелі перенесення було
@@ -291,6 +291,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         AddOwnPane("players", "#STR_OZ_VPP_PAGE_PLAYERS", "");
         AddOwnPane("raw",     "#STR_OZ_VPP_PAGE_FILES",   "RawHint");
         m_PlrFindBox = EditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("PlrFind"));
+        m_NwTitleBox = EditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("NwTitle"));
+        m_NwBodyBox = MultilineEditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("NwBody"));
+        m_NwSeenTitle = "";
+        m_NwSeenBody = "";
 
         if (!m_Ears)
         {
@@ -354,9 +358,17 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // LayoutMirror її стисне. Те саме, що m_TabW для вкладок.
     protected float m_MirrorW = 0;
 
+    // ------------------------------------------------- Ядро › Новини
+    //
+    // The signatures the bridge lists for this admin (news_voices) and which one signs;
+    // the title and text as the preview last showed them, and the two edit boxes.
     protected ref array<string> m_NwVoices;
     protected int               m_NwPick;
     protected string            m_NwSelf;
+    protected string            m_NwSeenTitle;
+    protected string            m_NwSeenBody;
+    protected EditBoxWidget          m_NwTitleBox;
+    protected MultilineEditBoxWidget m_NwBodyBox;
 
     // Зазор між вкладками в одиницях розмітки -- дзеркало vpp.tabGap із
     // ui/tokens.json. Рушій того файлу не читає, тому число живе двічі:
@@ -751,7 +763,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             Ask(OZ_AdminSect.CONFIG, "mirror_list", "{}");
         }
         if (id == "news")
+        {
             Ask(OZ_AdminSect.NEWS, OZ_NewsOp.VOICES, "{}");
+            PaintNewsWho();
+        }
         if (id == "players")
         {
             m_PlrWantWipe = false;
@@ -976,6 +991,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         // follows the admin twice a second.
         if (m_Shown == "players")
             PlrFollowFind();
+        if (m_Shown == "news")
+            NwFollow();
         if (m_Shown == "spawns" && GetGame().GetTime() - m_SpDrawnAt >= 500)
             SpDrawScheme();
 
@@ -1676,7 +1693,9 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         AskCfg("Spawns");
     }
 
-    // Відповідь розділу NEWS: список імен або результат публікації.
+    // Відповідь розділу NEWS: список імен або результат публікації. A refusal is in the
+    // journal by itself (OZ_VppJournal.Answered); the page adds only what the refusal
+    // carries beyond its word.
     protected void OnNewsAnswer(string op, bool ok, string json, string error)
     {
         if (!IsOpen())
@@ -1703,30 +1722,28 @@ class OZ_VppAdminMenu : AdminHudSubMenu
                     for (int fi = 1; fi < f.Allowed.Count(); fi++)
                         names = names + ", " + f.Allowed[fi];
 
-                    Hint(op + ": " + Words(error) + " - yours are: " + names);
-                    return;
+                    string yours = OvTr("#STR_OZ_VPP_NW_YOURS");
+                    Hint(yours + " " + names);
                 }
+                return;
             }
 
-            // ЗАДОВГЕ ТІЛО -- ЧИСЛОМ МОСТА (розбіжність 96). Перевірка перед
-            // надсиланням каже наше число, а це -- те, яке справді
-            // застосували: якщо вони колись розійдуться, адмін побачить межу,
-            // об яку насправді спіткнувся.
+            // ЗАДОВГЕ ТІЛО -- ЧИСЛОМ МОСТА (розбіжність 96): якщо числа колись
+            // розійдуться, адмін побачить межу, об яку насправді спіткнувся.
             if (error == "body_too_long" && json != "")
             {
-                // Корінь створює скрипт, а не серіалізатор (шапка
-                // OZ_ConfigBase): без цього Max на відповіді без такого поля
-                // читався б із сирої пам'яті.
                 OZ_NewsAdminAnswer tl = new OZ_NewsAdminAnswer();
                 string terr;
                 if (JsonFileLoader<OZ_NewsAdminAnswer>.LoadData(json, tl, terr) && tl && tl.Max > 0)
                 {
-                    Hint(op + ": the body is over the ceiling of " + tl.Max.ToString() + " b");
-                    return;
+                    int ceiling = tl.Max;
+                    string over = OvTr("#STR_OZ_VPP_NW_OVER");
+                    string bytesWord = OvTr("#STR_OZ_VPP_NW_BYTES");
+                    string line = over + " " + ceiling.ToString();
+                    line = line + " " + bytesWord;
+                    Hint(line);
                 }
             }
-
-            Hint(op + ": " + Words(error));
             return;
         }
 
@@ -1738,10 +1755,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             OZ_NewsAdminVoices v = new OZ_NewsAdminVoices();
             string verr;
             if (!JsonFileLoader<OZ_NewsAdminVoices>.LoadData(json, v, verr) || !v)
-            {
-                Hint("voices: unreadable answer");
                 return;
-            }
 
             // Копії не треба: обидва читання перекладають рядки з конверта
             // у власні поля вікна, і саме це переписування Є копією.
@@ -1757,11 +1771,6 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             // старий індекс показував би одне ім'я, а підписував інше.
             m_NwPick = 0;
             PaintNewsWho();
-
-            if (m_NwVoices.Count() == 0)
-                Hint("no personas granted to you; posts go under your own name");
-            else
-                Hint(m_NwVoices.Count().ToString() + " persona(s) available");
             return;
         }
 
@@ -1776,12 +1785,9 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             if (JsonFileLoader<OZ_NewsAdminAnswer>.LoadData(json, a, aerr) && a)
                 who = a.Who;
 
-            SetEdit("NwTitle", "");
-            MultilineEditBoxWidget body = MultilineEditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("NwBody"));
-            if (body)
-                body.SetText("");
-
-            Hint("posted as \"" + who + "\"");
+            NwClear();
+            string posted = OvTr("#STR_OZ_VPP_NW_POSTED");
+            Hint(posted + " " + who);
             return;
         }
     }
@@ -2137,6 +2143,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         return error;
     }
 
+    // ---------------------------------------------------------- Ядро › Новини
+
     // Кнопка підпису показує поточний вибір: нуль -- своє ім'я.
     protected void PaintNewsWho()
     {
@@ -2147,14 +2155,18 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (m_NwPick <= 0 || m_NwPick > m_NwVoices.Count())
         {
             m_NwPick = 0;
+            string me = OvTr("#STR_OZ_VPP_NW_ME");
             if (m_NwSelf != "")
-                t.SetText(m_NwSelf + "  (myself)");
+                t.SetText(m_NwSelf + "  (" + me + ")");
             else
-                t.SetText("myself");
-            return;
+                t.SetText(me);
         }
-
-        t.SetText(m_NwVoices[m_NwPick - 1] + "  (persona)");
+        else
+        {
+            string persona = OvTr("#STR_OZ_VPP_NW_PERSONA");
+            t.SetText(m_NwVoices[m_NwPick - 1] + "  (" + persona + ")");
+        }
+        NwPaint();
     }
 
     protected string PickedVoice()
@@ -2162,6 +2174,157 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (m_NwPick <= 0 || m_NwPick > m_NwVoices.Count())
             return "";
         return m_NwVoices[m_NwPick - 1];
+    }
+
+    protected string NwTitleText()
+    {
+        if (!m_NwTitleBox)
+            return "";
+        return m_NwTitleBox.GetText();
+    }
+
+    protected string NwBodyText()
+    {
+        string text = "";
+        if (m_NwBodyBox)
+            m_NwBodyBox.GetText(text);
+        return text;
+    }
+
+    // Every frame on this page (Tick): the preview and the byte counter follow typing.
+    protected void NwFollow()
+    {
+        string title = NwTitleText();
+        string body = NwBodyText();
+        if (title == m_NwSeenTitle && body == m_NwSeenBody)
+            return;
+        m_NwSeenTitle = title;
+        m_NwSeenBody = body;
+        NwPaint();
+    }
+
+    // The byte counter against the ceiling (the bridge's, OZ_Const.NEWS_BODY_MAX: a
+    // Cyrillic letter is two bytes) and the post as a PDA will show it.
+    protected void NwPaint()
+    {
+        string title = NwTitleText();
+        string body = NwBodyText();
+        int bytes = body.Length();
+        int max = OZ_Const.NEWS_BODY_MAX;
+
+        int accent = ARGBF(1, 0.91, 0.47, 0.17);
+        int alert = ARGBF(1, 0.96, 0.78, 0.25);
+        int bad = ARGBF(1, 0.88, 0.32, 0.29);
+        int ink = ARGBF(1, 0.88, 0.875, 0.855);
+        int barInk = accent;
+        int textInk = ink;
+        if (bytes * 10 >= max * 9)
+        {
+            barInk = alert;
+            textInk = alert;
+        }
+        if (bytes > max)
+        {
+            barInk = bad;
+            textInk = bad;
+        }
+
+        string word = OvTr("#STR_OZ_VPP_NW_BYTES");
+        string count = bytes.ToString() + " / " + max.ToString();
+        count = count + " " + word;
+        OvText("NwBytesText", count, textInk);
+
+        Widget track = M_SUB_WIDGET.FindAnyWidget("NwBytes");
+        Widget fill = M_SUB_WIDGET.FindAnyWidget("NwBytesFill");
+        if (track && fill)
+        {
+            float tw;
+            float th;
+            track.GetSize(tw, th);
+            float part = bytes;
+            part = part / max;
+            if (part > 1)
+                part = 1;
+            fill.SetSize(tw * part, th);
+            fill.SetColor(barInk);
+        }
+
+        // The PDA's own blue (the vppPda* tokens of the layout); the texts only.
+        int pdaText = ARGBF(1, 0.86, 0.9, 0.93);
+        int pdaMuted = ARGBF(1, 0.55, 0.62, 0.68);
+        if (title.Trim() == "")
+            OvText("NwPrevTitle", "#STR_OZ_VPP_NW_PREV_TITLE", pdaMuted);
+        else
+            OvText("NwPrevTitle", title, pdaText);
+
+        string who = PickedVoice();
+        if (who == "")
+            who = m_NwSelf;
+        string now = OvTr("#STR_OZ_VPP_NW_JUST_NOW");
+        string byline = who + "   " + now;
+        OvText("NwPrevWho", byline, pdaMuted);
+
+        if (body.Trim() == "")
+            OvText("NwPrevBody", "#STR_OZ_VPP_NW_PREV_BODY", pdaMuted);
+        else
+            OvText("NwPrevBody", body, pdaText);
+    }
+
+    protected void NwClear()
+    {
+        if (m_NwTitleBox)
+            m_NwTitleBox.SetText("");
+        if (m_NwBodyBox)
+            m_NwBodyBox.SetText("");
+        NwPaint();
+    }
+
+    protected void NwPost()
+    {
+        string title = NwTitleText();
+        string text = NwBodyText();
+
+        // Порожнє відхиляємо ТУТ, до мосту: він відмовив би тими ж словами, але за
+        // круг через сервер, і адмін чекав би на відповідь про те, що бачить сам.
+        if (title.Trim() == "")
+        {
+            Hint("#STR_OZ_VPP_NW_NO_TITLE");
+            return;
+        }
+        if (text.Trim() == "")
+        {
+            Hint("#STR_OZ_VPP_NW_NO_BODY");
+            return;
+        }
+
+        // Довге тіло відхиляємо ТУТ, з числом: сервер розбирає зібраний JSON через
+        // JsonFileLoader, а той ріже строкове значення на 1023 байтах мовчки.
+        // СТРОГО БІЛЬШЕ: рівно тисяча проходить і тут, і в КПК (розбіжність 96).
+        // Останнє слово однаково за мостом -- він відповідає body_too_long.
+        if (text.Length() > OZ_Const.NEWS_BODY_MAX)
+        {
+            string over = OvTr("#STR_OZ_VPP_NW_OVER");
+            string bytesWord = OvTr("#STR_OZ_VPP_NW_BYTES");
+            string line = over + " " + OZ_Const.NEWS_BODY_MAX.ToString();
+            line = line + " " + bytesWord;
+            Hint(line);
+            return;
+        }
+
+        OZ_NewsAdminAsk ask = new OZ_NewsAdminAsk();
+        ask.Who   = PickedVoice();
+        ask.Title = title;
+        ask.Body  = text;
+
+        string letter;
+        string lerr;
+        if (!JsonFileLoader<OZ_NewsAdminAsk>.MakeData(ask, letter, lerr, false))
+        {
+            OZ_Log.Error("vpp news: cannot build the post: " + lerr);
+            return;
+        }
+
+        Ask(OZ_AdminSect.NEWS, OZ_NewsOp.POST, letter);
     }
 
     // Текст конфігу приїхав. Субмод КПК перехоплює свої імена через super.
@@ -3113,55 +3276,13 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         if (nm == "BtnNwPost")
         {
-            string title = GetEdit("NwTitle");
-            string text  = "";
-            MultilineEditBoxWidget nb = MultilineEditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("NwBody"));
-            if (nb)
-                nb.GetText(text);
+            NwPost();
+            return true;
+        }
 
-            // Порожнє відхиляємо ТУТ, до мосту: він відмовив би тими ж
-            // словами, але за круг через сервер, і адмін чекав би на відповідь
-            // про те, що бачить сам.
-            if (title.Trim() == "")
-            {
-                Hint("a title first");
-                return true;
-            }
-            if (text.Trim() == "")
-            {
-                Hint("the body is empty");
-                return true;
-            }
-
-            // Довге тіло відхиляємо ТУТ, з числом: сервер розбирає зібраний
-            // JSON через JsonFileLoader, а той ріже строкове значення на
-            // 1023 байтах мовчки -- тобто без цієї перевірки адмін бачив би
-            // «готово» на новину, яка поїхала в гільдію обрубком.
-            //
-            // СТРОГО БІЛЬШЕ: рівно тисяча тут відхилялась, а на сторінці КПК
-            // проходила (розбіжність 96). Останнє слово однаково за мостом --
-            // він відповідає body_too_long і возить власну стелю.
-            if (text.Length() > OZ_Const.NEWS_BODY_MAX)
-            {
-                Hint("the body is " + text.Length().ToString() + " b, the limit is " + OZ_Const.NEWS_BODY_MAX.ToString());
-                return true;
-            }
-
-            OZ_NewsAdminAsk ask = new OZ_NewsAdminAsk();
-            ask.Who   = PickedVoice();
-            ask.Title = title;
-            ask.Body  = text;
-
-            string letter;
-            string lerr;
-            if (!JsonFileLoader<OZ_NewsAdminAsk>.MakeData(ask, letter, lerr, false))
-            {
-                Hint("cannot build the post: " + lerr);
-                return true;
-            }
-
-            Hint("posting...");
-            Ask(OZ_AdminSect.NEWS, OZ_NewsOp.POST, letter);
+        if (nm == "BtnNwClear")
+        {
+            NwClear();
             return true;
         }
 
