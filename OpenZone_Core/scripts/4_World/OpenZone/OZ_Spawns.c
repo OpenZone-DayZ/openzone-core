@@ -543,6 +543,27 @@ class OZ_Spawns
         return "STR_OZ_ERR_NO_ZONE";
     }
 
+    // The service's main switch, from the admin window (VPP rework 2026-11-12). The
+    // file is read again first, like every admin write here, so hand edits survive.
+    static string SetEnabled(bool on)
+    {
+        if (!GetGame().IsServer())
+            return "STR_OZ_ERR_INTERNAL";
+        if (!s_Cfg)
+            return "STR_OZ_ERR_INTERNAL";
+
+        Reload(true);
+
+        // Файл, якого лоадер не зрозумів, не перезаписуємо своїм знімком:
+        // у пам'яті зараз дефолти, і запис стер би зони адміна назавжди.
+        if (!s_Writable)
+            return "STR_OZ_ERR_INTERNAL";
+
+        s_Cfg.Enabled = on;
+        Save();
+        return "";
+    }
+
     private static void Save()
     {
         if (!s_Writable)

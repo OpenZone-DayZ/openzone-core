@@ -114,4 +114,8 @@ class OZ_SpawnOp
     static const string CLEAR     = "spawn.clear";
     static const string UID_HERE  = "spawn.uidhere";
     static const string UID_CLEAR = "spawn.uidclear";
+
+    // The service's main switch (OZ_SpawnsConfig.Enabled), body "1" or "0" (VPP
+    // rework 2026-11-12: the switch in the head of Ядро › Точки появи).
+    static const string ENABLE    = "spawn.enable";
 }

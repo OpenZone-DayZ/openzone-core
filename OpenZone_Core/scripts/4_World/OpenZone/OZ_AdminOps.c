@@ -102,6 +102,39 @@ class OZ_AdminIdentity
     bool   HasLeaders;
     bool   HasPosts;
     string LeaderMeans;
+
+    // The faction ids the source knows (FactionIds) and their names (FactionName),
+    // side by side: the spawns page offers them as the zones' owners.
+    ref array<string> Factions;
+    ref array<string> FactionNames;
+
+    void OZ_AdminIdentity()
+    {
+        Factions = new array<string>();
+        FactionNames = new array<string>();
+    }
+
+    // A copy made by script (the OZ_ConfigBase header): the page keeps the lists.
+    OZ_AdminIdentity Copy()
+    {
+        OZ_AdminIdentity c = new OZ_AdminIdentity();
+        c.Present = Present;
+        c.Source = Source;
+        c.HasLeaders = HasLeaders;
+        c.HasPosts = HasPosts;
+        c.LeaderMeans = LeaderMeans;
+        if (Factions)
+        {
+            for (int i = 0; i < Factions.Count(); i++)
+                c.Factions.Insert(Factions[i]);
+        }
+        if (FactionNames)
+        {
+            for (int k = 0; k < FactionNames.Count(); k++)
+                c.FactionNames.Insert(FactionNames[k]);
+        }
+        return c;
+    }
 }
 
 class OZ_ConfigSection : OZ_AdminSection
@@ -254,6 +287,18 @@ class OZ_ConfigSection : OZ_AdminSection
         info.HasLeaders = svc.HasLeaders();
         info.HasPosts = svc.HasPosts();
         info.LeaderMeans = svc.LeaderMeans();
+
+        array<string> ids;
+        svc.FactionIds(ids);
+        if (ids)
+        {
+            for (int i = 0; i < ids.Count(); i++)
+            {
+                string id = ids[i];
+                info.Factions.Insert(id);
+                info.FactionNames.Insert(svc.FactionName(id));
+            }
+        }
 
         string outJson;
         string err;
@@ -439,8 +484,39 @@ class OZ_SpawnSection : OZ_AdminSection
         if (op == OZ_SpawnOp.HERE || op == OZ_SpawnOp.CLEAR)
             return Zone(op, json, sender, ok, error);
 
+        if (op == OZ_SpawnOp.ENABLE)
+            return SwitchService(json, sender, ok, error);
+
         error = "STR_OZ_ERR_UNKNOWN_OP";
         return "";
+    }
+
+    // The service's main switch: "1" on, "0" off. Read from disk and written once,
+    // like every other spawn op (OZ_Spawns.SetEnabled).
+    private string SwitchService(string arg, PlayerIdentity sender, out bool ok, out string error)
+    {
+        string want = arg.Trim();
+        if (want != "1" && want != "0")
+        {
+            error = "STR_OZ_ERR_UNKNOWN_OP";
+            return "";
+        }
+
+        bool on = want == "1";
+        string err = OZ_Spawns.SetEnabled(on);
+        if (err != "")
+        {
+            error = err;
+            return "";
+        }
+
+        string who = "?";
+        if (sender)
+            who = sender.GetPlainId();
+        OZ_Log.Info("spawns: the service switched " + want + " by " + who);
+
+        ok = true;
+        return "{}";
     }
 
     // arg -- "слаг" або "слаг радіус". Радіус необов'язковий: без нього

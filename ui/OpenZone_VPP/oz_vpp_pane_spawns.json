@@ -1,50 +1,172 @@
 {
   "layout": "oz_vpp_pane_spawns",
-  "note": "SPAWNS pane of the admin window: the list of known spawn zones on the left, the form that writes one on the right, and the personal point below it. Created by OZ_VppMenu.OnCreate under OZ_VppRoot at [0, vpp.paneY] -- exactly where every glue mod's pane creates itself, so all of them still overlap and the script shows one at a time. Names SpawnList, SpSlug, SpRadius, SpUid, SpawnHint, BtnSpFacText and the five button names are read by OZ_VppMenu.c.",
-  "root": {"frame": {"name": "PaneSpawns", "size": "$vpp.pane", "at": [0, "$vpp.paneY"], "inset": "$vpp.inset",
-    "hidden": true, "priority": 2,
-    "note": "Hidden: ShowPane shows the open tab's pane and hides the rest.",
-    "children": [
-      {"vbox": {"name": "SpBody", "gap": "$space.gap", "children": [
-        {"hbox": {"name": "SpCols", "h": "fill", "gap": "$space.column", "children": [
-          {"vbox": {"name": "SpZoneCol", "w": 480, "gap": 8, "children": [
-            {"section": {"name": "SecSpZ", "text": "SPAWN ZONES"}},
-            {"listbox": {"name": "SpawnList", "h": "fill", "font": "field", "color": "$text",
-              "props": {"style": "NoScrollBar", "title visible": false, "highlight row": true, "lines": 13},
-              "note": "The engine's own listbox, filled by AddItem; 13 lines over 414 units keeps the 31-unit row of the hand-written pane."}}
-          ]}},
-          {"vbox": {"name": "SpFormCol", "w": 460, "gap": 8, "children": [
-            {"section": {"name": "SecSpA", "text": "SET ZONE"}},
-            {"label": {"name": "SpHelp1", "text": "Zone lands where YOU stand.", "font": "small", "color": "$muted"}},
-            {"label": {"name": "SpHelp2", "text": "Cycler lists known slugs; the field below wins.", "font": "small", "color": "$muted"}},
-            {"label": {"name": "SpHelp3", "text": "slug: star = staging, dash = fallback zone", "font": "small", "color": "$muted"}},
-            {"button": {"name": "BtnSpFac", "text": "faction: -"}},
-            {"hrow": {"h": "$size.field", "children": [
-              {"label": {"name": "SpSlugLbl", "w": "$vpp.labelW", "text": "slug", "font": "small", "color": "$muted"}},
-              {"field": {"name": "SpSlug", "w": "$vpp.fieldW"}}
-            ]}},
-            {"hrow": {"h": "$size.field", "children": [
-              {"label": {"name": "SpRadLbl", "w": "$vpp.labelW", "text": "radius, m", "font": "small", "color": "$muted"}},
-              {"field": {"name": "SpRadius", "w": "$vpp.fieldW"}}
-            ]}},
-            {"hbox": {"h": "$size.button", "gap": "$space.gap", "children": [
-              {"button": {"name": "BtnSpHere", "w": 225, "text": "SPAWN HERE", "edge": "$ok", "color": "$ok"}},
-              {"button": {"name": "BtnSpClear", "w": 225, "text": "CLEAR ZONE", "edge": "$bad", "color": "$bad"}}
-            ]}},
-            {"section": {"name": "SecSpP", "text": "PERSONAL POINT"}},
-            {"label": {"name": "SpHelp4", "text": "One player, one home. Click a row to fill in.", "font": "small", "color": "$muted"}},
-            {"hrow": {"h": "$size.field", "children": [
-              {"label": {"name": "SpUidLbl", "w": "$vpp.labelW", "text": "steam64", "font": "small", "color": "$muted"}},
-              {"field": {"name": "SpUid", "w": "$vpp.fieldW"}}
-            ]}},
-            {"hbox": {"h": "$size.button", "gap": "$space.gap", "children": [
-              {"button": {"name": "BtnSpUidHere", "w": 225, "text": "POINT HERE", "edge": "$ok", "color": "$ok"}},
-              {"button": {"name": "BtnSpUidClear", "w": 225, "text": "CLEAR POINT", "edge": "$bad", "color": "$bad"}}
-            ]}}
-          ]}}
-        ]}},
-        {"label": {"name": "SpawnHint", "h": "$size.hint", "font": "hint", "color": "$muted",
-          "note": "Empty: every answer of the spawns route lands here."}}
-      ]}}
-    ]}}
+  "note": "Ядро › Точки появи (VPP rework 2026-11-12, design §5.1; artboard CoreSpawns): the service's switch in the head; every point on the left, grouped -- the staging zone, the faction zones (the fallback among them), the personal points; in the middle a scheme of the points around the admin (no map: circles are the zones, the square is you, north is up), drawn on a CanvasWidget by the script; on the right the faction zone form (for whom, radius, place here, remove) and the personal point form. Removing and the switch ask on the window's confirm strip. Created by OZ_VppMenu.OnCreate; the shell moves it into the content area. Laid out at the content size of the default window (1060 x 680); a smaller window cuts it at the edge. Names BtnSpOn, SpawnList, SpScheme, SpSchemeScale, SpSchemePick, BtnSpFac, SpSlug, SpRadius, BtnSpHere, BtnSpClear, SpUid, BtnSpUidHere and BtnSpUidClear are read by OZ_VppMenu.c.",
+  "root": {
+    "frame": {
+      "name": "PaneSpawns",
+      "size": "$vpp.content",
+      "at": [0, "$vpp.paneY"],
+      "hidden": true,
+      "priority": 2,
+      "note": "Hidden: ShowPane shows the open page and hides the rest.",
+      "children": [
+        {
+          "vbox": {
+            "name": "SpBody",
+            "size": "fill",
+            "children": [
+              {
+                "frame": {
+                  "name": "SpHead",
+                  "h": 60,
+                  "children": [
+                    {"label": {"name": "SpTitle", "at": [24, 9], "size": [520, 26], "text": "#STR_OZ_VPP_SP_TITLE", "font": "title", "color": "$vppText"}},
+                    {"label": {"name": "SpSub", "at": [24, 35], "size": [700, 18], "text": "#STR_OZ_VPP_SP_SUB", "font": "small", "color": "$vppMuted"}},
+                    {"button": {"name": "BtnSpOn", "anchor": "right", "at": [24, 15], "size": [270, 30], "text": "", "font": "small", "bg": "$vppRaised", "edge": "$vppEdge", "color": "$vppText", "note": "The service's switch: the script writes the state into BtnSpOnText and asks on the confirm strip before it flips."}},
+                    {"panel": {"name": "SpHeadRule", "at": [0, 59], "size": [1060, 1], "color": "$vppEdge"}}
+                  ]
+                }
+              },
+              {
+                "hbox": {
+                  "name": "SpCols",
+                  "h": "fill",
+                  "children": [
+                    {
+                      "panel": {
+                        "name": "SpLeft",
+                        "w": 330,
+                        "color": "$vppPanel",
+                        "inset": 16,
+                        "children": [
+                          {
+                            "vbox": {
+                              "name": "SpLeftCol",
+                              "size": "fill",
+                              "gap": 8,
+                              "children": [
+                                {"label": {"name": "SpListTag", "h": 18, "text": "#STR_OZ_VPP_SP_ALL", "font": "small", "color": "$vppMuted"}},
+                                {"listbox": {"name": "SpawnList", "h": "fill", "font": "field", "color": "$vppText", "props": {"style": "NoScrollBar", "title visible": false, "highlight row": true, "lines": 19, "colums": "who;42;where;44;r;14;"}, "note": "The points by group: a caption row per group, then its points (who, where, radius); the picked one in the accent colour."}},
+                                {"text": {"name": "SpListNote", "h": 34, "plain": true, "grow": false, "font": "small", "color": "$vppMuted", "text": "#STR_OZ_VPP_SP_LIST_NOTE"}}
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {"panel": {"name": "SpRuleA", "w": 1, "color": "$vppEdge"}},
+                    {
+                      "panel": {
+                        "name": "SpMid",
+                        "w": 370,
+                        "color": "$vppPanel",
+                        "inset": 16,
+                        "children": [
+                          {
+                            "vbox": {
+                              "name": "SpMidCol",
+                              "size": "fill",
+                              "gap": 8,
+                              "children": [
+                                {"text": {"name": "SpSchemeTag", "h": 34, "plain": true, "grow": false, "font": "small", "color": "$vppMuted", "text": "#STR_OZ_VPP_SP_SCHEME_TAG"}},
+                                {
+                                  "panel": {
+                                    "name": "SpSchemeBox",
+                                    "h": "fill",
+                                    "color": "$vppCell",
+                                    "children": [
+                                      {"raw": {"name": "SpScheme", "class": "CanvasWidgetClass", "size": "fill", "props": {"ignorepointer": 1}, "note": "Drawn by OZ_VppMenu.SpDrawScheme: range rings, the points as circles, the admin as a square in the middle."}}
+                                    ]
+                                  }
+                                },
+                                {"label": {"name": "SpSchemeScale", "h": 20, "text": "", "font": "small", "color": "$vppMuted"}},
+                                {"text": {"name": "SpSchemePick", "h": 54, "plain": true, "grow": false, "font": "small", "color": "$vppText", "text": ""}}
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {"panel": {"name": "SpRuleB", "w": 1, "color": "$vppEdge"}},
+                    {
+                      "panel": {
+                        "name": "SpRight",
+                        "w": "fill",
+                        "color": "$vppHead",
+                        "inset": 16,
+                        "children": [
+                          {
+                            "vbox": {
+                              "name": "SpForm",
+                              "size": "fill",
+                              "gap": 8,
+                              "children": [
+                                {"label": {"name": "SpZoneHead", "h": 24, "text": "#STR_OZ_VPP_SP_ZONE_HEAD", "font": "header", "color": "$vppText"}},
+                                {"label": {"name": "SpForLbl", "h": 18, "text": "#STR_OZ_VPP_SP_FOR", "font": "small", "color": "$vppMuted"}},
+                                {"button": {"name": "BtnSpFac", "text": "", "font": "small", "bg": "$vppCell", "edge": "$vppEdge", "color": "$vppText", "note": "Cycles the zone's owner: the faction ids the server's source of factions knows, then the staging zone and the fallback."}},
+                                {
+                                  "hbox": {
+                                    "name": "SpSlugRow",
+                                    "h": 28,
+                                    "gap": 8,
+                                    "children": [
+                                      {"label": {"name": "SpSlugLbl", "w": 120, "text": "#STR_OZ_VPP_SP_SLUG", "font": "small", "color": "$vppMuted"}},
+                                      {"field": {"name": "SpSlug", "w": "fill", "color": "$vppText", "note": "A slug typed here wins over the cycler: one this build has not heard of, * for staging, - for the fallback."}}
+                                    ]
+                                  }
+                                },
+                                {
+                                  "hbox": {
+                                    "name": "SpRadRow",
+                                    "h": 28,
+                                    "gap": 8,
+                                    "children": [
+                                      {"label": {"name": "SpRadLbl", "w": 120, "text": "#STR_OZ_VPP_SP_RADIUS", "font": "small", "color": "$vppMuted"}},
+                                      {"field": {"name": "SpRadius", "w": "fill", "color": "$vppText"}}
+                                    ]
+                                  }
+                                },
+                                {
+                                  "hbox": {
+                                    "name": "SpZoneBtns",
+                                    "h": 32,
+                                    "gap": 8,
+                                    "children": [
+                                      {"button": {"name": "BtnSpHere", "w": "fill", "text": "#STR_OZ_VPP_SP_HERE", "font": "small", "bg": "$vppAccent", "edge": "$vppAccent", "color": "$vppScreen"}},
+                                      {"button": {"name": "BtnSpClear", "w": "fill", "text": "#STR_OZ_VPP_SP_CLEAR", "font": "small", "bg": "$vppHead", "edge": "$vppBad", "color": "$vppBad"}}
+                                    ]
+                                  }
+                                },
+                                {"text": {"name": "SpZoneNote", "h": 34, "plain": true, "grow": false, "font": "small", "color": "$vppMuted", "text": "#STR_OZ_VPP_SP_ZONE_NOTE"}},
+                                {"panel": {"name": "SpFormRule", "h": 1, "color": "$vppEdge"}},
+                                {"label": {"name": "SpPersHead", "h": 24, "text": "#STR_OZ_VPP_SP_PERS_HEAD", "font": "header", "color": "$vppText"}},
+                                {"label": {"name": "SpUidLbl", "h": 18, "text": "#STR_OZ_VPP_SP_PERS_WHO", "font": "small", "color": "$vppMuted"}},
+                                {"field": {"name": "SpUid", "color": "$vppText"}},
+                                {
+                                  "hbox": {
+                                    "name": "SpPersBtns",
+                                    "h": 32,
+                                    "gap": 8,
+                                    "children": [
+                                      {"button": {"name": "BtnSpUidHere", "w": "fill", "text": "#STR_OZ_VPP_SP_PERS_HERE", "font": "small", "bg": "$vppRaised", "edge": "$vppEdge", "color": "$vppText"}},
+                                      {"button": {"name": "BtnSpUidClear", "w": "fill", "text": "#STR_OZ_VPP_SP_PERS_CLEAR", "font": "small", "bg": "$vppHead", "edge": "$vppBad", "color": "$vppBad"}}
+                                    ]
+                                  }
+                                },
+                                {"text": {"name": "SpPersNote", "h": 34, "plain": true, "grow": false, "font": "small", "color": "$vppMuted", "text": "#STR_OZ_VPP_SP_PERS_NOTE"}}
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
 }

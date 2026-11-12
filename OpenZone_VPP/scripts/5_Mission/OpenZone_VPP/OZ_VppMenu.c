@@ -159,14 +159,25 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // нього OnItemSelected -- вийде рекурсія. Прапорець рве це коло.
     protected bool m_Repaint = false;
 
-    // ------------------------------------------------- спавни
+    // ------------------------------------------------- Ядро › Точки появи
     protected ref OZ_SpawnsConfig m_SpawnsCfg;
-    protected int m_SpFacAt = 0;
 
-    // Рядок списку -> що це таке i чим воно зветься. Без цього рядки були
-    // інертні: показану особисту точку з цього екрана не було чим торкнути.
+    // Рядок списку -> що це таке i чим воно зветься: "head" (a group's caption),
+    // "none", "zone" (key: the slug, * staging, - fallback) or "uid" (key: Steam ID).
     protected ref array<string> m_SpawnRowKind;
     protected ref array<string> m_SpawnRowKey;
+
+    // The picked point ("zone:<slug>" or "uid:<Steam ID>"), the cycler's slug ("" is
+    // its first choice) and when the scheme was last drawn (GetTime, ms).
+    protected string m_SpPick;
+    protected string m_SpSlugPick;
+    protected int    m_SpDrawnAt;
+
+    // What the source of factions said (identity, a read): its name and the faction
+    // ids it knows, with their names side by side.
+    protected string m_IdSource;
+    protected ref array<string> m_IdFactions;
+    protected ref array<string> m_IdNames;
 
     // ------------------------------------------------- raw
     protected string m_RawPicked = "";
@@ -251,6 +262,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         m_PlrWantWipe = false;
         m_SpawnRowKind = new array<string>();
         m_SpawnRowKey  = new array<string>();
+        m_SpPick = "";
+        m_SpSlugPick = "";
+        m_SpDrawnAt = 0;
+        m_IdSource = "";
+        m_IdFactions = new array<string>();
+        m_IdNames = new array<string>();
         m_NwVoices = new array<string>();
         m_NwPick   = 0;
         m_NwSelf   = "";
@@ -261,7 +278,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         // Ядро's pages (VPP rework 2026-11-12): the journal first, the config files last.
         AddOwnPane("overview", "#STR_OZ_VPP_PAGE_OVERVIEW", "JrHint");
-        AddOwnPane("spawns",   "#STR_OZ_VPP_PAGE_SPAWNS",   "SpawnHint");
+        AddOwnPane("spawns",   "#STR_OZ_VPP_PAGE_SPAWNS",   "");
         AddOwnPane("news",     "#STR_OZ_VPP_PAGE_NEWS",     "NewsHint");
 
         // PLAYERS -- ЯДРОВА, і саме тому вона тут (дизайн 2026-09-08).
@@ -716,7 +733,16 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             AskOverview();
         }
         if (id == "spawns")
+        {
+            // The file, the faction ids the source of factions knows (the cycler) and
+            // who is online (names on the personal points): all three are reads.
             AskCfg("Spawns");
+            Ask(OZ_AdminSect.CONFIG, "identity", "{}");
+            PlrAskList();
+            SpPaintSwitch();
+            PaintSpawnCycler();
+            SpDrawScheme();
+        }
         if (id == "raw")
         {
             Ask(OZ_AdminSect.CONFIG, "cfg_list", "{}");
@@ -946,9 +972,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // that waited too long is closed, and the status bar and the journal follow it.
     void Tick()
     {
-        // The open page's own frame work: the search follows typing.
+        // The open page's own frame work: the search follows typing, the scheme
+        // follows the admin twice a second.
         if (m_Shown == "players")
             PlrFollowFind();
+        if (m_Shown == "spawns" && GetGame().GetTime() - m_SpDrawnAt >= 500)
+            SpDrawScheme();
 
         OZ_VppJournal.Expire();
         int rev = OZ_VppJournal.Revision();
@@ -1267,6 +1296,23 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return;
         }
 
+        // Ядро › Точки появи: a zone removed, a personal point removed, the switch.
+        if (action.IndexOf("spclear:") == 0)
+        {
+            Ask(OZ_AdminSect.SPAWNS, OZ_SpawnOp.CLEAR, action.Substring(8, action.Length() - 8));
+            return;
+        }
+        if (action.IndexOf("spuclear:") == 0)
+        {
+            Ask(OZ_AdminSect.SPAWNS, OZ_SpawnOp.UID_CLEAR, action.Substring(9, action.Length() - 9));
+            return;
+        }
+        if (action.IndexOf("spon:") == 0)
+        {
+            Ask(OZ_AdminSect.SPAWNS, OZ_SpawnOp.ENABLE, action.Substring(5, action.Length() - 5));
+            return;
+        }
+
         if (action.IndexOf("mirror:") == 0)
         {
             MirrorSet(action.Substring(7, action.Length() - 7).ToInt());
@@ -1475,6 +1521,11 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             OnReloadAnswer(ok, json, error);
             return;
         }
+        if (op == "identity")
+        {
+            OnIdentityAnswer(ok, json);
+            return;
+        }
 
         if (!ok)
         {
@@ -1615,22 +1666,13 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (!IsOpen())
             return;
 
+        // ВІДМОВУ ЛИШАЄМО НА ЕКРАНІ й списку не чіпаємо: a refusal changed
+        // nothing, so nothing is read again, and its reason stays in the journal
+        // (OZ_VppJournal.Answered closes the request with it). A line of our own
+        // here would only repeat it. Success is "done" there too.
         if (!ok)
-        {
-            // ВІДМОВУ ЛИШАЄМО НА ЕКРАНІ й списку не чіпаємо.
-            //
-            // Тут стояло перечитування «в обох випадках, щоб адмін бачив, що
-            // нічого не змінилось». Ціною була сама причина: відповідь на той
-            // cfg_get приходила за мить і писала в той самий рядок своє
-            // «Spawns loaded», а рядок один. Зміряно на стенді: слаг "zzz"
-            // мовчки не додався, i єдиним слідом операції було слово
-            // «loaded». Відмова нічого не змінила -- отже й перечитувати
-            // нічого.
-            Hint(op + ": " + Widget.TranslateString("#" + error));
             return;
-        }
 
-        Hint(op + ": done");
         AskCfg("Spawns");
     }
 
@@ -1830,6 +1872,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         PlrRebuild();
         PlrPaintCard();
+
+        // The spawns page names the personal points of those online.
+        if (m_Shown == "spawns")
+            RebuildSpawnList();
     }
 
     // What the peek found: the character's name and generation, or that the server
@@ -2128,23 +2174,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         // наповнити поле редактора НІКОЛИ: клік перемальовував список зон,
         // поле лишалось порожнім, а APPLY слав порожній рядок як cfg_set.
         if (name == "Spawns")
-        {
-            // СТВОРЮЄМО САМІ Й ОДРАЗУ ПЕРЕСАДЖУЄМО ВКЛАДЕНЕ.
-            //
-            // Панель тримає цей об'єкт, доки адмін дивиться на список зон, і
-            // читає з нього Role та Center на кожен клік -- тобто хвилинами
-            // після розбору. Усе, що виділив серіалізатор, стільки не живе
-            // (шапка OZ_ConfigBase); Validate тут і є та пересадка.
-            OZ_SpawnsConfig sc = new OZ_SpawnsConfig();
-            string serr;
-            if (JsonFileLoader<OZ_SpawnsConfig>.LoadData(body, sc, serr) && sc)
-            {
-                int swarn;
-                sc.Validate(swarn);
-                m_SpawnsCfg = sc;
-                RebuildSpawnList();
-            }
-        }
+            SpTakeCfg(body);
 
         // Сирий редактор -- окремим питанням, а не «інакше».
         if (name == m_RawPicked)
@@ -2172,8 +2202,252 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // RebuildRawList, з одним викликачем і без жодного override у КПК,
     // фракціях чи рації.
 
-    // ---------------------------------------------------------- спавни
+    // ---------------------------------------------------------- Ядро › Точки появи
 
+    // СТВОРЮЄМО САМІ Й ОДРАЗУ ПЕРЕСАДЖУЄМО ВКЛАДЕНЕ.
+    //
+    // Панель тримає цей об'єкт, доки адмін дивиться на список зон, і читає з
+    // нього Role та Center на кожен клік -- тобто хвилинами після розбору. Усе,
+    // що виділив серіалізатор, стільки не живе (шапка OZ_ConfigBase); Validate
+    // тут і є та пересадка.
+    protected void SpTakeCfg(string body)
+    {
+        OZ_SpawnsConfig sc = new OZ_SpawnsConfig();
+        string serr;
+        if (!JsonFileLoader<OZ_SpawnsConfig>.LoadData(body, sc, serr) || !sc)
+            return;
+
+        int swarn;
+        sc.Validate(swarn);
+        m_SpawnsCfg = sc;
+
+        RebuildSpawnList();
+        SpPaintSwitch();
+        SpDrawScheme();
+    }
+
+    // The source of factions and the ids it knows (identity, a read). The spawns
+    // page offers the ids as the zones' owners.
+    protected void OnIdentityAnswer(bool ok, string json)
+    {
+        if (!ok)
+            return;
+
+        // Root made by the script, read through a copy made by the script (the
+        // core's OZ_ConfigBase header): the lists are kept.
+        OZ_AdminIdentity parsed = new OZ_AdminIdentity();
+        string err;
+        if (!JsonFileLoader<OZ_AdminIdentity>.LoadData(json, parsed, err) || !parsed)
+            return;
+        OZ_AdminIdentity info = parsed.Copy();
+
+        m_IdSource = info.Source;
+        m_IdFactions.Clear();
+        m_IdNames.Clear();
+        for (int i = 0; i < info.Factions.Count(); i++)
+        {
+            string id = info.Factions[i];
+            if (id == "" || m_IdFactions.Find(id) != -1)
+                continue;
+            string named = id;
+            if (i < info.FactionNames.Count())
+                named = info.FactionNames[i];
+            m_IdFactions.Insert(id);
+            m_IdNames.Insert(named);
+        }
+
+        PaintSpawnCycler();
+        if (m_Shown == "spawns")
+            RebuildSpawnList();
+    }
+
+    // The head's switch, as the last Spawns file said.
+    protected void SpPaintSwitch()
+    {
+        TextWidget t = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("BtnSpOnText"));
+        if (!t)
+            return;
+
+        if (!m_SpawnsCfg)
+        {
+            t.SetText("#STR_OZ_VPP_SP_ON_UNKNOWN");
+            t.SetColor(ARGBF(1, 0.627, 0.624, 0.6));
+            return;
+        }
+        if (m_SpawnsCfg.Enabled)
+        {
+            t.SetText("#STR_OZ_VPP_SP_ON_YES");
+            t.SetColor(ARGBF(1, 0.4, 0.78, 0.36));
+            return;
+        }
+        t.SetText("#STR_OZ_VPP_SP_ON_NO");
+        t.SetColor(ARGBF(1, 0.96, 0.78, 0.25));
+    }
+
+    // Switching the service on or off asks first: it moves where every new
+    // character appears (OnConfirmed "spon:").
+    protected void SpAskSwitch()
+    {
+        if (!m_SpawnsCfg)
+        {
+            AskCfg("Spawns");
+            return;
+        }
+        if (m_SpawnsCfg.Enabled)
+            Confirm("#STR_OZ_VPP_SP_OFF_ASK", "#STR_OZ_VPP_SP_YES_OFF", "spon:0");
+        else
+            Confirm("#STR_OZ_VPP_SP_ON_ASK", "#STR_OZ_VPP_SP_YES_ON", "spon:1");
+    }
+
+    // The cycler's choices: the faction ids the source of factions gave (identity),
+    // those the factions glue put into OZ_VppFactionSlugs, then the fallback and the
+    // staging zone. Without factions the fallback comes first, as it always did.
+    protected void SpOptions(array<string> opts)
+    {
+        for (int i = 0; i < m_IdFactions.Count(); i++)
+        {
+            if (opts.Find(m_IdFactions[i]) == -1)
+                opts.Insert(m_IdFactions[i]);
+        }
+        for (int k = 0; k < OZ_VppFactionSlugs.Slugs.Count(); k++)
+        {
+            string s = OZ_VppFactionSlugs.Slugs[k];
+            if (s != "" && opts.Find(s) == -1)
+                opts.Insert(s);
+        }
+        opts.Insert("-");
+        opts.Insert("*");
+    }
+
+    // What a slug is called on this page: the faction's name beside its id, the
+    // staging zone and the fallback in words.
+    protected string SpWho(string slug)
+    {
+        if (slug == "*")
+            return OvTr("#STR_OZ_VPP_SP_STAGING");
+        if (slug == "-" || slug == "")
+            return OvTr("#STR_OZ_VPP_SP_FALLBACK");
+
+        int at = m_IdFactions.Find(slug);
+        if (at != -1 && at < m_IdNames.Count())
+        {
+            string nm = m_IdNames[at];
+            if (nm != "" && nm != slug)
+                return slug + " - " + nm;
+        }
+        return slug;
+    }
+
+    // The cycler's slug: the one picked, or the first choice.
+    protected string SpCyclerSlug()
+    {
+        if (m_SpSlugPick != "")
+            return m_SpSlugPick;
+        array<string> opts = new array<string>();
+        SpOptions(opts);
+        return opts[0];
+    }
+
+    // Кличе й склейка фракцій, коли її ростер приніс слаги (OZ_VppFactionSlugs).
+    protected void PaintSpawnCycler()
+    {
+        TextWidget t = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("BtnSpFacText"));
+        if (!t)
+            return;
+        t.SetText(SpWho(SpCyclerSlug()));
+    }
+
+    protected void CycleSpawnFaction()
+    {
+        array<string> opts = new array<string>();
+        SpOptions(opts);
+        int at = opts.Find(SpCyclerSlug()) + 1;
+        if (at >= opts.Count())
+            at = 0;
+        m_SpSlugPick = opts[at];
+        SetEdit("SpSlug", "");
+        PaintSpawnCycler();
+    }
+
+    // ЩО САМЕ поїде в операцію: поле сильніше за циклер. Поле приймає те, чого в
+    // переліку немає: "*" (стейджинґ), "-" (запасна зона) i будь-який слаг, про
+    // який ця збірка ще не чула. Trim(): « duty» інакше різалось би на порожній
+    // слаг, тобто мовчки переносило б ЗАПАСНУ зону.
+    protected string PickedSlug()
+    {
+        string typed = GetEdit("SpSlug").Trim();
+        if (typed != "")
+            return typed;
+        return SpCyclerSlug();
+    }
+
+    // Whom the personal point is for: a Steam ID as typed, a name of someone online,
+    // or the Steam ID of a point the list put into the field.
+    protected string SpTargetUid()
+    {
+        string typed = GetEdit("SpUid").Trim();
+        if (typed == "")
+            return "";
+        if (PlrIsSteamId(typed) || SpPersonalAt(typed) != -1)
+            return typed;
+
+        string low = typed;
+        low.ToLower();
+        for (int i = 0; i < m_PlrNames.Count(); i++)
+        {
+            string n = m_PlrNames[i];
+            n.ToLower();
+            if (n == low)
+                return m_PlrUids[i];
+        }
+        return "";
+    }
+
+    protected int SpPersonalAt(string uid)
+    {
+        if (!m_SpawnsCfg || !m_SpawnsCfg.Personal)
+            return -1;
+        for (int i = 0; i < m_SpawnsCfg.Personal.Count(); i++)
+        {
+            OZ_SpawnPersonal p = m_SpawnsCfg.Personal[i];
+            if (p && p.Uid == uid)
+                return i;
+        }
+        return -1;
+    }
+
+    // The name of someone online, or his Steam ID.
+    protected string SpPlayerName(string uid)
+    {
+        int at = m_PlrUids.Find(uid);
+        if (at != -1 && m_PlrNames[at] != "")
+            return m_PlrNames[at];
+        return uid;
+    }
+
+    // "x y z" as whole metres; a centre the engine cannot read, as it is.
+    protected string SpWhere(string center)
+    {
+        if (center == "")
+            return "-";
+        vector v = center.ToVector();
+        if (v == vector.Zero)
+            return center;
+        int x = Math.Round(v[0]);
+        int y = Math.Round(v[1]);
+        int z = Math.Round(v[2]);
+        string s = x.ToString() + " " + y.ToString();
+        s = s + " " + z.ToString();
+        return s;
+    }
+
+    protected string SpMetres(float r)
+    {
+        int m = Math.Round(r);
+        return m.ToString();
+    }
+
+    // The list: a caption row per group, then its points (who, where, radius).
     protected void RebuildSpawnList()
     {
         TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("SpawnList"));
@@ -2181,108 +2455,497 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return;
 
         m_Repaint = true;
-
         lb.ClearItems();
         m_SpawnRowKind.Clear();
         m_SpawnRowKey.Clear();
 
-        // СТЕЙДЖИНҐ -- ПЕРШИМ РЯДКОМ, i навіть коли його немає.
-        //
-        // Це точка найпершої появи персонажа, i досі її не було видно у
-        // вкладці зовсім: задати чи зняти її можна було лише з карти КПК.
-        // Рядок «staging   (not set)» відповідає на питання, яке інакше
-        // вимагало б читати файл руками.
-        string stg = "staging   (not set)";
-        if (m_SpawnsCfg.Staging && m_SpawnsCfg.Staging.Center != "")
-            stg = "staging   " + m_SpawnsCfg.Staging.Center + "   r=" + m_SpawnsCfg.Staging.Radius.ToString();
-        lb.AddItem(stg, NULL, 0);
-        m_SpawnRowKind.Insert("zone");
-        m_SpawnRowKey.Insert("*");
+        // СТЕЙДЖИНҐ -- ПЕРШИМ, i навіть коли його немає: «не задано» відповідає на
+        // питання, яке інакше вимагало б читати файл руками.
+        SpRow(lb, "head", "", "#STR_OZ_VPP_SP_GROUP_STAGING", "", "");
+        string stg = "";
+        float stgR = 0;
+        if (m_SpawnsCfg.Staging)
+        {
+            stg = m_SpawnsCfg.Staging.Center;
+            stgR = m_SpawnsCfg.Staging.Radius;
+        }
+        if (stg != "")
+        {
+            string stgWho = SpWho("*");
+            string stgWhere = SpWhere(stg);
+            string stgRad = "r " + SpMetres(stgR);
+            SpRow(lb, "zone", "*", stgWho, stgWhere, stgRad);
+        }
+        else
+        {
+            SpRow(lb, "none", "", "#STR_OZ_VPP_SP_NOT_SET", "", "");
+        }
 
+        SpRow(lb, "head", "", "#STR_OZ_VPP_SP_GROUP_ZONES", "", "");
+        int zones = 0;
         if (m_SpawnsCfg.Zones)
         {
             for (int i = 0; i < m_SpawnsCfg.Zones.Count(); i++)
             {
                 OZ_SpawnZone z = m_SpawnsCfg.Zones[i];
+                if (!z)
+                    continue;
+                // Порожній слаг -- запасна зона; у полі й операції вона "-".
                 string slug = z.Role;
-                string shown = slug;
-                if (shown == "")
-                    shown = "- (fallback)";
-                string line = shown + "   " + z.Center + "   r=" + z.Radius.ToString();
-                lb.AddItem(line, NULL, 0);
-                m_SpawnRowKind.Insert("zone");
-                // Порожній слаг у полі -- це «нічого не набрано», тобто
-                // циклер. Пишемо "-", який сервер розуміє як порожній.
                 if (slug == "")
                     slug = "-";
-                m_SpawnRowKey.Insert(slug);
+                string zWho = SpWho(slug);
+                string zWhere = SpWhere(z.Center);
+                string zRad = "r " + SpMetres(z.Radius);
+                SpRow(lb, "zone", slug, zWho, zWhere, zRad);
+                zones++;
             }
         }
+        if (zones == 0)
+            SpRow(lb, "none", "", "#STR_OZ_VPP_SP_NONE", "", "");
 
-        // Особисті точки -- у тому ж списку, з міткою гравця: адмін бачить
-        // УСЕ, що впливає на спавни, на одному екрані.
+        // Особисті точки -- у тому ж списку: адмін бачить УСЕ, що впливає на
+        // спавни, на одному екрані.
+        SpRow(lb, "head", "", "#STR_OZ_VPP_SP_GROUP_PERSONAL", "", "");
+        int pers = 0;
         if (m_SpawnsCfg.Personal)
         {
             for (int k = 0; k < m_SpawnsCfg.Personal.Count(); k++)
             {
                 OZ_SpawnPersonal p = m_SpawnsCfg.Personal[k];
-                string pline = "player " + p.Uid + "   " + p.Center + "   r=" + p.Radius.ToString();
-                lb.AddItem(pline, NULL, 0);
-                m_SpawnRowKind.Insert("uid");
-                m_SpawnRowKey.Insert(p.Uid);
+                if (!p)
+                    continue;
+                string pWho = SpPlayerName(p.Uid);
+                string pWhere = SpWhere(p.Center);
+                string pRad = "r " + SpMetres(p.Radius);
+                SpRow(lb, "uid", p.Uid, pWho, pWhere, pRad);
+                pers++;
+            }
+        }
+        if (pers == 0)
+            SpRow(lb, "none", "", "#STR_OZ_VPP_SP_NONE", "", "");
+
+        m_Repaint = false;
+        SpMarkRows();
+    }
+
+    // One row; a caption's or an empty group's text is a stringtable key.
+    protected void SpRow(TextListboxWidget lb, string kind, string key, string who, string where, string radius)
+    {
+        string first = OvTr(who);
+        int row = lb.AddItem(first, NULL, 0);
+        if (where != "")
+            lb.SetItem(row, where, NULL, 1);
+        if (radius != "")
+            lb.SetItem(row, radius, NULL, 2);
+        m_SpawnRowKind.Insert(kind);
+        m_SpawnRowKey.Insert(key);
+    }
+
+    // Captions muted, the picked point in the accent colour (a NoScrollBar list draws
+    // no highlight of its own).
+    protected void SpMarkRows()
+    {
+        TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("SpawnList"));
+        if (!lb)
+            return;
+
+        int ink = ARGBF(1, 0.88, 0.875, 0.855);
+        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        int faint = ARGBF(1, 0.36, 0.353, 0.345);
+        int accent = ARGBF(1, 0.91, 0.47, 0.17);
+        for (int r = 0; r < m_SpawnRowKind.Count(); r++)
+        {
+            string kind = m_SpawnRowKind[r];
+            string pick = kind + ":" + m_SpawnRowKey[r];
+            int c0 = ink;
+            int c1 = muted;
+            if (kind == "head")
+                c0 = muted;
+            else if (kind == "none")
+                c0 = faint;
+            else if (pick == m_SpPick)
+            {
+                c0 = accent;
+                c1 = accent;
+            }
+            lb.SetItemColor(r, 0, c0);
+            lb.SetItemColor(r, 1, c1);
+            lb.SetItemColor(r, 2, c1);
+        }
+    }
+
+    // Рядок списку КЛАДЕ СЕБЕ В ФОРМУ: a zone into the cycler, a personal point into
+    // the player field, its radius into the radius field; the scheme marks it.
+    protected void SpPickRow(int row)
+    {
+        if (row < 0 || row >= m_SpawnRowKind.Count())
+            return;
+        string kind = m_SpawnRowKind[row];
+        string key = m_SpawnRowKey[row];
+        if (kind != "zone" && kind != "uid")
+            return;
+
+        m_SpPick = kind + ":" + key;
+        float radius = 0;
+        string center = "";
+        SpPointOf(m_SpPick, center, radius);
+        if (radius > 0)
+            SetEdit("SpRadius", SpMetres(radius));
+
+        if (kind == "uid")
+        {
+            SetEdit("SpUid", key);
+        }
+        else
+        {
+            m_SpSlugPick = key;
+            SetEdit("SpSlug", "");
+            PaintSpawnCycler();
+        }
+
+        SpMarkRows();
+        SpDrawScheme();
+    }
+
+    // The centre and radius of a point named like m_SpPick; false: no such point.
+    protected bool SpPointOf(string pick, out string center, out float radius)
+    {
+        center = "";
+        radius = 0;
+        if (!m_SpawnsCfg || pick == "")
+            return false;
+
+        if (pick == "zone:*")
+        {
+            if (!m_SpawnsCfg.Staging || m_SpawnsCfg.Staging.Center == "")
+                return false;
+            center = m_SpawnsCfg.Staging.Center;
+            radius = m_SpawnsCfg.Staging.Radius;
+            return true;
+        }
+
+        if (pick.IndexOf("zone:") == 0 && m_SpawnsCfg.Zones)
+        {
+            string slug = pick.Substring(5, pick.Length() - 5);
+            if (slug == "-")
+                slug = "";
+            for (int i = 0; i < m_SpawnsCfg.Zones.Count(); i++)
+            {
+                OZ_SpawnZone z = m_SpawnsCfg.Zones[i];
+                if (!z || z.Role != slug)
+                    continue;
+                center = z.Center;
+                radius = z.Radius;
+                return true;
+            }
+            return false;
+        }
+
+        if (pick.IndexOf("uid:") == 0)
+        {
+            int at = SpPersonalAt(pick.Substring(4, pick.Length() - 4));
+            if (at == -1)
+                return false;
+            center = m_SpawnsCfg.Personal[at].Center;
+            radius = m_SpawnsCfg.Personal[at].Radius;
+            return true;
+        }
+        return false;
+    }
+
+    // ------------------------------------------------- the scheme around the admin
+    //
+    // No map: the admin is the square in the middle, north is up, every point is a
+    // circle of its radius (the staging zone in the alert colour, faction zones in the
+    // text colour, the fallback muted, personal points green, the picked one in the
+    // accent colour). The scale fits the farthest edge of any point. Drawn on the page's
+    // CanvasWidget (dayz-modding gui-layouts.md §7: Clear, then every line again), on
+    // each change and twice a second while the page is shown (Tick).
+    protected void SpDrawScheme()
+    {
+        m_SpDrawnAt = GetGame().GetTime();
+
+        CanvasWidget cv = CanvasWidget.Cast(M_SUB_WIDGET.FindAnyWidget("SpScheme"));
+        if (!cv)
+            return;
+        cv.Clear();
+
+        float w;
+        float h;
+        cv.GetScreenSize(w, h);
+        DayZPlayer me = GetGame().GetPlayer();
+        if (w <= 0 || h <= 0 || !me)
+            return;
+        vector at = me.GetPosition();
+
+        // How far the scheme reaches: the farthest edge of any point, 100 m at least.
+        float far = 100;
+        if (m_SpawnsCfg)
+        {
+            if (m_SpawnsCfg.Staging)
+            {
+                float sReach = SpReach(at, m_SpawnsCfg.Staging.Center, m_SpawnsCfg.Staging.Radius);
+                if (sReach > far)
+                    far = sReach;
+            }
+            for (int i = 0; i < m_SpawnsCfg.Zones.Count(); i++)
+            {
+                OZ_SpawnZone fz = m_SpawnsCfg.Zones[i];
+                if (!fz)
+                    continue;
+                float zReach = SpReach(at, fz.Center, fz.Radius);
+                if (zReach > far)
+                    far = zReach;
+            }
+            for (int k = 0; k < m_SpawnsCfg.Personal.Count(); k++)
+            {
+                OZ_SpawnPersonal fp = m_SpawnsCfg.Personal[k];
+                if (!fp)
+                    continue;
+                float pReach = SpReach(at, fp.Center, fp.Radius);
+                if (pReach > far)
+                    far = pReach;
             }
         }
 
-        m_Repaint = false;
-    }
-
-    protected void PaintSpawnCycler()
-    {
-        TextWidget t = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("BtnSpFacText"));
-        if (!t)
+        float view = far * 1.1;
+        float half = Math.Min(w, h) / 2 - 8;
+        if (half < 10)
             return;
-        t.SetText("cycler: " + SpawnSlugAt(m_SpFacAt));
+        float scale = half / view;
+        float cx = w / 2;
+        float cy = h / 2;
+
+        // Rings at the edge and at half of it, and the cross through the admin.
+        int faint = ARGBF(1, 0.36, 0.353, 0.345);
+        SpCircle(cv, cx, cy, half, faint, 1);
+        SpCircle(cv, cx, cy, half / 2, faint, 1);
+        cv.DrawLine(cx - half, cy, cx + half, cy, 1, faint);
+        cv.DrawLine(cx, cy - half, cx, cy + half, 1, faint);
+
+        int ink = ARGBF(1, 0.88, 0.875, 0.855);
+        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        int alert = ARGBF(1, 0.96, 0.78, 0.25);
+        int okInk = ARGBF(1, 0.4, 0.78, 0.36);
+        int accent = ARGBF(1, 0.91, 0.47, 0.17);
+
+        if (m_SpawnsCfg)
+        {
+            if (m_SpawnsCfg.Staging)
+                SpDot(cv, at, scale, cx, cy, m_SpawnsCfg.Staging.Center, m_SpawnsCfg.Staging.Radius, alert, 1);
+            for (int zi = 0; zi < m_SpawnsCfg.Zones.Count(); zi++)
+            {
+                OZ_SpawnZone z = m_SpawnsCfg.Zones[zi];
+                if (!z)
+                    continue;
+                int zc = ink;
+                if (z.Role == "")
+                    zc = muted;
+                SpDot(cv, at, scale, cx, cy, z.Center, z.Radius, zc, 1);
+            }
+            for (int pk = 0; pk < m_SpawnsCfg.Personal.Count(); pk++)
+            {
+                OZ_SpawnPersonal p = m_SpawnsCfg.Personal[pk];
+                if (p)
+                    SpDot(cv, at, scale, cx, cy, p.Center, p.Radius, okInk, 1);
+            }
+
+            // The picked point last, over the rest.
+            string pc;
+            float pr;
+            if (SpPointOf(m_SpPick, pc, pr))
+                SpDot(cv, at, scale, cx, cy, pc, pr, accent, 2);
+        }
+
+        // The admin: a square in the middle.
+        cv.DrawLine(cx - 5, cy, cx + 5, cy, 10, accent);
+
+        SpPaintSchemeText(at, view);
     }
 
-    // ЩО САМЕ поїде в операцію: поле сильніше за циклер.
-    //
-    // Циклер перелічує відоме -- організації й базові фракції з ростера. Поле
-    // приймає те, чого в переліку немає й бути не може: "*" (стейджинґ), "-"
-    // (запасна зона) i будь-який слаг, про який ця збірка ще не чула. Рівно
-    // той самий договір, що був на карті КПК, де полем слага служило поле
-    // імені мітки, -- лише тепер він живе там, де решта спавнів.
-    protected string PickedSlug()
+    // How far a point's far edge is from the admin, on the ground (x and z).
+    protected float SpReach(vector at, string center, float radius)
     {
-        string typed = GetEdit("SpSlug");
-
-        // Пробіли з країв: людина набирає в полі, i « duty» різалось би на
-        // порожній слаг -- тобто мовчки переносило б ЗАПАСНУ зону.
-        while (typed.Length() > 0 && typed.Substring(0, 1) == " ")
-            typed = typed.Substring(1, typed.Length() - 1);
-        while (typed.Length() > 0 && typed.Substring(typed.Length() - 1, 1) == " ")
-            typed = typed.Substring(0, typed.Length() - 1);
-
-        if (typed != "")
-            return typed;
-
-        return SpawnSlugAt(m_SpFacAt);
+        if (center == "")
+            return 0;
+        vector c = center.ToVector();
+        if (c == vector.Zero)
+            return 0;
+        float dx = c[0] - at[0];
+        float dz = c[2] - at[2];
+        float d = Math.Sqrt(dx * dx + dz * dz);
+        return d + radius;
     }
 
-    protected string SpawnSlugAt(int at)
+    protected void SpDot(CanvasWidget cv, vector at, float scale, float cx, float cy, string center, float radius, int color, float width)
     {
-        // Останній пункт циклу -- запасна зона "-". Без мода фракцій перелік
-        // порожній, i вона лишається єдиним варіантом.
-        int n = OZ_VppFactionSlugs.Slugs.Count();
-        if (n == 0 || at >= n)
-            return "-";
-        return OZ_VppFactionSlugs.Slugs[at];
+        if (center == "")
+            return;
+        vector c = center.ToVector();
+        if (c == vector.Zero)
+            return;
+        float px = cx + (c[0] - at[0]) * scale;
+        float py = cy - (c[2] - at[2]) * scale;
+        float pr = radius * scale;
+        if (pr < 4)
+            pr = 4;
+        SpCircle(cv, px, py, pr, color, width);
+        cv.DrawLine(px - 2, py, px + 2, py, 4, color);
     }
 
-    protected void CycleSpawnFaction()
+    // A circle as a ring of short lines (CanvasWidget draws lines only).
+    protected void SpCircle(CanvasWidget cv, float x, float y, float r, int color, float width)
     {
-        int n = OZ_VppFactionSlugs.Slugs.Count();
-        m_SpFacAt = (m_SpFacAt + 1) % (n + 1);
-        PaintSpawnCycler();
+        int segs = 40;
+        if (r < 20)
+            segs = 16;
+        float step = Math.PI2 / segs;
+        float px = x + r;
+        float py = y;
+        for (int i = 1; i <= segs; i++)
+        {
+            float a = step * i;
+            float nx = x + r * Math.Cos(a);
+            float ny = y + r * Math.Sin(a);
+            cv.DrawLine(px, py, nx, ny, width, color);
+            px = nx;
+            py = ny;
+        }
+    }
+
+    // Under the scheme: how far its edge reaches, and where the picked point is from
+    // the admin, in metres and a direction.
+    protected void SpPaintSchemeText(vector at, float view)
+    {
+        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        int ink = ARGBF(1, 0.88, 0.875, 0.855);
+
+        string scaleWord = OvTr("#STR_OZ_VPP_SP_SCALE");
+        string mWord = OvTr("#STR_OZ_VPP_SP_M");
+        string edge = scaleWord + " " + SpMetres(view);
+        edge = edge + " " + mWord;
+        OvText("SpSchemeScale", edge, muted);
+
+        string pc;
+        float pr;
+        if (!SpPointOf(m_SpPick, pc, pr))
+        {
+            OvText("SpSchemePick", "#STR_OZ_VPP_SP_PICK_HINT", muted);
+            return;
+        }
+
+        vector c = pc.ToVector();
+        float dx = c[0] - at[0];
+        float dz = c[2] - at[2];
+        float d = Math.Sqrt(dx * dx + dz * dz);
+        string who = SpPickWho();
+        string dir = SpDirection(dx, dz);
+        string rWord = OvTr("#STR_OZ_VPP_SP_RADIUS_WORD");
+        string line = who + ": " + SpMetres(d);
+        line = line + " " + mWord;
+        line = line + " " + dir;
+        line = line + ", " + rWord;
+        line = line + " " + SpMetres(pr);
+        line = line + " " + mWord;
+        OvText("SpSchemePick", line, ink);
+    }
+
+    protected string SpPickWho()
+    {
+        if (m_SpPick.IndexOf("uid:") == 0)
+            return SpPlayerName(m_SpPick.Substring(4, m_SpPick.Length() - 4));
+        if (m_SpPick.IndexOf("zone:") == 0)
+            return SpWho(m_SpPick.Substring(5, m_SpPick.Length() - 5));
+        return "";
+    }
+
+    // One of eight directions from the admin, north up: east is +x, north is +z.
+    protected string SpDirection(float dx, float dz)
+    {
+        float deg = Math.Atan2(dx, dz) * Math.RAD2DEG;
+        if (deg < 0)
+            deg = deg + 360;
+        int idx = Math.Round(deg / 45);
+        idx = idx % 8;
+
+        string all = OvTr("#STR_OZ_VPP_SP_DIRS");
+        array<string> dirs = new array<string>();
+        all.Split(",", dirs);
+        if (idx < 0 || idx >= dirs.Count())
+            return "";
+        return dirs[idx];
+    }
+
+    // The page's buttons; false: not one of them.
+    protected bool SpClick(string nm)
+    {
+        if (nm == "BtnSpOn")
+        {
+            SpAskSwitch();
+            return true;
+        }
+
+        if (nm == "BtnSpFac")
+        {
+            CycleSpawnFaction();
+            return true;
+        }
+
+        // Позицію сервер бере з тіла адміна, не з клієнта (OZ_SpawnSection).
+        if (nm == "BtnSpHere")
+        {
+            string zarg = PickedSlug();
+            string zrad = GetEdit("SpRadius").Trim();
+            if (zrad != "")
+                zarg = zarg + " " + zrad;
+            Ask(OZ_AdminSect.SPAWNS, OZ_SpawnOp.HERE, zarg);
+            return true;
+        }
+
+        // Removing asks first (design §3.4), naming the zone.
+        if (nm == "BtnSpClear")
+        {
+            string slug = PickedSlug();
+            string ask1 = OvTr("#STR_OZ_VPP_SP_CLEAR_ASK1");
+            string ask2 = OvTr("#STR_OZ_VPP_SP_CLEAR_ASK2");
+            string who = SpWho(slug);
+            string ask = ask1 + " " + who;
+            ask = ask + "? " + ask2;
+            Confirm(ask, "#STR_OZ_VPP_SP_YES_CLEAR", "spclear:" + slug);
+            return true;
+        }
+
+        // ОСОБИСТА ТОЧКА -- звідси, а не з панелі фракцій: вона про спавн, а не про
+        // фракцію, i на сервері без мода фракцій її інакше не було де поставити.
+        if (nm == "BtnSpUidHere" || nm == "BtnSpUidClear")
+        {
+            string uid = SpTargetUid();
+            if (uid == "")
+            {
+                Hint("#STR_OZ_VPP_SP_NO_PLAYER");
+                return true;
+            }
+
+            if (nm == "BtnSpUidHere")
+            {
+                string uarg = uid;
+                string urad = GetEdit("SpRadius").Trim();
+                if (urad != "")
+                    uarg = uarg + " " + urad;
+                Ask(OZ_AdminSect.SPAWNS, OZ_SpawnOp.UID_HERE, uarg);
+                return true;
+            }
+
+            string pask = OvTr("#STR_OZ_VPP_SP_PCLEAR_ASK");
+            string pwho = SpPlayerName(uid);
+            string pline = pask + " " + pwho;
+            pline = pline + "?";
+            Confirm(pline, "#STR_OZ_VPP_SP_YES_CLEAR", "spuclear:" + uid);
+            return true;
+        }
+
+        return false;
     }
 
     // ---------------------------------------------------------- raw
@@ -2328,27 +2991,9 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return true;
         }
 
-        // Рядок списку спавнів КЛАДЕ СЕБЕ В ПОЛЕ, а не робить нічого.
-        //
-        // Обробника в цього списку не було жодного, тож єдиний спосіб зняти
-        // показану особисту точку був -- набрати Steam64 з екрана руками.
-        // Тепер клік заповнює те поле, якого стосується рядок, i друга дія
-        // (CLEAR) б'є саме туди, куди дивиться адмін.
         if (nm == "SpawnList")
         {
-            if (row >= 0 && row < m_SpawnRowKind.Count())
-            {
-                if (m_SpawnRowKind[row] == "uid")
-                {
-                    SetEdit("SpUid", m_SpawnRowKey[row]);
-                    Hint("player " + m_SpawnRowKey[row] + " picked");
-                }
-                else
-                {
-                    SetEdit("SpSlug", m_SpawnRowKey[row]);
-                    Hint("zone \"" + m_SpawnRowKey[row] + "\" picked");
-                }
-            }
+            SpPickRow(row);
             return true;
         }
 
@@ -2425,59 +3070,9 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return true;
         }
 
-        if (nm == "BtnSpFac")
-        {
-            CycleSpawnFaction();
+        // Ядро › Точки появи.
+        if (SpClick(nm))
             return true;
-        }
-
-        if (nm == "BtnSpHere" || nm == "BtnSpClear")
-        {
-            string slug = PickedSlug();
-            string zarg = slug;
-
-            if (nm == "BtnSpHere")
-            {
-                string zrad = GetEdit("SpRadius");
-                if (zrad != "")
-                    zarg += " " + zrad;
-                Ask(OZ_AdminSect.SPAWNS, OZ_SpawnOp.HERE, zarg);
-            }
-            else
-            {
-                Ask(OZ_AdminSect.SPAWNS, OZ_SpawnOp.CLEAR, slug);
-            }
-            return true;
-        }
-
-        // ОСОБИСТА ТОЧКА -- звідси, а не з панелі фракцій.
-        //
-        // Вона про спавн, а не про фракцію, i мусить бути там, де решта
-        // спавнів: на сервері без мода фракцій її не було де поставити
-        // взагалі, хоч сам механізм -- ядровий.
-        if (nm == "BtnSpUidHere" || nm == "BtnSpUidClear")
-        {
-            string uid = GetEdit("SpUid");
-            if (uid == "")
-            {
-                Hint("type a Steam64 first");
-                return true;
-            }
-
-            if (nm == "BtnSpUidHere")
-            {
-                string urad = GetEdit("SpRadius");
-                string uarg = uid;
-                if (urad != "")
-                    uarg += " " + urad;
-                Ask(OZ_AdminSect.SPAWNS, OZ_SpawnOp.UID_HERE, uarg);
-            }
-            else
-            {
-                Ask(OZ_AdminSect.SPAWNS, OZ_SpawnOp.UID_CLEAR, uid);
-            }
-            return true;
-        }
 
         if (nm == "BtnPlrRefresh")
         {
