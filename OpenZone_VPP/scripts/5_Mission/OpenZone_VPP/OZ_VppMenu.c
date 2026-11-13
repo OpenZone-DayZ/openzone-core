@@ -514,6 +514,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     protected bool   m_PlrWantWipe;
     protected EditBoxWidget m_PlrFindBox;
 
+    // The live search of the pages' class fields (OZ_ClassPick, design
+    // docs/specs/2026-11-13-openzone-vpp-class-search-design.md).
+    protected ref OZ_ClassPick m_ClassPick;
+
     override void OnCreate(Widget RootW)
     {
         super.OnCreate(RootW);
@@ -658,6 +662,11 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         m_NwBodyBox = MultilineEditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("NwBody"));
         m_NwSeenTitle = "";
         m_NwSeenBody = "";
+
+        // The pages' class fields find classes as they are typed: the glues name their
+        // fields in ClassFields, the list follows the focused one from Tick.
+        m_ClassPick = new OZ_ClassPick(this, M_SUB_WIDGET);
+        ClassFields(m_ClassPick);
 
         if (!m_Ears)
         {
@@ -1689,6 +1698,13 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         ApplyWindowSize(x + m_GripDX - wx, y + m_GripDY - wy);
     }
 
+    // The class fields of the window's pages for the live search (OZ_ClassPick): a glue
+    // overrides this, calls super and binds its own edit boxes by name, with the kinds of
+    // classes each takes (OZ_ClassIndex.ITEM, OBJECT, VEHICLE) and whether it holds a list.
+    void ClassFields(OZ_ClassPick pick)
+    {
+    }
+
     bool IsOpen()
     {
         return M_SUB_WIDGET && M_SUB_WIDGET.IsVisible();
@@ -1698,6 +1714,11 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // that waited too long is closed, and the status bar and the journal follow it.
     void Tick()
     {
+        // The live class search: the class index a slice a frame, the list after the
+        // focused class field.
+        if (m_ClassPick)
+            m_ClassPick.Tick();
+
         // The open page's own frame work: the search follows typing, the scheme
         // follows the admin twice a second.
         if (m_Shown == "players")

@@ -15,7 +15,8 @@
 // Виміряно 2026-09-20 на стенді: OpenFile відкриває упаковані файли модів
 // і dta/languagecore; FGets повертає рядки по 8198 символів цілими; FileAttr
 // -- звичайний enum (DIRECTORY = 0), тож атрибут запису не перевіряється.
-// Читається раз на старт, звільняється після дампа класів.
+// Сервер читає їх раз на старт і звільняє після дампа класів; клієнт -- кроками, для пошуку
+// класів у вікні OpenZone (OZ_ClassIndex), і теж звільняє, коли назви розібрано.
 
 class OZ_StrRow
 {
@@ -39,25 +40,152 @@ class OZ_StringTables
     static const int MAX_JOINED_LINES = 20;
     static const int MAX_EMPTY_LINES = 1000;
 
+    // Читання кроками (2026-11-13): клієнт будує перелік класів для пошуку у вікні OpenZone
+    // (OZ_ClassIndex) і не має права стати на кадр. Виміряно на стенді (15 таблиць, 10 118
+    // ключів): пошук таблиць по архівах 2,1 с, читання 0,32 с. Begin, потім Step з бюджетом у
+    // тіках TickCount, доки не відповість true; Load() -- ті самі кроки без бюджету, для старту
+    // сервера (OZ_ClassDump). Порядок тек і таблиць той самий, що був у Load(): пізніша
+    // таблиця перекриває ключ ранішої.
+    private static const int STAGE_IDLE = 0;
+    private static const int STAGE_ROOT = 1;
+    private static const int STAGE_ENTRIES = 2;
+    private static const int STAGE_CFGMODS = 3;
+    private static const int STAGE_TABLES = 4;
+    private static const int STAGE_DONE = 5;
+    // Скільки рядків читається між двома поглядами на годинник: рядок коштує мікросекунди.
+    private static const int LINES_PER_LOOK = 64;
+
+    private static int s_Stage = 0;
+    private static ref array<string> s_Entries;
+    private static int s_EntryAt = 0;
+    private static ref map<string, bool> s_Seen;
+    private static ref array<string> s_Dirs;
+    private static int s_DirAt = 0;
+
+    // Таблиця, що читається: файл і де стоїть її читання.
+    private static FileHandle s_File;
+    private static bool s_Open = false;
+    private static string s_Dir;
+    private static string s_Path;
+    private static int s_OrigIdx = 1;
+    private static int s_EngIdx = 2;
+    private static int s_Want = 3;
+    private static bool s_First = true;
+    private static int s_Empties = 0;
+    private static int s_TblRows = 0;
+    private static int s_TblLines = 0;
+    private static int s_TblDropped = 0;
+
     static void Load()
     {
+        Begin();
+        bool done = false;
+        while (!done)
+            done = Step(2000000000);
+    }
+
+    // Нове читання: усе, що було прочитано, забувається.
+    static void Begin()
+    {
+        Abort();
         s_Rows = new map<string, ref OZ_StrRow>();
         s_Found = new array<string>();
         s_Tables = 0;
         s_Keys = 0;
+        s_Candidates = 0;
+        s_RootEntries = 0;
         s_MaxLine = 0;
         s_Dropped = 0;
-        array<string> dirs = new array<string>();
-        Discover(dirs);
-        s_Candidates = dirs.Count();
-        foreach (string dir : dirs)
+        s_Entries = new array<string>();
+        s_EntryAt = 0;
+        s_Seen = new map<string, bool>();
+        s_Dirs = new array<string>();
+        s_DirAt = 0;
+        s_Stage = STAGE_ROOT;
+    }
+
+    // Читання, обірване на півдорозі (кінець місії): відкрита таблиця закривається.
+    static void Abort()
+    {
+        if (s_Open)
         {
-            if (LoadTable(dir + "/" + FILE_NAME))
-            {
-                s_Tables++;
-                s_Found.Insert(dir);
-            }
+            CloseFile(s_File);
+            s_Open = false;
         }
+        s_Stage = STAGE_IDLE;
+    }
+
+    static bool Done()
+    {
+        return s_Stage == STAGE_DONE;
+    }
+
+    // Робота, доки не вийде бюджет (тіки TickCount); true -- усе прочитано. Одиниця роботи --
+    // один запис кореня архівів, одна тека з CfgMods разом, LINES_PER_LOOK рядків таблиці.
+    static bool Step(int budget)
+    {
+        if (s_Stage == STAGE_IDLE || s_Stage == STAGE_DONE)
+            return s_Stage == STAGE_DONE;
+        int t0 = TickCount(0);
+        while (s_Stage != STAGE_DONE)
+        {
+            if (s_Stage == STAGE_ROOT)
+            {
+                array<string> roots = new array<string>();
+                s_RootEntries = ListEntries("", roots);
+                s_Entries = roots;
+                s_Stage = STAGE_ENTRIES;
+            }
+            else if (s_Stage == STAGE_ENTRIES)
+            {
+                if (s_EntryAt >= s_Entries.Count())
+                {
+                    s_Stage = STAGE_CFGMODS;
+                }
+                else
+                {
+                    string entry = s_Entries[s_EntryAt];
+                    s_EntryAt++;
+                    // Запис без своєї таблиці перевіряється ще на рівень глибше.
+                    if (Has(entry))
+                        Add(s_Seen, s_Dirs, entry);
+                    else
+                        ListArchives(entry, s_Seen, s_Dirs);
+                }
+            }
+            else if (s_Stage == STAGE_CFGMODS)
+            {
+                FromCfgMods(s_Seen, s_Dirs);
+                Add(s_Seen, s_Dirs, "languagecore");
+                s_Candidates = s_Dirs.Count();
+                s_Stage = STAGE_TABLES;
+            }
+            else if (!s_Open)
+            {
+                if (s_DirAt >= s_Dirs.Count())
+                {
+                    Finish();
+                    s_Stage = STAGE_DONE;
+                }
+                else
+                {
+                    string dir = s_Dirs[s_DirAt];
+                    s_DirAt++;
+                    OpenTable(dir);
+                }
+            }
+            else
+            {
+                ReadLines();
+            }
+            if (TickCount(t0) >= budget)
+                break;
+        }
+        return s_Stage == STAGE_DONE;
+    }
+
+    private static void Finish()
+    {
         string found = "";
         foreach (string f : s_Found)
         {
@@ -114,18 +242,8 @@ class OZ_StringTables
 
     // ---------- пошук таблиць ----------
 
-    private static void Discover(out array<string> dirs)
-    {
-        map<string, bool> seen = new map<string, bool>();
-        s_RootEntries = ListArchives("", seen, dirs);
-        FromCfgMods(seen, dirs);
-        Add(seen, dirs, "languagecore");
-    }
-
-    // Перелік архівних записів на рівні `base` ("" = корінь). Запис без
-    // своєї таблиці перевіряється ще на рівень глибше; для файла той рівень
-    // порожній.
-    private static int ListArchives(string base, map<string, bool> seen, out array<string> dirs)
+    // Записи архівів на рівні `base` ("" = корінь), у порядку, в якому їх дає рушій.
+    private static int ListEntries(string base, out array<string> entries)
     {
         string name;
         FileAttr attr;
@@ -136,7 +254,6 @@ class OZ_StringTables
         if (h == 0)
             return 0;
         int n = 0;
-        array<string> entries = new array<string>();
         bool more = true;
         while (more)
         {
@@ -151,14 +268,19 @@ class OZ_StringTables
             more = FindNextFile(h, name, attr);
         }
         CloseFindFile(h);
+        return n;
+    }
+
+    // Запис кореня без своєї таблиці: його власні записи, на рівень нижче.
+    private static void ListArchives(string base, map<string, bool> seen, out array<string> dirs)
+    {
+        array<string> entries = new array<string>();
+        ListEntries(base, entries);
         foreach (string e : entries)
         {
             if (Has(e))
                 Add(seen, dirs, e);
-            else if (base == "")
-                ListArchives(e, seen, dirs);
         }
-        return n;
     }
 
     private static bool Has(string dir)
@@ -231,52 +353,69 @@ class OZ_StringTables
 
     // ---------- читання CSV ----------
 
-    // Один файл у s_Rows. Шапка називає колонки (original/english можуть
-    // стояти не на своїх місцях); ключ -- завжди перше поле. Поле в лапках,
-    // яке не закрилося на рядку, продовжується на наступному.
-    private static bool LoadTable(string path)
+    // Таблиця теки починає читатися; теки без таблиці просто немає (файл не відкрився).
+    private static void OpenTable(string dir)
     {
-        FileHandle f = OpenFile(path, FileMode.READ);
+        s_Path = dir + "/" + FILE_NAME;
+        FileHandle f = OpenFile(s_Path, FileMode.READ);
         if (f == 0)
-            return false;
-        int origIdx = 1;
-        int engIdx = 2;
-        int want = 3;
-        bool first = true;
-        int empties = 0;
-        int rows = 0;
-        int lines = 0;
-        int dropped = 0;
+            return;
+        s_File = f;
+        s_Open = true;
+        s_Dir = dir;
+        s_OrigIdx = 1;
+        s_EngIdx = 2;
+        s_Want = 3;
+        s_First = true;
+        s_Empties = 0;
+        s_TblRows = 0;
+        s_TblLines = 0;
+        s_TblDropped = 0;
+    }
+
+    // До LINES_PER_LOOK рядків відкритої таблиці в s_Rows; кінець файлу закриває таблицю.
+    // Шапка називає колонки (original/english можуть стояти не на своїх місцях); ключ --
+    // завжди перше поле. Поле в лапках, яке не закрилося на рядку, продовжується на
+    // наступному.
+    private static void ReadLines()
+    {
         string line;
         string more;
         array<string> fields = new array<string>();
-        while (true)
+        bool ended = false;
+        for (int k = 0; k < LINES_PER_LOOK; k++)
         {
-            int n = FGets(f, line);
+            int n = FGets(s_File, line);
             if (n < 0)
+            {
+                ended = true;
                 break;
+            }
             if (n == 0)
             {
-                empties++;
-                if (empties > MAX_EMPTY_LINES)
+                s_Empties++;
+                if (s_Empties > MAX_EMPTY_LINES)
+                {
+                    ended = true;
                     break;
+                }
                 continue;
             }
-            empties = 0;
-            lines++;
+            s_Empties = 0;
+            s_TblLines++;
             if (n > s_MaxLine)
                 s_MaxLine = n;
-            int need = want;
-            if (first)
+            int need = s_Want;
+            if (s_First)
                 need = MAX_HEADER_FIELDS;
             fields.Clear();
             int end = Fields(line, need, fields);
             int joins = 0;
             while (end < 0 && joins < MAX_JOINED_LINES)
             {
-                if (FGets(f, more) < 0)
+                if (FGets(s_File, more) < 0)
                     break;
-                lines++;
+                s_TblLines++;
                 line = line + "\n" + more;
                 fields.Clear();
                 end = Fields(line, need, fields);
@@ -284,12 +423,12 @@ class OZ_StringTables
             }
             if (end < 0)
             {
-                dropped++;
+                s_TblDropped++;
                 continue;
             }
-            if (first)
+            if (s_First)
             {
-                first = false;
+                s_First = false;
                 string head = fields[0];
                 head.ToLower();
                 if (head.Contains("language"))
@@ -300,13 +439,13 @@ class OZ_StringTables
                         col.TrimInPlace();
                         col.ToLower();
                         if (col == "original")
-                            origIdx = c;
+                            s_OrigIdx = c;
                         else if (col == "english")
-                            engIdx = c;
+                            s_EngIdx = c;
                     }
-                    want = origIdx + 1;
-                    if (engIdx >= origIdx)
-                        want = engIdx + 1;
+                    s_Want = s_OrigIdx + 1;
+                    if (s_EngIdx >= s_OrigIdx)
+                        s_Want = s_EngIdx + 1;
                     continue;
                 }
             }
@@ -316,18 +455,22 @@ class OZ_StringTables
                 continue;
             key.ToLower();
             OZ_StrRow row = new OZ_StrRow();
-            if (origIdx < fields.Count())
-                row.Original = fields[origIdx];
-            if (engIdx < fields.Count())
-                row.English = fields[engIdx];
+            if (s_OrigIdx < fields.Count())
+                row.Original = fields[s_OrigIdx];
+            if (s_EngIdx < fields.Count())
+                row.English = fields[s_EngIdx];
             s_Rows.Set(key, row);
-            rows++;
+            s_TblRows++;
         }
-        CloseFile(f);
-        s_Keys += rows;
-        s_Dropped += dropped;
-        OZ_Log.Dbg("stringtables: " + path + ": " + rows.ToString() + " key(s) from " + lines.ToString() + " line(s), " + dropped.ToString() + " dropped");
-        return true;
+        if (!ended)
+            return;
+        CloseFile(s_File);
+        s_Open = false;
+        s_Tables++;
+        s_Found.Insert(s_Dir);
+        s_Keys += s_TblRows;
+        s_Dropped += s_TblDropped;
+        OZ_Log.Dbg("stringtables: " + s_Path + ": " + s_TblRows.ToString() + " key(s) from " + s_TblLines.ToString() + " line(s), " + s_TblDropped.ToString() + " dropped");
     }
 
     // Перші `want` полів рядка CSV: поле в лапках може містити коми й

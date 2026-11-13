@@ -1,0 +1,71 @@
+// Written by hand (not css2layout): the live class search under a class field
+// (OZ_ClassPick, design docs/specs/2026-11-13-openzone-vpp-class-search-design.md).
+// The script places and sizes everything below every frame; the numbers here are the
+// list at its least width, eight rows and the note.
+FrameWidgetClass OZ_ClassPick {
+ visible 0
+ position 0 0
+ size 440 216
+ hexactpos 1
+ vexactpos 1
+ hexactsize 1
+ vexactsize 1
+ priority 900
+ {
+  PanelWidgetClass OZ_ClassPickEdge {
+   visible 1
+   ignorepointer 1
+   color 0.91 0.471 0.169 1
+   position 0 0
+   size 440 216
+   hexactpos 1
+   vexactpos 1
+   hexactsize 1
+   vexactsize 1
+   priority 1
+   style rover_sim_colorable
+  }
+  PanelWidgetClass OZ_ClassPickBg {
+   visible 1
+   ignorepointer 1
+   color 0.047 0.047 0.043 1
+   position 1 1
+   size 438 214
+   hexactpos 1
+   vexactpos 1
+   hexactsize 1
+   vexactsize 1
+   priority 2
+   style rover_sim_colorable
+  }
+  FrameWidgetClass OZ_ClassPickRows {
+   visible 1
+   position 1 1
+   size 438 192
+   hexactpos 1
+   vexactpos 1
+   hexactsize 1
+   vexactsize 1
+   priority 3
+   clipchildren 1
+  }
+  TextWidgetClass OZ_ClassPickNote {
+   visible 0
+   ignorepointer 1
+   color 0.627 0.624 0.6 1
+   position 10 193
+   size 420 22
+   hexactpos 1
+   vexactpos 1
+   hexactsize 1
+   vexactsize 1
+   priority 4
+   text ""
+   font "OpenZone_VPP/gui/fonts/ozv_sans28"
+   "exact text" 1
+   "exact text size" 13
+   "text halign" left
+   "text valign" center
+  }
+ }
+}

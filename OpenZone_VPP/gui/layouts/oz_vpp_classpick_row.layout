@@ -1,0 +1,94 @@
+// Written by hand (not css2layout): a row of the live class search (OZ_ClassPick): the name
+// the game shows on the left, the class on the right; the lit panel marks the row Enter
+// takes. The script sizes the row and its two halves to the list's width.
+ButtonWidgetClass OZ_ClassPickRow {
+ visible 1
+ position 0 0
+ size 438 24
+ hexactpos 1
+ vexactpos 1
+ hexactsize 1
+ vexactsize 1
+ priority 1
+ text ""
+ style Empty
+ {
+  PanelWidgetClass OZ_ClassPickRowLit {
+   visible 0
+   ignorepointer 1
+   color 0.184 0.114 0.067 1
+   position 0 0
+   size 438 24
+   hexactpos 1
+   vexactpos 1
+   hexactsize 1
+   vexactsize 1
+   priority 1
+   style rover_sim_colorable
+  }
+  FrameWidgetClass OZ_ClassPickRowNameBox {
+   visible 1
+   ignorepointer 1
+   position 8 0
+   size 233 24
+   hexactpos 1
+   vexactpos 1
+   hexactsize 1
+   vexactsize 1
+   priority 2
+   clipchildren 1
+   {
+    TextWidgetClass OZ_ClassPickRowName {
+     visible 1
+     ignorepointer 1
+     color 0.878 0.875 0.855 1
+     position 0 0
+     size 233 24
+     hexactpos 1
+     vexactpos 1
+     hexactsize 1
+     vexactsize 1
+     priority 1
+     text ""
+     font "OpenZone_VPP/gui/fonts/ozv_sans28"
+     "exact text" 1
+     "exact text size" 14
+     "text halign" left
+     "text valign" center
+    }
+   }
+  }
+  FrameWidgetClass OZ_ClassPickRowClassBox {
+   visible 1
+   ignorepointer 1
+   position 245 0
+   size 185 24
+   hexactpos 1
+   vexactpos 1
+   hexactsize 1
+   vexactsize 1
+   priority 2
+   clipchildren 1
+   {
+    TextWidgetClass OZ_ClassPickRowClass {
+     visible 1
+     ignorepointer 1
+     color 0.627 0.624 0.6 1
+     position 0 0
+     size 185 24
+     hexactpos 1
+     vexactpos 1
+     hexactsize 1
+     vexactsize 1
+     priority 1
+     text ""
+     font "OpenZone_VPP/gui/fonts/ozv_sansm28"
+     "exact text" 1
+     "exact text size" 13
+     "text halign" right
+     "text valign" center
+    }
+   }
+  }
+ }
+}
