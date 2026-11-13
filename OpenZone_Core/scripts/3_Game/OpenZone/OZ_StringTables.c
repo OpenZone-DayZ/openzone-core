@@ -42,7 +42,7 @@ class OZ_StringTables
 
     // Читання кроками (2026-11-13): клієнт будує перелік класів для пошуку у вікні OpenZone
     // (OZ_ClassIndex) і не має права стати на кадр. Виміряно на стенді (15 таблиць, 10 118
-    // ключів): пошук таблиць по архівах 2,1 с, читання 0,32 с. Begin, потім Step з бюджетом у
+    // ключів): пошук таблиць по архівах 2,1 с, читання 0,32 с. BeginLoad, потім Advance з бюджетом у
     // тіках TickCount, доки не відповість true; Load() -- ті самі кроки без бюджету, для старту
     // сервера (OZ_ClassDump). Порядок тек і таблиць той самий, що був у Load(): пізніша
     // таблиця перекриває ключ ранішої.
@@ -78,16 +78,16 @@ class OZ_StringTables
 
     static void Load()
     {
-        Begin();
+        BeginLoad();
         bool done = false;
         while (!done)
-            done = Step(2000000000);
+            done = Advance(2000000000);
     }
 
     // Нове читання: усе, що було прочитано, забувається.
-    static void Begin()
+    static void BeginLoad()
     {
-        Abort();
+        AbortLoad();
         s_Rows = new map<string, ref OZ_StrRow>();
         s_Found = new array<string>();
         s_Tables = 0;
@@ -105,7 +105,7 @@ class OZ_StringTables
     }
 
     // Читання, обірване на півдорозі (кінець місії): відкрита таблиця закривається.
-    static void Abort()
+    static void AbortLoad()
     {
         if (s_Open)
         {
@@ -115,14 +115,14 @@ class OZ_StringTables
         s_Stage = STAGE_IDLE;
     }
 
-    static bool Done()
+    static bool LoadDone()
     {
         return s_Stage == STAGE_DONE;
     }
 
     // Робота, доки не вийде бюджет (тіки TickCount); true -- усе прочитано. Одиниця роботи --
     // один запис кореня архівів, одна тека з CfgMods разом, LINES_PER_LOOK рядків таблиці.
-    static bool Step(int budget)
+    static bool Advance(int budget)
     {
         if (s_Stage == STAGE_IDLE || s_Stage == STAGE_DONE)
             return s_Stage == STAGE_DONE;
@@ -164,7 +164,7 @@ class OZ_StringTables
             {
                 if (s_DirAt >= s_Dirs.Count())
                 {
-                    Finish();
+                    FinishLoad();
                     s_Stage = STAGE_DONE;
                 }
                 else
@@ -184,7 +184,7 @@ class OZ_StringTables
         return s_Stage == STAGE_DONE;
     }
 
-    private static void Finish()
+    private static void FinishLoad()
     {
         string found = "";
         foreach (string f : s_Found)

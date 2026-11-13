@@ -61,12 +61,12 @@ class OZ_ClassIndex
     protected static ref array<int> s_LastAll;
 
     // Work until the budget (TickCount ticks) is spent; nothing once the index is whole.
-    static void Step(int budget)
+    static void Advance(int budget)
     {
         if (s_Stage == STAGE_READY)
             return;
         if (s_Stage == STAGE_NONE)
-            Begin();
+            BeginWalk();
         int t0 = TickCount(0);
         s_Frames++;
         while (s_Stage != STAGE_READY)
@@ -80,7 +80,7 @@ class OZ_ClassIndex
                 int left = budget - TickCount(t0);
                 if (left < 1)
                     left = 1;
-                if (OZ_StringTables.Step(left))
+                if (OZ_StringTables.Advance(left))
                     s_Stage = STAGE_NAMES;
             }
             else
@@ -197,7 +197,7 @@ class OZ_ClassIndex
                 first.Insert(order);
             else if (hay.IndexOf(nameStart) >= 0)
                 named.Insert(order);
-            else if (WordStart(hay, q))
+            else if (AtWordStart(hay, q))
                 word.Insert(order);
             else
                 rest.Insert(order);
@@ -213,15 +213,15 @@ class OZ_ClassIndex
         named.Sort();
         word.Sort();
         rest.Sort();
-        Collect(first, limit, found);
-        Collect(named, limit, found);
-        Collect(word, limit, found);
-        Collect(rest, limit, found);
+        CollectKeys(first, limit, found);
+        CollectKeys(named, limit, found);
+        CollectKeys(word, limit, found);
+        CollectKeys(rest, limit, found);
     }
 
     // ---------- building ----------
 
-    protected static void Begin()
+    protected static void BeginWalk()
     {
         s_Roots = {"CfgVehicles", "CfgWeapons", "CfgMagazines"};
         s_Class = new array<string>();
@@ -251,7 +251,7 @@ class OZ_ClassIndex
             {
                 s_Stage = STAGE_TABLES;
                 s_Rev++;
-                OZ_StringTables.Begin();
+                OZ_StringTables.BeginLoad();
                 return;
             }
             if (s_At >= s_Of)
@@ -266,11 +266,11 @@ class OZ_ClassIndex
             int at = s_At;
             s_At++;
             s_Walked++;
-            Take(s_Roots[s_Root], at);
+            TakeClass(s_Roots[s_Root], at);
         }
     }
 
-    protected static void Take(string root, int at)
+    protected static void TakeClass(string root, int at)
     {
         string name;
         if (!GetGame().ConfigGetChildName(root, at, name))
@@ -330,7 +330,7 @@ class OZ_ClassIndex
                 OZ_StringTables.Release();
                 s_Stage = STAGE_READY;
                 s_Rev++;
-                Said();
+                SayBuilt();
                 return;
             }
             int i = s_Named;
@@ -360,7 +360,7 @@ class OZ_ClassIndex
         }
     }
 
-    protected static void Said()
+    protected static void SayBuilt()
     {
         string said = "class index: " + s_Class.Count().ToString() + " classes of " + s_ToWalk.ToString();
         said = said + ", names from " + OZ_StringTables.Tables().ToString() + " string table(s)";
@@ -382,7 +382,7 @@ class OZ_ClassIndex
         return cls + "\t" + i.ToString();
     }
 
-    protected static bool WordStart(string hay, string q)
+    protected static bool AtWordStart(string hay, string q)
     {
         if (hay.IndexOf(" " + q) >= 0)
             return true;
@@ -393,7 +393,7 @@ class OZ_ClassIndex
         return hay.IndexOf("(" + q) >= 0;
     }
 
-    protected static void Collect(array<string> keys, int limit, array<int> found)
+    protected static void CollectKeys(array<string> keys, int limit, array<int> found)
     {
         for (int k = 0; k < keys.Count(); k++)
         {

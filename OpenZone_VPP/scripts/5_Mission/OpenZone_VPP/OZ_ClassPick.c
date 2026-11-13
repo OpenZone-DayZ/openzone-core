@@ -122,18 +122,26 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
     // Every frame while the window is open.
     void Tick()
     {
-        OZ_ClassIndex.Step(BUDGET);
+        OZ_ClassIndex.Advance(BUDGET);
         if (!m_Root || !m_RowsBox)
             return;
 
         EditBoxWidget edit = FocusedField();
+        if (m_Open && m_Edit && edit != m_Edit && ListKeyDown())
+        {
+            // The engine moves the focus with the arrows, off the field onto the next widget
+            // (measured 2026-11-13 on the trader's goods page): the list takes the key and
+            // gives the focus back.
+            SetFocus(m_Edit);
+            edit = m_Edit;
+        }
         if (!edit)
         {
             // A press on a row takes the focus off the field before the click lands: the list
             // stays while the pointer is on it.
             if (m_Open && Hovered())
                 return;
-            Close();
+            CloseList();
             m_Edit = null;
             return;
         }
@@ -146,7 +154,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
             m_Edit = edit;
             m_Field = m_Fields.Get(edit.GetName());
             m_Seen = text;
-            Close();
+            CloseList();
             return;
         }
 
@@ -160,22 +168,22 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
         if (changed || fresher)
         {
             m_Seen = text;
-            Search(changed);
+            SearchText(changed);
         }
         if (!m_Open)
             return;
-        Place();
-        Keys();
+        PlaceList();
+        ReadKeys();
     }
 
     // ------------------------------------------------------------------ searching
 
-    protected void Search(bool typed)
+    protected void SearchText(bool typed)
     {
         string q = QueryOf(m_Seen);
         if (q.LengthUtf8() < 2)
         {
-            Close();
+            CloseList();
             return;
         }
         int kinds = OZ_ClassIndex.ANY;
@@ -185,7 +193,16 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
         m_AskedAt = GetGame().GetTime();
         array<int> found;
         int total;
+        int t0 = TickCount(0);
         OZ_ClassIndex.Find(q, kinds, MAX, found, total);
+        if (OZ_Log.IsDebug())
+        {
+            // TickCount ticks at 10 MHz.
+            float ms = TickCount(t0) / 10000.0;
+            string said = "class search '" + q + "': " + total.ToString() + " found of " + OZ_ClassIndex.Count().ToString();
+            said = said + " classes in " + ms.ToString() + " ms";
+            OZ_Log.Dbg(said);
+        }
         m_Found = found;
         m_Total = total;
         // A new text starts at the top; more classes for the same text keep the lit row.
@@ -194,8 +211,8 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
             m_Top = 0;
             m_Lit = 0;
         }
-        Open();
-        Paint();
+        OpenList();
+        PaintRows();
     }
 
     // What a field's text searches: the whole of it, or a list's last word; never a
@@ -205,7 +222,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
         string q = text;
         if (m_Field && m_Field.List)
         {
-            int start = WordStart(text);
+            int start = LastWordAt(text);
             q = text.Substring(start, text.Length() - start);
         }
         int colon = q.IndexOf(":");
@@ -215,7 +232,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
     }
 
     // Where a list's last word begins: after its last comma or line break.
-    protected int WordStart(string text)
+    protected int LastWordAt(string text)
     {
         int at = 0;
         int n = text.Length();
@@ -229,7 +246,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
     }
 
     // The class at a place of the results into the field, as if typed.
-    protected void Pick(int place)
+    protected void PickAt(int place)
     {
         if (!m_Edit || place < 0 || place >= m_Found.Count())
             return;
@@ -239,7 +256,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
         if (m_Field && m_Field.List)
         {
             // The last word gives way to the class; its leading spaces and :quantity stay.
-            int start = WordStart(text);
+            int start = LastWordAt(text);
             string head = text.Substring(0, start);
             string word = text.Substring(start, text.Length() - start);
             string lead = "";
@@ -257,7 +274,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
         }
         m_Edit.SetText(next);
         m_Seen = next;
-        Close();
+        CloseList();
         SetFocus(m_Edit);
         // The page hears it as typing: its own OnChange keeps its draft.
         if (m_Menu)
@@ -266,7 +283,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
 
     // ------------------------------------------------------------------ the list
 
-    protected void Open()
+    protected void OpenList()
     {
         if (!m_Open)
         {
@@ -279,14 +296,14 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
         m_Root.Show(true);
     }
 
-    protected void Close()
+    protected void CloseList()
     {
         m_Open = false;
         if (m_Root)
             m_Root.Show(false);
     }
 
-    protected void Paint()
+    protected void PaintRows()
     {
         for (int r = 0; r < m_Rows.Count(); r++)
         {
@@ -294,16 +311,21 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
             if (place >= m_Found.Count())
                 continue;
             int i = m_Found[place];
+            string name = OZ_ClassIndex.NameAt(i);
+            string cls = OZ_ClassIndex.ClassAt(i);
+            // A class with no name of its own (a building) is said once, on the left.
+            if (name == cls)
+                cls = "";
             if (m_RowName[r])
-                m_RowName[r].SetText(OZ_ClassIndex.NameAt(i));
+                m_RowName[r].SetText(name);
             if (m_RowClass[r])
-                m_RowClass[r].SetText(OZ_ClassIndex.ClassAt(i));
+                m_RowClass[r].SetText(cls);
             if (m_RowLit[r])
                 m_RowLit[r].Show(place == m_Lit);
         }
         if (m_Note)
             m_Note.SetText(NoteText());
-        Place();
+        PlaceList();
     }
 
     // The line under the rows: the index still coming in, nothing found, or more than shown.
@@ -329,7 +351,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
 
     // Under the field, inside the window, every frame (the window moves and resizes); above
     // the field when there is no room under it.
-    protected void Place()
+    protected void PlaceList()
     {
         if (!m_Edit || !m_Window)
             return;
@@ -420,7 +442,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
 
     // ------------------------------------------------------------------ input
 
-    protected void Keys()
+    protected void ReadKeys()
     {
         bool up = KeyState(KeyCode.KC_UP) != 0;
         bool down = KeyState(KeyCode.KC_DOWN) != 0;
@@ -432,11 +454,20 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
         m_DownWas = down;
         m_EnterWas = enter;
         if (goDown)
-            Move(1);
+            MoveLit(1);
         if (goUp)
-            Move(-1);
+            MoveLit(-1);
         if (pick && m_Found.Count() > 0)
-            Pick(m_Lit);
+            PickAt(m_Lit);
+    }
+
+    protected bool ListKeyDown()
+    {
+        if (KeyState(KeyCode.KC_UP) != 0)
+            return true;
+        if (KeyState(KeyCode.KC_DOWN) != 0)
+            return true;
+        return EnterDown();
     }
 
     protected bool EnterDown()
@@ -446,7 +477,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
         return KeyState(KeyCode.KC_NUMPADENTER) != 0;
     }
 
-    protected void Move(int step)
+    protected void MoveLit(int step)
     {
         int n = m_Found.Count();
         if (n == 0)
@@ -460,7 +491,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
             m_Top = m_Lit;
         if (m_Lit >= m_Top + m_Rows.Count())
             m_Top = m_Lit - m_Rows.Count() + 1;
-        Paint();
+        PaintRows();
     }
 
     override bool OnClick(Widget w, int x, int y, int button)
@@ -468,7 +499,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
         int r = m_Rows.Find(w);
         if (r < 0)
             return false;
-        Pick(m_Top + r);
+        PickAt(m_Top + r);
         return true;
     }
 
@@ -481,7 +512,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
         if (place != m_Lit && place < m_Found.Count())
         {
             m_Lit = place;
-            Paint();
+            PaintRows();
         }
         return false;
     }
@@ -501,7 +532,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
         if (top != m_Top)
         {
             m_Top = top;
-            Paint();
+            PaintRows();
         }
         return true;
     }
