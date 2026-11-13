@@ -1,0 +1,284 @@
+ImageSetClass {
+ Name "ozv_ui"
+ RefSize 512 1024
+ Textures {
+  ImageSetTextureClass {
+   mpix 1
+   path "OpenZone_VPP/gui/imagesets/ozv_ui_ca.paa"
+  }
+ }
+ Images {
+  ImageSetDefClass caret {
+   Name "caret"
+   Pos 164 2
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass check {
+   Name "check"
+   Pos 230 2
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass chevron {
+   Name "chevron"
+   Pos 296 2
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass cross {
+   Name "cross"
+   Pos 362 2
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass dash {
+   Name "dash"
+   Pos 428 2
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass disc {
+   Name "disc"
+   Pos 2 132
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass dot {
+   Name "dot"
+   Pos 68 132
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass excl {
+   Name "excl"
+   Pos 134 132
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_08dfeaed {
+   Name "i_08dfeaed"
+   Pos 200 132
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_0979a624 {
+   Name "i_0979a624"
+   Pos 266 132
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_127ea0c5 {
+   Name "i_127ea0c5"
+   Pos 332 132
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_1e4ba0ee {
+   Name "i_1e4ba0ee"
+   Pos 398 132
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_23255a45 {
+   Name "i_23255a45"
+   Pos 2 198
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_4a01c70d {
+   Name "i_4a01c70d"
+   Pos 68 198
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_50f7060c {
+   Name "i_50f7060c"
+   Pos 134 198
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_557a78f6 {
+   Name "i_557a78f6"
+   Pos 200 198
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_57c9e822 {
+   Name "i_57c9e822"
+   Pos 266 198
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_5bce7e4e {
+   Name "i_5bce7e4e"
+   Pos 332 198
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_6ee554db {
+   Name "i_6ee554db"
+   Pos 398 198
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_733cf071 {
+   Name "i_733cf071"
+   Pos 2 264
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_766118da {
+   Name "i_766118da"
+   Pos 68 264
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_8ad9aaab {
+   Name "i_8ad9aaab"
+   Pos 134 264
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_8c4e4969 {
+   Name "i_8c4e4969"
+   Pos 200 264
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_971797b4 {
+   Name "i_971797b4"
+   Pos 266 264
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_a0813407 {
+   Name "i_a0813407"
+   Pos 332 264
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_aab7a7b1 {
+   Name "i_aab7a7b1"
+   Pos 398 264
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_ae460f28 {
+   Name "i_ae460f28"
+   Pos 2 330
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_ae6612f4 {
+   Name "i_ae6612f4"
+   Pos 68 330
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_af19cb16 {
+   Name "i_af19cb16"
+   Pos 134 330
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_b5c850ed {
+   Name "i_b5c850ed"
+   Pos 200 330
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_bc4fd8e9 {
+   Name "i_bc4fd8e9"
+   Pos 266 330
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_c6a70315 {
+   Name "i_c6a70315"
+   Pos 332 330
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_d5bd2db1 {
+   Name "i_d5bd2db1"
+   Pos 398 330
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_ddf3cab9 {
+   Name "i_ddf3cab9"
+   Pos 2 396
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_de5486ba {
+   Name "i_de5486ba"
+   Pos 68 396
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_e0cb331d {
+   Name "i_e0cb331d"
+   Pos 134 396
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_e16e13d0 {
+   Name "i_e16e13d0"
+   Pos 200 396
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_ee50e52f {
+   Name "i_ee50e52f"
+   Pos 266 396
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass i_f51e59d2 {
+   Name "i_f51e59d2"
+   Pos 332 396
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass oz_mark {
+   Name "oz_mark"
+   Pos 2 2
+   Size 160 128
+   Flags 0
+  }
+  ImageSetDefClass ring {
+   Name "ring"
+   Pos 398 396
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass search {
+   Name "search"
+   Pos 2 462
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass square {
+   Name "square"
+   Pos 68 462
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass tri_down {
+   Name "tri_down"
+   Pos 134 462
+   Size 64 64
+   Flags 0
+  }
+  ImageSetDefClass tri_right {
+   Name "tri_right"
+   Pos 200 462
+   Size 64 64
+   Flags 0
+  }
+ }
+ Groups {
+ }
+}

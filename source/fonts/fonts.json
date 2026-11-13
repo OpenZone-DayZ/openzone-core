@@ -1,0 +1,28 @@
+{
+  "comment": "The fonts of the OpenZone window in VPP (the mockup of 2026-11-12 is set in Fira Sans and Fira Sans Condensed). build_fonts.py turns each entry into OpenZone_VPP/gui/fonts/<name>.fnt + .edds with the series' converter (openzone-research/source/fonts). kind bitmap = FNT3 (TextWidget, buttons; an edit box draws it at the atlas's own pixel size), kind sdf = FNT5 distance field (wrapped text: MultilineTextWidget, RichTextWidget). cell = the atlas resolution; a layout sets the size on screen with \"exact text size\" (whole numbers only). See README.md for the CSS-size table. Two keys are this repository's own (build_fonts.py applies them): track = atlas pixels added after every glyph (letter spacing), ink = the coverage curve that makes a small size as heavy as a browser draws it.",
+  "output": "OpenZone_VPP/gui/fonts",
+  "charsets": {
+    "text": "latin+latin1+cyrillic+punct+box"
+  },
+  "outputs": [
+    {"name": "ozv_sans28", "kind": "bitmap", "face": "firasans/FiraSans-Regular.ttf", "wght": null, "cell": 28, "charset": "text", "for": "body text, CSS 11 to 16 px", "ink": 8},
+    {"name": "ozv_sansm28", "kind": "bitmap", "face": "firasans/FiraSans-Medium.ttf", "wght": null, "cell": 28, "charset": "text", "for": "names and values in medium weight, CSS 11 to 16 px", "ink": 6},
+    {"name": "ozv_sansb28", "kind": "bitmap", "face": "firasans/FiraSans-SemiBold.ttf", "wght": null, "cell": 28, "charset": "text", "for": "button captions and bold names, CSS 11 to 16 px", "ink": 5},
+    {"name": "ozv_cond28", "kind": "bitmap", "face": "firasanscondensed/FiraSansCondensed-SemiBold.ttf", "wght": null, "cell": 28, "charset": "text", "for": "legends, module names, small headings, CSS 11 to 16 px", "ink": 6},
+    {"name": "ozv_cond44", "kind": "bitmap", "face": "firasanscondensed/FiraSansCondensed-SemiBold.ttf", "wght": null, "cell": 44, "charset": "text", "for": "page titles and big numbers, CSS 17 to 26 px", "ink": 2},
+    {"name": "ozv_condm28", "kind": "bitmap", "face": "firasanscondensed/FiraSansCondensed-Medium.ttf", "wght": null, "cell": 28, "charset": "text", "for": "condensed medium labels, CSS 11 to 16 px", "ink": 6},
+    {"name": "ozv_condb28", "kind": "bitmap", "face": "firasanscondensed/FiraSansCondensed-Bold.ttf", "wght": null, "cell": 28, "charset": "text", "for": "module marks, CSS 11 to 16 px", "ink": 5},
+    {"name": "ozv_condb44", "kind": "bitmap", "face": "firasanscondensed/FiraSansCondensed-Bold.ttf", "wght": null, "cell": 44, "charset": "text", "for": "the OPENZONE wordmark, CSS 17 to 26 px", "ink": 2},
+    {"name": "ozv_field16", "kind": "bitmap", "face": "firasans/FiraSans-Regular.ttf", "wght": null, "cell": 16, "charset": "text", "for": "edit boxes: CSS 14 px on a 1080-high screen (an edit box ignores exact text size)", "ink": 1.5},
+    {"name": "ozv_sdf_sans32", "kind": "sdf", "face": "firasans/FiraSans-Light.ttf", "wght": null, "cell": 32, "charset": "text", "for": "wrapped notes: the engine draws a distance field heavier, so the Light face reads as Regular"},
+    {"name": "ozv_sdf_sansm32", "kind": "sdf", "face": "firasans/FiraSans-Regular.ttf", "wght": null, "cell": 32, "charset": "text", "for": "wrapped text in a heavier weight: the Regular face reads as Medium"},
+    {"name": "ozv_condt28", "kind": "bitmap", "face": "firasanscondensed/FiraSansCondensed-SemiBold.ttf", "wght": null, "cell": 28, "charset": "text", "track": 2, "ink": 6, "for": "legends in spaced capitals: CSS 12 and 13 px with a pixel of letter spacing"},
+    {"name": "ozv_condbw44", "kind": "bitmap", "face": "firasanscondensed/FiraSansCondensed-Bold.ttf", "wght": null, "cell": 44, "charset": "text", "track": 6, "ink": 2, "for": "the OPENZONE wordmark: CSS 20 px with 3 px of letter spacing"},
+    {"name": "ozv_field13", "kind": "bitmap", "face": "firasans/FiraSans-Regular.ttf", "wght": null, "cell": 13, "charset": "text", "ink": 1.5, "for": "edit boxes, CSS 12 px on a 1080-high screen"},
+    {"name": "ozv_field14", "kind": "bitmap", "face": "firasans/FiraSans-Regular.ttf", "wght": null, "cell": 14, "charset": "text", "ink": 1.5, "for": "edit boxes, CSS 13 px"},
+    {"name": "ozv_field15", "kind": "bitmap", "face": "firasans/FiraSans-Regular.ttf", "wght": null, "cell": 15, "charset": "text", "ink": 1.5, "for": "edit boxes, CSS 14 px"},
+    {"name": "ozv_fieldb17", "kind": "bitmap", "face": "firasans/FiraSans-SemiBold.ttf", "wght": null, "cell": 17, "charset": "text", "ink": 1.5, "for": "edit boxes in semibold, CSS 15 px"},
+    {"name": "ozv_mono28", "kind": "bitmap", "face": "firamono/FiraMono-Regular.ttf", "wght": null, "cell": 28, "charset": "text", "ink": 8, "for": "monospace lines (problems, file names), CSS 12 and 13 px"},
+    {"name": "ozv_monofield14", "kind": "bitmap", "face": "firamono/FiraMono-Regular.ttf", "wght": null, "cell": 14, "charset": "text", "ink": 1.5, "for": "the config editor's edit box, CSS 13 px"}
+  ]
+}

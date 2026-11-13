@@ -40,6 +40,9 @@ class CfgMods
 
         class defs
         {
+            // The window's small signs (dots, chevrons, the check, the magnifier): Fira Sans,
+            // the window's face, has none of them. An imageset no config lists draws nothing.
+            class imageSets { files[] = {"OpenZone_VPP/gui/imagesets/ozv_ui.imageset"}; };
             class missionScriptModule { value = ""; files[] = {"OpenZone_VPP/scripts/5_Mission"}; };
         };
     };

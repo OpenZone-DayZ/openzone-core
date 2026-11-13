@@ -76,6 +76,58 @@ class OZ_VppJsonProbe
 {
 }
 
+// Ядро › Новини: a page of the bridge's feed (v1/news/list, handed on by the core's
+// news_list), newest first. The PDA mod reads the same answer into classes of its own
+// (OZ_NewsList); the window works without that mod, so these twins of the same shape
+// read the same JSON -- JSON carries field names, not class names.
+class OZ_VppNewsItem
+{
+    string Id;
+    string Title;
+    string Who;
+    string At;
+    int    Replies;
+
+    OZ_VppNewsItem Copy()
+    {
+        OZ_VppNewsItem c = new OZ_VppNewsItem();
+        c.Id = Id;
+        c.Title = Title;
+        c.Who = Who;
+        c.At = At;
+        c.Replies = Replies;
+        return c;
+    }
+}
+
+class OZ_VppNewsList
+{
+    ref array<ref OZ_VppNewsItem> Items;
+    // Where the feed goes on; empty: this page reaches its end.
+    string Next;
+
+    void OZ_VppNewsList()
+    {
+        Items = new array<ref OZ_VppNewsItem>();
+        Next = "";
+    }
+
+    // Read through a copy made by script (the core's OZ_ConfigBase header).
+    OZ_VppNewsList Copy()
+    {
+        OZ_VppNewsList c = new OZ_VppNewsList();
+        c.Next = Next;
+        if (!Items)
+            return c;
+        for (int i = 0; i < Items.Count(); i++)
+        {
+            if (Items[i])
+                c.Items.Insert(Items[i].Copy());
+        }
+        return c;
+    }
+}
+
 // Фракції › Групи FFR: the answer of the FFR glue's ffr_groups and its settings file, as
 // the window reads them. The glue is a server mod (-serverMod): a client never loads it,
 // so its classes (OZI_FfrGroupsAnswer, OZI_FfrSettings in OpenZone_Identity_FFR) are not
@@ -232,7 +284,8 @@ modded class VPPAdminHud
     override void DefineButtons()
     {
         super.DefineButtons();
-        InsertButton("OZ_VppAdminMenu", "OpenZone", "set:dayz_gui_vpp image:vpp_icon_xml_editor", "OpenZone: spawns, configs, news");
+        // The series' mark, the OZ-COM one the radios carry (source/icons/make_icons.py).
+        InsertButton("OZ_VppAdminMenu", "OpenZone", "set:ozv_ui image:oz_mark", "OpenZone: spawns, configs, news");
     }
 
     // VPP показує нове підменю ДО того, як вносить його в свій перелік
@@ -279,6 +332,24 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     protected string m_Shown = "";
     protected bool   m_Sized = false;
 
+    // The window's layouts are converted from the mockup (css2layout) and carry how each
+    // widget follows a resize; m_Flex applies it. The window's size in pixels as last
+    // set, the content area's frame the pages live in, the confirm strip (a layout of its
+    // own), the search box of the title band and what it last held, when the title band's
+    // chips were last asked, and the edit boxes with a placeholder label (parallel lists).
+    protected ref OZ_VppFlex m_Flex;
+    protected float  m_WinW;
+    protected float  m_WinH;
+    protected Widget m_Content;
+    protected Widget m_ConfirmBar;
+    protected EditBoxWidget m_SearchBox;
+    protected string m_SearchSeen;
+    protected int    m_ChipsAt;
+    protected int    m_PhAt;
+    protected string m_StatusSaid;
+    protected ref array<EditBoxWidget> m_PhEdits;
+    protected ref array<Widget> m_PhLabels;
+
     // The confirm strip (design §3.4): the action its "yes" sends to OnConfirmed.
     protected string m_ConfirmAction = "";
 
@@ -292,7 +363,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // Ядро › Огляд: the last overview the server gave, as a copy made by script, and
     // how many module cards the page holds.
     protected ref OZ_AdminOverview m_Ov;
-    static const int OV_CARDS = 9;
+    static const int OV_CARDS = 7;
+
+    // The journal's rows on Ядро › Огляд (a row template, one per entry shown), and the
+    // order the module cards stand in (indices into m_Ov.Modules).
+    protected ref OZ_VppFlexRows m_JrRows;
+    protected ref array<int> m_OvOrder;
 
     // Ім'я віджета підказки для кожної панелі -- називає сама панель.
     protected ref map<string, string> m_PaneHints;
@@ -325,16 +401,28 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // ------------------------------------------------- Ядро › Точки появи
     protected ref OZ_SpawnsConfig m_SpawnsCfg;
 
-    // Рядок списку -> що це таке i чим воно зветься: "head" (a group's caption),
-    // "none", "zone" (key: the slug, * staging, - fallback) or "uid" (key: Steam ID).
-    protected ref array<string> m_SpawnRowKind;
-    protected ref array<string> m_SpawnRowKey;
+    // The list of the page (board CoreSpawns): caption rows and point rows stand in one
+    // list, a row template each. A point's key is "zone:<slug>" (* staging, - fallback)
+    // or "uid:<Steam ID>"; the row of an empty group has the key "none".
+    protected ref OZ_VppFlexRows m_SpHeads;
+    protected ref OZ_VppFlexRows m_SpRows;
 
-    // The picked point ("zone:<slug>" or "uid:<Steam ID>"), the cycler's slug ("" is
-    // its first choice) and when the scheme was last drawn (GetTime, ms).
+    // The picked point (a row's key), the cycler's slug ("" is its first choice), when
+    // the scheme was last drawn (GetTime, ms), and the labels that stand over the scheme:
+    // made as the points need them, kept and placed again by every redraw.
     protected string m_SpPick;
     protected string m_SpSlugPick;
     protected int    m_SpDrawnAt;
+    protected ref array<Widget> m_SpLabels;
+    protected int    m_SpLabelsUsed;
+
+    // The window's size (pixels) the open page of the core was last fitted to: Tick fits
+    // the page's lists and flowed words again when the window has another (CoreRefit),
+    // and for m_CoreFitDue frames more -- a text measured on the frame its page was
+    // shown or resized may not know its width yet.
+    protected float  m_CoreFitW;
+    protected float  m_CoreFitH;
+    protected int    m_CoreFitDue;
 
     // What the source of factions said (identity, a read): its name and the faction
     // ids it knows, with their names side by side.
@@ -355,14 +443,17 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     static const string FFR_CFG       = "IdentityFFR";
 
     // Whether the page is registered, the last ffr_groups, the settings file as saved
-    // and as edited, list row -> group, the picked group, whether this page's own apply
-    // is on its way back, the page's tick and its three fields.
+    // and as edited, the list's rows (a row's key is the group's name), the picked
+    // group, the faction the picked group's list stands on ("" is no faction; an id typed
+    // into the field under it wins), whether this page's own apply is on its way back,
+    // the page's tick and its three fields.
     protected bool m_FfrOn;
     protected ref OZ_VppFfrGroups   m_FfrGroups;
     protected ref OZ_VppFfrSettings m_FfrSaved;
     protected ref OZ_VppFfrSettings m_FfrDraft;
-    protected ref array<string> m_FfrRowGroup;
+    protected ref OZ_VppFlexRows m_FfrRows;
     protected string m_FfrPick;
+    protected string m_FfrFacPick;
     protected bool   m_FfrApplied;
     protected int    m_FfrTickAt;
     protected EditBoxWidget m_FfrFacBox;
@@ -371,7 +462,13 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
     // ------------------------------------------------- raw
     protected string m_RawPicked = "";
-    protected ref array<string> m_RawRows;
+
+    // The list of files (board CoreFiles): a caption row per module, a row per file (its
+    // key is the file's name), and a "no files" row for a module of the rail that owns
+    // none -- three row templates in one list.
+    protected ref OZ_VppFlexRows m_RawHeads;
+    protected ref OZ_VppFlexRows m_RawFiles;
+    protected ref OZ_VppFlexRows m_RawNones;
 
     // Ядро › Файли конфігів: the editor's text as last seen and when it changed (the
     // size follows at once, the JSON check once typing pauses), the text last judged
@@ -386,17 +483,28 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
     // ------------------------------------------------- Ядро › Гравці
     //
-    // The last players_here as copies made by script, the list's rows (row -> Steam ID)
-    // and the card: whose it is and what the last player_peek said of that character.
-    // The list holds who is in the game (the server lists them without the bridge); a
-    // Steam ID typed whole in the search reaches an absent player too. The wipe asks on
-    // the confirm strip and names what the peek found: seventeen digits with a typo look
-    // exactly like the right ones. Fields are declared bare and set in OnCreate: every
-    // glue derives from this class (dayz-modding enforce-script.md, field initialisers).
+    // The last players_here as copies made by script, the list's rows (a row's key is
+    // the Steam ID) and the card: whose it is and what the last player_peek said of that
+    // character. The list holds who is in the game (the server lists them without the
+    // bridge); a Steam ID typed whole in the search reaches an absent player too. The
+    // wipe asks on the confirm strip and names what the peek found: seventeen digits with
+    // a typo look exactly like the right ones. Fields are declared bare and set in
+    // OnCreate: every glue derives from this class (dayz-modding enforce-script.md, field
+    // initialisers).
     protected ref array<string> m_PlrNames;
     protected ref array<string> m_PlrUids;
-    protected ref array<string> m_PlrRowUid;
+    protected ref OZ_VppFlexRows m_PlrRows;
     protected int    m_PlrMax;
+
+    // "Інше про гравця": the ways from a player's card into other pages about him, as
+    // AddPlayerLink gathered them (title, what is there, the page it opens); the card has
+    // PLR_LINKS places. And for how many more frames the card's head is laid out again
+    // (a text knows its width for certain only once it was drawn).
+    static const int PLR_LINKS = 3;
+    protected ref array<string> m_PlrLinkTitle;
+    protected ref array<string> m_PlrLinkWhat;
+    protected ref array<string> m_PlrLinkPage;
+    protected int    m_PlrFlowDue;
     protected string m_PlrPick;
     protected string m_PlrFindSeen;
     protected bool   m_PlrPeeked;
@@ -435,6 +543,36 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             m_Grip.SetFlags(WidgetFlags.DRAGGABLE);
         m_closeButton = ButtonWidget.Cast(M_SUB_WIDGET.FindAnyWidget("BtnVppClose"));
 
+        m_Flex = new OZ_VppFlex();
+        m_OvOrder = new array<int>();
+        m_WinW = DEF_W * UnitScale();
+        m_WinH = DEF_H * UnitScale();
+        m_Content = M_SUB_WIDGET.FindAnyWidget("VppContent");
+        if (m_Content)
+            m_Content.SetFlags(WidgetFlags.CLIPCHILDREN);
+        // The confirm strip lives in the content frame beside the pages and over them: a
+        // page's root has priority 100, a module's own strip (a draft bar) takes 150, this
+        // one 200. As a child of the window's root with a sort of 20 it was shown and drawn
+        // under the page (measured 2026-11-13).
+        m_ConfirmBar = OZ_VppFlex.Create("OpenZone_VPP/gui/layouts/oz_vpp_confirm.layout", M_SUB_WIDGET, "OZ_VppConfirm");
+        if (m_ConfirmBar)
+        {
+            if (m_Content)
+                m_Content.AddChild(m_ConfirmBar);
+            m_ConfirmBar.Show(false);
+            m_ConfirmBar.SetSort(200);
+        }
+        if (m_Grip)
+            m_Grip.SetSort(400);
+        m_SearchBox = EditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("VppSearch"));
+        m_SearchSeen = "";
+        m_ChipsAt = 0;
+        m_PhAt = 0;
+        m_StatusSaid = "";
+        m_PhEdits = new array<EditBoxWidget>();
+        m_PhLabels = new array<Widget>();
+        AdoptPlaceholders(M_SUB_WIDGET.FindAnyWidget("VppHeader"));
+
         m_TabIds  = new array<string>();
         m_PageModule = new array<string>();
         m_PageLabel  = new array<string>();
@@ -456,10 +594,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         m_RawCheckedErr = "";
         m_RawTickAt = 0;
         m_CfgQ      = new array<string>();
-        m_RawRows = new array<string>();
         m_PlrNames  = new array<string>();
         m_PlrUids   = new array<string>();
-        m_PlrRowUid = new array<string>();
+        m_PlrLinkTitle = new array<string>();
+        m_PlrLinkWhat  = new array<string>();
+        m_PlrLinkPage  = new array<string>();
+        m_PlrFlowDue = 0;
         m_PlrMax = 0;
         m_PlrPick = "";
         m_PlrFindSeen = "";
@@ -468,28 +608,30 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         m_PlrCharName = "";
         m_PlrCharGen = 0;
         m_PlrWantWipe = false;
-        m_SpawnRowKind = new array<string>();
-        m_SpawnRowKey  = new array<string>();
         m_SpPick = "";
         m_SpSlugPick = "";
         m_SpDrawnAt = 0;
+        m_SpLabels = new array<Widget>();
+        m_SpLabelsUsed = 0;
+        m_CoreFitW = 0;
+        m_CoreFitH = 0;
+        m_CoreFitDue = 0;
         m_IdSource = "";
         m_IdFactions = new array<string>();
         m_IdNames = new array<string>();
         m_IdAsked = false;
         m_FfrOn = false;
-        m_FfrRowGroup = new array<string>();
         m_FfrPick = "";
+        m_FfrFacPick = "";
         m_FfrApplied = false;
         m_FfrTickAt = 0;
         m_NwVoices = new array<string>();
         m_NwPick   = 0;
         m_NwSelf   = "";
+        m_NwFitDue = 0;
         m_MirrorKinds = new array<string>();
         m_MirrorOn    = new array<int>();
         m_MirrorNotes = new array<string>();
-        m_MirrorBtns  = new array<Widget>();
-        m_MrRows      = new array<Widget>();
 
         // Ядро's pages (VPP rework 2026-11-12): the journal first, the config files last.
         AddOwnPane("overview", "#STR_OZ_VPP_PAGE_OVERVIEW", "JrHint");
@@ -506,6 +648,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         AddOwnPane("players", "#STR_OZ_VPP_PAGE_PLAYERS", "");
         AddOwnPane("mirror",  "#STR_OZ_VPP_PAGE_MIRROR",  "");
         AddOwnPane("raw",     "#STR_OZ_VPP_PAGE_FILES",   "");
+        // The spawns page's radius starts at the server's own default, as the board shows.
+        SetEdit("SpRadius", "20");
+        // The core's own way out of a player's card: his personal spawn point.
+        AddPlayerLink("#STR_OZ_VPP_PAGE_SPAWNS", "#STR_OZ_VPP_PLR_LINK_SPAWNS", "spawns");
         m_PlrFindBox = EditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("PlrFind"));
         m_NwTitleBox = EditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("NwTitle"));
         m_RawEditBox = MultilineEditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("RawEdit"));
@@ -562,17 +708,16 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // mirror_list, а вона -- з того, що моди зареєстрували.
     protected bool m_MirrorKnown = false;
 
-    // Паралельні списки: рід, його стан, речення «що буде, як натиснути» і
-    // сама кнопка. Клік шукається по кнопці, тобто рід їде разом із рядком,
+    // Паралельні списки, по одному запису на рядок: рід, його стан і речення «що
+    // буде, як натиснути». Клік шукається по рядку, тобто рід їде разом із рядком,
     // а не зашитий в ім'я віджета.
     protected ref array<string> m_MirrorKinds;
     protected ref array<int>    m_MirrorOn;
     protected ref array<string> m_MirrorNotes;
-    protected ref array<Widget> m_MirrorBtns;
 
-    // The rows themselves (m_MirrorBtns holds each row's switch): unlinked when the
-    // next mirror_list builds them again.
-    protected ref array<Widget> m_MrRows;
+    // The rows themselves, a row template each (oz_vpp_mirror_row): made again by every
+    // mirror_list.
+    protected ref OZ_VppFlexRows m_MrRows;
 
     // ------------------------------------------------- Ядро › Новини
     //
@@ -585,6 +730,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     protected string            m_NwSeenBody;
     protected EditBoxWidget          m_NwTitleBox;
     protected MultilineEditBoxWidget m_NwBodyBox;
+
+    // The newest posts as the bridge listed them (news_list), a row each; and for how
+    // many more frames the preview's card is fitted to its text (a wrapped text may know
+    // its height only after it was drawn once).
+    protected ref OZ_VppFlexRows m_NwRows;
+    protected int                m_NwFitDue;
 
     // Зазор між вкладками в одиницях розмітки -- дзеркало vpp.tabGap із
     // ui/tokens.json. Рушій того файлу не читає, тому число живе двічі:
@@ -601,26 +752,39 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     protected float m_GripDX, m_GripDY;
     protected float m_RestX, m_RestY, m_RestW, m_RestH;
 
-    // Дзеркала токенів ui/tokens.json (рушій того файлу не читає, як і для
-    // TAB_GAP): vpp.paneY -- де починаються панелі, vpp.windowX/windowY --
-    // місце першого показу частками батька. MIN_W/MIN_H -- найменше вікно,
-    // в одиницях розмітки: смуга з кількома вкладками і ще видно панель.
-    static const float PANE_Y = 96;
-    static const float WIN_X  = 0.14;
-    static const float WIN_Y  = 0.08;
-    static const float MIN_W  = 960;
-    static const float MIN_H  = 600;
+    // Where the window first stands (fractions of VPP's panel) and its smallest size, in
+    // layout units. A page follows its window by the rule measured as the mockup grew;
+    // the same rule is trusted a little way down (lists and stretching columns give up
+    // 260 x 172 units), and the window does not get smaller than that: below it a page's
+    // fixed parts would meet.
+    static const float WIN_X  = 0.008;
+    static const float WIN_Y  = 0.06;
+    static const float MIN_W  = 1340;
+    static const float MIN_H  = 728;
 
-    // The window of the rework (ui/tokens.json group vpp, mirrored like the rest): the
-    // title band, the rail, the status bar, a rail row, the confirm strip, the size the
-    // window opens at. Layout units; times UnitScale() for pixels.
-    static const float TOP     = 48;
-    static const float RAIL    = 220;
-    static const float STATUS  = 32;
-    static const float ROW     = 32;
-    static const float CONFIRM = 48;
-    static const float DEF_W   = 1280;
-    static const float DEF_H   = 760;
+    // The window as its layout declares it (oz_vpp_admin.layout, converted from the
+    // mockup's Main board), in layout units; times UnitScale() for pixels. The engine does
+    // not read the mockup, so the numbers live twice: convert again, check these. DEF: the
+    // window; CONTENT: the frame the pages live in; PAGE: a page as the mockup draws it
+    // (2 x 4 units more than the room the window's own frame leaves: a page is fitted);
+    // CONFIRM: the confirm strip's height; HEAD_W and BAR_W: the title band and the status
+    // bar; SEARCH_X, CHIP_Y, CHIP_H, CRUMB_X, CRUMB_Y, CRUMB_H: parts of the title band.
+    static const float DEF_W     = 1600;
+    static const float DEF_H     = 900;
+    static const float CONTENT_X = 241;
+    static const float CONTENT_Y = 54;
+    static const float CONTENT_W = 1358;
+    static const float CONTENT_H = 808;
+    static const float PAGE_W    = 1360;
+    static const float PAGE_H    = 812;
+    static const float CONFIRM   = 60;
+    static const float BAR_W     = 1598;
+    static const float SEARCH_X  = 1288;
+    static const float CHIP_Y    = 15;
+    static const float CHIP_H    = 23;
+    static const float CRUMB_X   = 246;
+    static const float CRUMB_Y   = 18;
+    static const float CRUMB_H   = 17;
 
 
     // Своя панель -- окремою розміткою, точно як у склейок: створити під
@@ -630,7 +794,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     {
         string layout = "OpenZone_VPP/gui/layouts/oz_vpp_pane_" + id + ".layout";
 
-        Widget pane = GetGame().GetWorkspace().CreateWidgets(layout, M_SUB_WIDGET);
+        // The root's name is "Pane" and the id with a capital: checked, because the engine
+        // has handed one path another file's widgets (OZ_VppFlex.Create).
+        string first = id.Substring(0, 1);
+        first.ToUpper();
+        string rootName = "Pane" + first + id.Substring(1, id.Length() - 1);
+        Widget pane = OZ_VppFlex.Create(layout, M_SUB_WIDGET, rootName);
         if (!pane)
         {
             OZ_Log.Error("vpp pane: layout failed to load: " + layout);
@@ -697,27 +866,80 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         if (!shared)
         {
-            // A window smaller than its page cuts the page at its edge (measured 2026-11-09).
+            // The page lives in the content area's frame: cut at its edge, moved with it.
+            if (m_Content)
+                m_Content.AddChild(pane);
             pane.SetFlags(WidgetFlags.CLIPCHILDREN);
-            OZ_VppPaint.Repaint(pane);
+            // A page converted from the mockup carries its own colours; a pane from before
+            // is still repainted from the series palette to the window's.
+            if (!IsFlexPane(pane))
+                OZ_VppPaint.Repaint(pane);
+            AdoptPlaceholders(pane);
             PlacePane(pane);
         }
         LayoutRail();
     }
 
-    // The content area: right of the rail, under the title band, over the status bar.
+    // Whether a pane was laid out by css2layout: its root says so (the flag in its userID).
+    protected bool IsFlexPane(Widget pane)
+    {
+        if (!pane)
+            return false;
+        return (pane.GetUserID() & OZ_VppFlex.FLAG) != 0;
+    }
+
+    // An edit box named X with a label named XPh beside it: the label is the box's
+    // placeholder, shown while the box is empty (Tick keeps it so).
+    protected void AdoptPlaceholders(Widget root)
+    {
+        if (!root)
+            return;
+        Widget c = root.GetChildren();
+        string nm;
+        EditBoxWidget box;
+        while (c)
+        {
+            nm = c.GetName();
+            if (nm.Length() > 2 && nm.Substring(nm.Length() - 2, 2) == "Ph")
+            {
+                box = EditBoxWidget.Cast(M_SUB_WIDGET.FindAnyWidget(nm.Substring(0, nm.Length() - 2)));
+                if (box && m_PhEdits.Find(box) == -1)
+                {
+                    m_PhEdits.Insert(box);
+                    m_PhLabels.Insert(c);
+                }
+            }
+            AdoptPlaceholders(c);
+            c = c.GetSibling();
+        }
+    }
+
+    protected void FollowPlaceholders()
+    {
+        int i;
+        for (i = 0; i < m_PhEdits.Count(); i++)
+        {
+            if (m_PhEdits[i] && m_PhLabels[i])
+                m_PhLabels[i].Show(m_PhEdits[i].GetText() == "");
+        }
+    }
+
+    // A page in the content area. A converted page follows the area by the rule its layout
+    // carries, up from its design size and down to the window's smallest (the mockup draws
+    // its pages 2 x 4 units larger than the room the window's frame leaves, so a page is
+    // a little under its design size even in the window as drawn).
     protected void PlacePane(Widget pane)
     {
         float s = UnitScale();
-        float w, h;
-        M_SUB_WIDGET.GetSize(w, h);
-        if (w <= 0 || h <= 0)
+        float cw = m_WinW - (DEF_W - CONTENT_W) * s;
+        float ch = m_WinH - (DEF_H - CONTENT_H) * s;
+        pane.SetPos(0, 0);
+        if (!IsFlexPane(pane))
         {
-            w = DEF_W * s;
-            h = DEF_H * s;
+            pane.SetSize(cw, ch);
+            return;
         }
-        pane.SetPos(RAIL * s + 1, TOP * s);
-        pane.SetSize(w - RAIL * s - 1, h - (TOP + STATUS) * s);
+        m_Flex.Resize(pane, cw, ch, PAGE_W * s, PAGE_H * s);
     }
 
     protected int PagesOf(string module)
@@ -758,6 +980,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     }
 
     // The rail's rows, made again: few, and a module opening or closing moves the rest.
+    // The mockup's rail: 12 units of room on top, a module's head 40 high, its pages 32
+    // high a unit apart under it (4 above them, 6 below), 4 between modules.
     protected void LayoutRail()
     {
         Widget rail = M_SUB_WIDGET.FindAnyWidget("Rail");
@@ -774,35 +998,56 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         m_RailKey.Clear();
 
         float s = UnitScale();
-        float y = 8 * s;
+        float y = 12 * s;
         for (int m = 0; m < m_ModIds.Count(); m++)
         {
             string mod = m_ModIds[m];
             int pages = PagesOf(mod);
             bool open = m_ModOpen[m] == 1;
-            y = AddRailRow(rail, "mod", mod, m_ModLabels[m], pages, open, y, s);
-            if (pages < 2 || !open)
-                continue;
-            for (int p = 0; p < m_TabIds.Count(); p++)
+            AddRailRow(rail, "mod", mod, m_ModLabels[m], pages, open, y, s);
+            y += 40 * s;
+            if (pages > 1 && open)
             {
-                if (m_PageModule[p] == mod)
-                    y = AddRailRow(rail, "page", m_TabIds[p], m_PageLabel[p], 0, false, y, s);
+                y += 4 * s;
+                // the module's pages in the order they registered, its config files last
+                // (that page registers when cfg_list answers; a glue's page may come later)
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    for (int p = 0; p < m_TabIds.Count(); p++)
+                    {
+                        if (m_PageModule[p] != mod)
+                            continue;
+                        if (IsFilesPage(m_TabIds[p]) != (pass == 1))
+                            continue;
+                        AddRailRow(rail, "page", m_TabIds[p], m_PageLabel[p], 0, false, y, s);
+                        y += 33 * s;
+                    }
+                }
+                y += 5 * s;
             }
+            y += 4 * s;
         }
     }
 
-    protected float AddRailRow(Widget rail, string kind, string key, string label, int pages, bool open, float y, float s)
+    protected void AddRailRow(Widget rail, string kind, string key, string label, int pages, bool open, float y, float s)
     {
-        Widget row = GetGame().GetWorkspace().CreateWidgets("OpenZone_VPP/gui/layouts/oz_vpp_rail_row.layout", rail);
+        string layout = "OpenZone_VPP/gui/layouts/oz_vpp_rail_page.layout";
+        string rootName = "OZ_VppRailPage";
+        if (kind == "mod")
+        {
+            layout = "OpenZone_VPP/gui/layouts/oz_vpp_rail_mod.layout";
+            rootName = "OZ_VppRailMod";
+        }
+        Widget row = OZ_VppFlex.Create(layout, rail, rootName);
         if (!row)
         {
-            OZ_Log.Error("vpp rail: layout failed to load");
-            return y;
+            OZ_Log.Error("vpp rail: layout failed to load: " + layout);
+            return;
         }
 
         int n = m_RailRows.Count();
         row.SetName("rail:" + n.ToString());
-        row.SetPos(0, y);
+        row.SetPos(10 * s, y);
         m_RailRows.Insert(row);
         m_RailKind.Insert(kind);
         m_RailKey.Insert(key);
@@ -820,43 +1065,69 @@ class OZ_VppAdminMenu : AdminHudSubMenu
                 current = holds;
         }
 
-        int text = ARGBF(1, 0.88, 0.875, 0.855);
-        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        int cInk = ARGB(255, 224, 223, 218);
+        int cMuted = ARGB(255, 160, 159, 153);
 
-        TextWidget t = TextWidget.Cast(row.FindAnyWidget("RailRowText"));
-        if (t)
+        if (kind == "mod")
         {
-            t.SetText(label);
-            if (kind == "page")
-                t.SetPos(30 * s, 0);
-            if (current || holds)
-                t.SetColor(text);
-            else
-                t.SetColor(muted);
+            TextWidget modName = TextWidget.Cast(row.FindAnyWidget("RailModName"));
+            if (modName)
+            {
+                modName.SetText(label);
+                if (holds)
+                    modName.SetColor(cInk);
+                else
+                    modName.SetColor(cMuted);
+            }
+            TextWidget mark = TextWidget.Cast(row.FindAnyWidget("RailModMark"));
+            if (mark)
+                mark.SetText(ModuleMark(key, label));
+            Widget modBg = row.FindAnyWidget("OZ_VppRailModBg");
+            if (modBg)
+                modBg.Show(holds);
+            ImageWidget chev = ImageWidget.Cast(row.FindAnyWidget("RailModChevron"));
+            if (chev)
+            {
+                chev.Show(pages > 1);
+                if (open)
+                    chev.LoadImageFile(0, "set:ozv_ui image:tri_down");
+                else
+                    chev.LoadImageFile(0, "set:ozv_ui image:tri_right");
+                chev.SetImage(0);
+            }
+            return;
         }
 
-        TextWidget mark = TextWidget.Cast(row.FindAnyWidget("RailRowMark"));
-        if (mark)
+        TextWidget pageName = TextWidget.Cast(row.FindAnyWidget("RailPageName"));
+        if (pageName)
         {
-            if (kind == "mod" && pages > 1 && open)
-                mark.SetText("-");
-            else if (kind == "mod" && pages > 1)
-                mark.SetText("+");
+            pageName.SetText(label);
+            if (current)
+                pageName.SetColor(cInk);
             else
-                mark.SetText("");
+                pageName.SetColor(cMuted);
         }
+        Widget pageBg = row.FindAnyWidget("OZ_VppRailPageBg");
+        if (pageBg)
+            pageBg.Show(current);
+        Widget pageBar = row.FindAnyWidget("OZ_VppRailPageBar");
+        if (pageBar)
+            pageBar.Show(current);
+    }
 
-        Widget bar = row.FindAnyWidget("RailRowBar");
-        if (bar)
-            bar.Show(current);
-        // The pick is opaque: a see-through one turned pale under the cursor on the
-        // stand (2026-11-12), the rail's opaque rows did not. The accent at 0.25 over
-        // the rail, mixed here.
-        Widget bg = row.FindAnyWidget("RailRowBg");
-        if (bg && current)
-            bg.SetColor(ARGB(255, 65, 37, 17));
-
-        return y + ROW * s;
+    // The two letters on a module's badge: the stringtable's STR_OZ_VPP_MARK_<ID> (each
+    // mod names its own), else the first two letters of the module's name.
+    protected string ModuleMark(string module, string label)
+    {
+        string k = "STR_OZ_VPP_MARK_" + module;
+        k.ToUpper();
+        string got = Widget.TranslateString("#" + k);
+        if (got != "" && got.IndexOf("STR_") == -1)
+            return got;
+        string nm = Widget.TranslateString(label);
+        if (nm.LengthUtf8() <= 2)
+            return nm;
+        return nm.SubstringUtf8(0, 2);
     }
 
     // A module row opens its pages and shows the first, or closes them when it holds
@@ -937,24 +1208,193 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // The title band names the open page: its module, and the page when it has several.
     protected void PaintCrumb()
     {
-        TextWidget t = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("VppCrumb"));
-        if (!t)
+        TextWidget mod = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("VppCrumbMod"));
+        TextWidget sep = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("VppCrumbSep"));
+        TextWidget page = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("VppCrumbPage"));
+        if (!mod || !sep || !page)
             return;
 
         int i = m_TabIds.Find(m_Shown);
         if (i < 0)
         {
-            t.SetText("");
+            mod.SetText("");
+            sep.SetText("");
+            page.SetText("");
             return;
         }
 
-        string mod = Widget.TranslateString(ModuleLabelOf(m_Shown));
-        if (PagesOf(m_PageModule[i]) < 2)
+        mod.SetText(Widget.TranslateString(ModuleLabelOf(m_Shown)));
+        if (PagesOf(m_PageModule[i]) > 1)
         {
-            t.SetText(mod);
-            return;
+            sep.SetText("›");
+            page.SetText(Widget.TranslateString(m_PageLabel[i]));
         }
-        t.SetText(mod + "  /  " + Widget.TranslateString(m_PageLabel[i]));
+        else
+        {
+            sep.SetText("");
+            page.SetText("");
+        }
+        FlowCrumb();
+    }
+
+    // The crumb's words stand one after another, whatever their length.
+    protected void FlowCrumb()
+    {
+        TextWidget mod = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("VppCrumbMod"));
+        TextWidget sep = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("VppCrumbSep"));
+        TextWidget page = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("VppCrumbPage"));
+        if (!mod || !sep || !page)
+            return;
+
+        float s = UnitScale();
+        float x = CRUMB_X * s;
+        float y = CRUMB_Y * s;
+        float hgt = CRUMB_H * s;
+        x = FlowWord(mod, x, y, hgt, 8 * s);
+        x = FlowWord(sep, x, y, hgt, 8 * s);
+        FlowWord(page, x, y, hgt, 0);
+    }
+
+    // One word of a line: put at x, made as wide as its text; returns where the next goes.
+    protected float FlowWord(TextWidget t, float x, float y, float hgt, float gap)
+    {
+        int tw;
+        int th;
+        t.Update();
+        t.GetTextSize(tw, th);
+        t.SetPos(x, y);
+        t.SetSize(tw + 2, hgt);
+        if (tw <= 0)
+            return x;
+        return x + tw + gap;
+    }
+
+    // ---------------------------------------------------------- the title band's chips
+
+    // The server's name, who is in and whether the Discord bridge answers: from the game
+    // and from the last overview (asked when the window opens and every quarter minute).
+    protected void PaintChips()
+    {
+        int cMuted = ARGB(255, 160, 159, 153);
+        int cOk = ARGB(255, 102, 199, 92);
+        int cBad = ARGB(255, 224, 82, 74);
+
+        string host = g_Game.GetHostName();
+        Widget chip = M_SUB_WIDGET.FindAnyWidget("VppChipServer");
+        if (chip)
+            chip.Show(host != "");
+        OvText("VppChipServerText", Widget.TranslateString("#STR_OZ_VPP_CHIP_SERVER") + " " + host, cMuted);
+
+        Widget players = M_SUB_WIDGET.FindAnyWidget("VppChipPlayers");
+        Widget bridge = M_SUB_WIDGET.FindAnyWidget("VppChipBridge");
+        if (players)
+            players.Show(m_Ov != null);
+        if (bridge)
+            bridge.Show(m_Ov != null);
+        if (m_Ov)
+        {
+            OvText("VppChipPlayersText", Widget.TranslateString("#STR_OZ_VPP_CHIP_PLAYERS") + " " + m_Ov.Players.ToString(), cOk);
+            ChipDot("VppChipPlayersDot", cOk);
+            if (m_Ov.Bridge == OZ_AdminBridge.UP)
+            {
+                OvText("VppChipBridgeText", "#STR_OZ_VPP_CHIP_BRIDGE", cOk);
+                ChipDot("VppChipBridgeDot", cOk);
+            }
+            else if (m_Ov.Bridge == OZ_AdminBridge.DOWN)
+            {
+                OvText("VppChipBridgeText", "#STR_OZ_VPP_CHIP_BRIDGE_DOWN", cBad);
+                ChipDot("VppChipBridgeDot", cBad);
+            }
+            else
+            {
+                OvText("VppChipBridgeText", "#STR_OZ_VPP_CHIP_BRIDGE_OFF", cMuted);
+                ChipDot("VppChipBridgeDot", cMuted);
+            }
+        }
+        FitChips();
+    }
+
+    protected void ChipDot(string name, int color)
+    {
+        Widget dot = M_SUB_WIDGET.FindAnyWidget(name);
+        if (dot)
+            dot.SetColor(color);
+    }
+
+    // The chips stand right to left before the search box, each as wide as its words.
+    protected void FitChips()
+    {
+        float s = UnitScale();
+        float right = SEARCH_X * s + (m_WinW - DEF_W * s) - 16 * s;
+        right = FitChip("VppChipBridge", true, right, s);
+        right = FitChip("VppChipPlayers", true, right, s);
+        FitChip("VppChipServer", false, right, s);
+    }
+
+    protected float FitChip(string name, bool dot, float right, float s)
+    {
+        Widget chip = M_SUB_WIDGET.FindAnyWidget(name);
+        TextWidget t = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget(name + "Text"));
+        Widget bg = M_SUB_WIDGET.FindAnyWidget(name + "Bg");
+        if (!chip || !t || !chip.IsVisible())
+            return right;
+
+        int tw;
+        int th;
+        t.Update();
+        t.GetTextSize(tw, th);
+        float lead = 10 * s;
+        if (dot)
+            lead = 21 * s;
+        float w = lead + tw + 10 * s;
+        chip.SetPos(right - w, CHIP_Y * s);
+        chip.SetSize(w, CHIP_H * s);
+        if (bg)
+            bg.SetSize(w, CHIP_H * s);
+        t.SetPos(lead, 4 * s);
+        t.SetSize(tw + 2, 15 * s);
+        return right - w - 8 * s;
+    }
+
+    // The search box of the title band finds a page by its name or its module's name and
+    // opens the first that fits (two letters or more).
+    protected void FollowSearch()
+    {
+        if (!m_SearchBox)
+            return;
+        string text = m_SearchBox.GetText();
+        if (text == m_SearchSeen)
+            return;
+        m_SearchSeen = text;
+
+        // OZ_VppFold, not ToLower: the engine's ToLower makes every Cyrillic byte a space.
+        string want = text;
+        want.TrimInPlace();
+        want = OZ_VppFold.Lower(want);
+        if (want.LengthUtf8() < 2)
+            return;
+
+        int i;
+        string have;
+        for (i = 0; i < m_TabIds.Count(); i++)
+        {
+            have = OZ_VppFold.Lower(Widget.TranslateString(m_PageLabel[i]));
+            if (have.IndexOf(want) != -1 && m_TabIds[i] != m_Shown)
+            {
+                ShowPane(m_TabIds[i]);
+                return;
+            }
+        }
+        for (i = 0; i < m_TabIds.Count(); i++)
+        {
+            have = OZ_VppFold.Lower(Widget.TranslateString(ModuleLabelOf(m_TabIds[i])));
+            if (have.IndexOf(want) != -1)
+            {
+                if (ModuleOf(m_Shown) != m_PageModule[i])
+                    ShowPane(m_TabIds[i]);
+                return;
+            }
+        }
     }
 
     // Панель показано -- свіжі дані. Субмод КПК довантажує своє тут.
@@ -980,8 +1420,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             PaintSpawnCycler();
             SpDrawScheme();
         }
-        if (id == "raw")
+        if (IsFilesPage(id))
         {
+            // The list as it is known already, with this module's files first; the
+            // answer of cfg_list builds it again.
+            if (m_CfgNames.Count() > 0)
+                RebuildRawList();
             Ask(OZ_AdminSect.CONFIG, "cfg_list", "{}");
             RawPaintStatus(false);
         }
@@ -1006,6 +1450,12 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             else
                 PlrPaintCard();
         }
+
+        // What the core's pages lay out by script is laid out for the page now shown: it
+        // may have been built, or the window resized, while it was hidden. Now, and on
+        // the next frames (Tick), when its texts have been drawn and know their widths.
+        CoreRefit(id);
+        m_CoreFitDue = 2;
     }
 
     override void OnMenuShow()
@@ -1019,6 +1469,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             ApplyWindowSize(DEF_W * UnitScale(), DEF_H * UnitScale());
         LayoutRail();
         PaintStatus();
+        PaintChips();
+        PaintFoot();
+        m_ChipsAt = GetGame().GetTime();
+        OZ_Rpc.AdminRequest(OZ_AdminSect.CONFIG, "overview", "{}");
 
         Ask(OZ_AdminSect.CONFIG, "cfg_list", "{}");
 
@@ -1100,13 +1554,9 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         }
     }
 
-    // The window's new size in pixels.
-    //
-    // NOTHING FOLLOWS THE WINDOW BY ITSELF: the layout generator resolves "fill" into
-    // exact sizes when it builds (oz_vpp_admin.layout), so the ground, the border, the
-    // title band, the rail and the status bar are sized from here. The close button,
-    // the grip, the status bar and the confirm strip are anchored; the engine moves
-    // them. Every page gets the content area; glues hear OnWindowResized.
+    // The window's new size in pixels. Its own parts follow by the rule its layout carries
+    // (m_Flex); every page gets the content area; what is fitted to its text (the crumb,
+    // the chips, the status bar's right half) is fitted again; glues hear OnWindowResized.
     protected void ApplyWindowSize(float w, float h)
     {
         float s = UnitScale();
@@ -1115,48 +1565,70 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (h < MIN_H * s)
             h = MIN_H * s;
 
-        M_SUB_WIDGET.SetSize(w, h);
+        m_WinW = w;
+        m_WinH = h;
         m_Sized = true;
+        m_Flex.Resize(M_SUB_WIDGET, w, h, DEF_W * s, DEF_H * s);
 
-        // Every size is written, none read back: before the engine's first layout pass
-        // a widget reads as 0 (gui-layouts §24).
-        float body = h - (TOP + STATUS) * s;
-        float content = w - RAIL * s - 1;
-        FitChrome("VppBgEdge", w + 2 * s, h + 2 * s);
-        FitChrome("VppBg", w, h);
-        FitChrome("VppHeader", w, TOP * s);
-        FitChrome("VppHeadBg", w, TOP * s);
-        FitChrome("Header", w, TOP * s);
-        FitChrome("Rail", RAIL * s, body);
-        FitChrome("RailEdge", 1, body);
-        FitChrome("StatusBar", w, STATUS * s);
-        FitChrome("ConfirmBar", content, CONFIRM * s);
-        FitChrome("ConfirmLine", content, 1);
-        // The question takes the strip up to its buttons (16 in, 286 of buttons, 12 apart).
-        FitChrome("ConfirmText", content - 314 * s, CONFIRM * s);
-
+        float cw = w - (DEF_W - CONTENT_W) * s;
+        float ch = h - (DEF_H - CONTENT_H) * s;
+        Widget pane;
+        Widget before;
         for (int i = 0; i < m_TabIds.Count(); i++)
         {
-            Widget pane = m_Panes.Get(m_TabIds[i]);
-            if (!pane)
+            pane = m_Panes.Get(m_TabIds[i]);
+            if (!pane || pane == before)
                 continue;
-            pane.SetPos(RAIL * s + 1, TOP * s);
-            pane.SetSize(content, body);
+            before = pane;
+            PlacePane(pane);
         }
 
-        if (m_Grip)
-            m_Grip.SetPos(0, 0);
+        if (m_ConfirmBar && m_ConfirmBar.IsVisible())
+            PlaceConfirm();
+        FlowCrumb();
+        FitChips();
+        FlowStatus();
 
-        OnWindowResized(content, body);
+        // The journal's rows and its box follow the page (a glue's OnWindowResized may
+        // not call super, so this is not left to that hook).
+        if (m_JrRows)
+        {
+            m_JrRows.Fit();
+            PlaceJournalSigns();
+            FitJournalBox();
+        }
+
+        OnWindowResized(cw, ch);
     }
 
-    // Один віджет хрому -- на новий розмір у пікселях; h < 0 -- висота
-    // лишається своя (шапка, смуга).
-    protected void FitChrome(string name, float w, float h)
+    // How far above the page's bottom the confirm strip stands, in layout units: a page
+    // with a bar of its own at its bottom (the research editor's draft bar) lifts it.
+    protected float ConfirmLift()
     {
-        Widget c = M_SUB_WIDGET.FindAnyWidget(name);
-        if (c)
-            c.SetSize(w, h);
+        return 0;
+    }
+
+    protected void PlaceConfirm()
+    {
+        if (!m_ConfirmBar)
+            return;
+        float s = UnitScale();
+        float cw = m_WinW - (DEF_W - CONTENT_W) * s;
+        float ch = m_WinH - (DEF_H - CONTENT_H) * s;
+        m_Flex.Resize(m_ConfirmBar, cw, CONFIRM * s, PAGE_W * s, CONFIRM * s);
+        m_ConfirmBar.SetPos(0, ch - (CONFIRM + ConfirmLift()) * s);
+    }
+
+    // The rail's foot: where this window lives and who is looking.
+    protected void PaintFoot()
+    {
+        int cMuted = ARGB(255, 160, 159, 153);
+        OvText("RailFootA", "#STR_OZ_VPP_FOOT_A", cMuted);
+        string who = "";
+        PlayerBase me = PlayerBase.Cast(GetGame().GetPlayer());
+        if (me && me.GetIdentity())
+            who = me.GetIdentity().GetName();
+        OvText("RailFootB", Widget.TranslateString("#STR_OZ_VPP_FOOT_B") + " " + who, cMuted);
     }
 
     // Точка розширення для панелей склейок: вікно змінило розмір, панель
@@ -1232,12 +1704,42 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             PlrFollowFind();
         if (m_Shown == "news")
             NwFollow();
-        if (m_Shown == "raw")
+        if (IsFilesPage(m_Shown))
             RawFollow();
         if (m_Shown == "ffr")
             FfrFollow();
         if (m_Shown == "spawns" && GetGame().GetTime() - m_SpDrawnAt >= 500)
             SpDrawScheme();
+
+        // The core's own pages follow the window: when its size changed since the open
+        // page was last fitted, the page's lists and flowed words are fitted again, on
+        // this frame and the two after it.
+        if (m_WinW != m_CoreFitW || m_WinH != m_CoreFitH)
+        {
+            m_CoreFitW = m_WinW;
+            m_CoreFitH = m_WinH;
+            m_CoreFitDue = 3;
+        }
+        if (m_CoreFitDue > 0)
+        {
+            m_CoreFitDue--;
+            CoreRefit(m_Shown);
+        }
+
+        // The title band: the search follows typing, placeholders their boxes (seven
+        // times a second), the chips ask the server every quarter minute.
+        FollowSearch();
+        int now = GetGame().GetTime();
+        if (now - m_PhAt >= 150)
+        {
+            m_PhAt = now;
+            FollowPlaceholders();
+        }
+        if (now - m_ChipsAt >= 15000)
+        {
+            m_ChipsAt = now;
+            OZ_Rpc.AdminRequest(OZ_AdminSect.CONFIG, "overview", "{}");
+        }
 
         OZ_VppJournal.Expire();
         int rev = OZ_VppJournal.Revision();
@@ -1281,44 +1783,292 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         return line;
     }
 
+    // The status bar: how the last request stands, what it said, the config problems the
+    // last overview counted and the last thing done.
     protected void PaintStatus()
     {
         if (!M_SUB_WIDGET)
             return;
-        TextWidget t = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("StatusText"));
-        Widget dot = M_SUB_WIDGET.FindAnyWidget("StatusDot");
+        int cMuted = ARGB(255, 160, 159, 153);
+        int cOk = ARGB(255, 102, 199, 92);
+        int cAlert = ARGB(255, 245, 199, 64);
+
         OZ_VppJournalEntry e = OZ_VppJournal.Last();
-        if (!t || !e)
-            return;
-        int c = LevelColor(e.Level);
-        t.SetText(JournalLine(e));
-        t.SetColor(c);
-        if (dot)
-            dot.SetColor(c);
+        string state = "#STR_OZ_VPP_ST_READY";
+        int c = cOk;
+        string said = "";
+        string last = "";
+        if (e)
+        {
+            c = LevelColor(e.Level);
+            if (e.Level == OZ_VppJournal.LV_WAIT)
+                state = "#STR_OZ_VPP_ST_WAIT";
+            else if (e.Level == OZ_VppJournal.LV_ERR)
+                state = "#STR_OZ_VPP_ST_ERR";
+            else if (e.Level == OZ_VppJournal.LV_WARN)
+                state = "#STR_OZ_VPP_ST_WARN";
+            else
+                c = cOk;
+            said = OZ_VppJournal.Text(e.Module) + ": " + OZ_VppJournal.Text(e.What);
+            if (e.Result != "")
+                said = said + " -> " + OZ_VppJournal.Text(e.Result);
+            last = Widget.TranslateString("#STR_OZ_VPP_ST_LAST") + " " + e.Time;
+        }
+        OvText("StatusState", state, c);
+        ChipDot("StatusDot", c);
+        m_StatusSaid = said;
+        OvText("StatusText", said, cMuted);
+        OvText("StatusLast", last, cMuted);
+
+        string problems = Widget.TranslateString("#STR_OZ_VPP_ST_PROBLEMS") + " ";
+        if (m_Ov)
+        {
+            problems = problems + m_Ov.Problems.ToString() + " ›";
+            if (m_Ov.Problems > 0)
+                OvText("StatusCount", problems, cAlert);
+            else
+                OvText("StatusCount", problems, cMuted);
+        }
+        else
+            OvText("StatusCount", problems + "…", cMuted);
+        FlowStatus();
     }
 
-    // Ядро › Огляд: the journal, newest first; "errors" keeps the failed ones only.
-    protected void RebuildJournal()
+    // The bar's words stand by their length: the state and what was said from the left,
+    // the last action and the problems from the right; what was said is cut where the
+    // right half begins.
+    protected void FlowStatus()
     {
-        TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("JournalList"));
-        if (!lb)
+        TextWidget state = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("StatusState"));
+        TextWidget said = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("StatusText"));
+        TextWidget last = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("StatusLast"));
+        TextWidget count = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("StatusCount"));
+        Widget btn = M_SUB_WIDGET.FindAnyWidget("BtnVppProblems");
+        if (!state || !said || !last || !count || !btn)
             return;
 
-        m_Repaint = true;
-        lb.ClearItems();
+        float s = UnitScale();
+        float y = 12 * s;
+        float hgt = 15 * s;
+        float barW = BAR_W * s + (m_WinW - DEF_W * s);
+        float left = FlowWord(state, 27 * s, y, hgt, 16 * s);
+
+        int tw;
+        int th;
+        last.Update();
+        last.GetTextSize(tw, th);
+        float right = barW - 16 * s - tw;
+        last.SetPos(right, y);
+        last.SetSize(tw + 2, hgt);
+        if (tw > 0)
+            right = right - 16 * s;
+
+        count.Update();
+        count.GetTextSize(tw, th);
+        right = right - tw;
+        btn.SetPos(right, y);
+        btn.SetSize(tw + 2, hgt);
+        count.SetPos(0, 0);
+        count.SetSize(tw + 2, hgt);
+        right = right - 16 * s;
+
+        // What was said: as much of it as fits.
+        float room = right - left;
+        if (room < 0)
+            room = 0;
+        said.SetPos(left, y);
+        said.SetSize(room, hgt);
+        said.SetText(m_StatusSaid);
+        said.Update();
+        said.GetTextSize(tw, th);
+        if (tw > room && tw > 0)
+        {
+            string full = m_StatusSaid;
+            int n = full.LengthUtf8();
+            float f = n;
+            int keep = f * room / tw;
+            keep = keep - 2;
+            if (keep < 1)
+                keep = 1;
+            if (keep < n)
+                said.SetText(full.SubstringUtf8(0, keep) + "…");
+        }
+    }
+
+    // Ядро › Огляд: the journal, newest first; "errors" keeps the failed ones only, "only
+    // mine" leaves the other admins' out. A row per entry (oz_vpp_journal_row.layout); the
+    // journal's box is as tall as its rows and the page scrolls.
+    protected void RebuildJournal()
+    {
+        Widget host = M_SUB_WIDGET.FindAnyWidget("OvJournal");
+        if (!host)
+            return;
+        if (!m_JrRows)
+            m_JrRows = new OZ_VppFlexRows(m_Flex, host, "OpenZone_VPP/gui/layouts/oz_vpp_journal_row.layout", "OZ_VppJournalRow", 1310, 33);
+
+        m_JrRows.Clear();
+        int errors = 0;
+        OZ_VppJournalEntry e;
+        Widget row;
         for (int i = OZ_VppJournal.Count() - 1; i >= 0; i--)
         {
-            OZ_VppJournalEntry e = OZ_VppJournal.At(i);
+            e = OZ_VppJournal.At(i);
+            if (e.Level == OZ_VppJournal.LV_ERR)
+                errors++;
             if (m_JournalErrors && e.Level != OZ_VppJournal.LV_ERR)
                 continue;
             if (m_JournalMine && e.Who != "")
                 continue;
-            int row = lb.AddItem(JournalLine(e), NULL, 0);
-            lb.SetItemColor(row, 0, LevelColor(e.Level));
+            if (m_JrRows.Count() >= 120)
+                continue;
+            row = m_JrRows.Add(i.ToString());
+            if (row)
+                PaintJournalRow(row, e);
         }
-        m_Repaint = false;
+        m_JrRows.Fit();
+        PlaceJournalSigns();
+
+        string errWord = Widget.TranslateString("#STR_OZ_VPP_JR_ERRORS");
+        OvText("BtnJrErrText", errWord + " · " + errors.ToString(), ARGB(255, 160, 159, 153));
+        PaintJournalFilter();
+        FitJournalBox();
     }
 
+    protected void RowText(Widget row, string name, string text, int color)
+    {
+        TextWidget t = TextWidget.Cast(row.FindAnyWidget(name));
+        if (!t)
+            return;
+        t.SetText(text);
+        t.SetColor(color);
+    }
+
+    protected void PaintJournalRow(Widget row, OZ_VppJournalEntry e)
+    {
+        int cInk = ARGB(255, 224, 223, 218);
+        int cMuted = ARGB(255, 160, 159, 153);
+        int c = LevelColor(e.Level);
+
+        string who = e.Who;
+        if (who == "")
+        {
+            PlayerBase me = PlayerBase.Cast(GetGame().GetPlayer());
+            if (me && me.GetIdentity())
+                who = me.GetIdentity().GetName();
+        }
+        RowText(row, "JrTime", e.Time, cMuted);
+        RowText(row, "JrModule", OZ_VppJournal.Text(e.Module), cMuted);
+        RowText(row, "JrWho", who, cMuted);
+        RowText(row, "JrWhat", OZ_VppJournal.Text(e.What), cInk);
+        RowText(row, "JrResult", OZ_VppJournal.Text(e.Result), c);
+
+        // The sign before the result: done, failed, waiting; nothing for a plain note.
+        ImageWidget sign = ImageWidget.Cast(row.FindAnyWidget("JrResultIcon"));
+        if (!sign)
+            return;
+        string image = "";
+        if (e.Level == OZ_VppJournal.LV_OK)
+            image = "check";
+        else if (e.Level == OZ_VppJournal.LV_ERR)
+            image = "cross";
+        else if (e.Level == OZ_VppJournal.LV_WAIT)
+            image = "ring";
+        sign.Show(image != "" && e.Result != "");
+        if (image != "")
+        {
+            sign.LoadImageFile(0, "set:ozv_ui image:" + image);
+            sign.SetImage(0);
+            sign.SetColor(c);
+        }
+    }
+
+    // A result is written from the right; its sign stands before its first letter.
+    protected void PlaceJournalSigns()
+    {
+        if (!m_JrRows)
+            return;
+        float s = UnitScale();
+        float right = m_JrRows.Width() - 14 * s;
+        Widget row;
+        Widget sign;
+        TextWidget res;
+        int tw;
+        for (int i = 0; i < m_JrRows.Count(); i++)
+        {
+            row = m_JrRows.Row(i);
+            sign = row.FindAnyWidget("JrResultIcon");
+            res = TextWidget.Cast(row.FindAnyWidget("JrResult"));
+            if (!sign || !res)
+                continue;
+            tw = OZ_VppFlex.TextWidth(res);
+            sign.SetPos(right - tw - 16 * s, 11 * s);
+        }
+    }
+
+    // The three filters: the picked one lit.
+    protected void PaintJournalFilter()
+    {
+        bool all = !m_JournalErrors && !m_JournalMine;
+        PaintPill("BtnJrAll", all);
+        PaintPill("BtnJrErr", m_JournalErrors);
+        PaintPill("BtnJrMine", m_JournalMine);
+    }
+
+    // A pill of a filter row: lit (the accent's soft ground, bright words) or not (a
+    // frame, muted words). Its parts are <name>Edge, <name>Bg and <name>Text.
+    protected void PaintPill(string name, bool lit)
+    {
+        Widget t = M_SUB_WIDGET.FindAnyWidget(name + "Text");
+        if (lit)
+        {
+            OZ_VppFlex.Paint(M_SUB_WIDGET, name + "Edge", ARGB(255, 53, 35, 22));
+            OZ_VppFlex.Paint(M_SUB_WIDGET, name + "Bg", ARGB(255, 53, 35, 22));
+            if (t)
+                t.SetColor(ARGB(255, 224, 223, 218));
+            return;
+        }
+        OZ_VppFlex.Paint(M_SUB_WIDGET, name + "Edge", ARGB(255, 60, 60, 58));
+        OZ_VppFlex.Paint(M_SUB_WIDGET, name + "Bg", ARGB(255, 19, 19, 18));
+        if (t)
+            t.SetColor(ARGB(255, 160, 159, 153));
+    }
+
+    // The journal's box as tall as its rows, and the page's scrolled part as tall as what
+    // it holds. Called after the rows change and after a resize (the resize rule puts the
+    // box back to its drawn height).
+    protected void FitJournalBox()
+    {
+        Widget box = M_SUB_WIDGET.FindAnyWidget("OvJournalBox");
+        Widget edge = M_SUB_WIDGET.FindAnyWidget("OvJournalBoxEdge");
+        Widget bg = M_SUB_WIDGET.FindAnyWidget("OvJournalBoxBg");
+        Widget body = M_SUB_WIDGET.FindAnyWidget("OvBodyBody");
+        Widget scroll = M_SUB_WIDGET.FindAnyWidget("OvBodyScroll");
+        if (!box || !m_JrRows || !body || !scroll)
+            return;
+
+        float s = UnitScale();
+        int n = m_JrRows.Count();
+        float w = m_JrRows.Width() + 2 * s;
+        float h = (51 + n * 33) * s;
+        box.SetSize(w, h);
+        if (edge)
+            edge.SetSize(w, h);
+        if (bg)
+            bg.SetSize(w - 2 * s, h - 2 * s);
+
+        // The box stands 361 units down the page; 18 under it.
+        float sw;
+        float sh;
+        scroll.GetSize(sw, sh);
+        float need = (361 + 18) * s + h;
+        if (need < sh)
+            need = sh;
+        if (sw > 0)
+            body.SetSize(sw, need);
+        scroll.Update();
+    }
+
+    // ---------------------------------------------------------- Ядро › Огляд
     // ---------------------------------------------------------- Ядро › Огляд
 
     // The server's state and a card per module (design §4.3). A read: not journaled.
@@ -1346,6 +2096,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         }
         m_Ov = parsed.Copy();
         PaintOverview();
+        PaintChips();
+        PaintStatus();
     }
 
     protected void OnReloadAnswer(bool ok, string json, string error)
@@ -1399,7 +2151,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         string players = m_Ov.Players.ToString();
         if (m_Ov.MaxPlayers > 0)
-            players = players + " / " + m_Ov.MaxPlayers.ToString();
+            players = players + " " + Widget.TranslateString("#STR_OZ_VPP_OV_OF") + " " + m_Ov.MaxPlayers.ToString();
         OvText("OvStat0Val", players, ink);
 
         // The server ticks at 30; under 25 players feel it, under 15 it is unplayable
@@ -1433,18 +2185,36 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         if (m_Ov.Modules.Count() > OV_CARDS)
             OZ_Log.Warn("vpp overview: " + m_Ov.Modules.Count().ToString() + " modules, the page shows " + OV_CARDS.ToString());
+        // The cards in the rail's order (the server lists modules as they started), the
+        // modules without pages here after them.
+        m_OvOrder.Clear();
+        int mi;
+        int ci;
+        for (mi = 0; mi < m_ModIds.Count(); mi++)
+        {
+            for (ci = 0; ci < m_Ov.Modules.Count(); ci++)
+            {
+                if (m_Ov.Modules[ci].Id == m_ModIds[mi] && m_OvOrder.Find(ci) == -1)
+                    m_OvOrder.Insert(ci);
+            }
+        }
+        for (ci = 0; ci < m_Ov.Modules.Count(); ci++)
+        {
+            if (m_OvOrder.Find(ci) == -1)
+                m_OvOrder.Insert(ci);
+        }
         for (int k = 0; k < OV_CARDS; k++)
         {
             Widget card = M_SUB_WIDGET.FindAnyWidget("OvCard" + k.ToString());
             if (!card)
                 continue;
-            if (k >= m_Ov.Modules.Count())
+            if (k >= m_OvOrder.Count())
             {
                 card.Show(false);
                 continue;
             }
             card.Show(true);
-            PaintOvCard(k, m_Ov.Modules[k]);
+            PaintOvCard(k, m_Ov.Modules[m_OvOrder[k]]);
         }
     }
 
@@ -1466,6 +2236,20 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         else
             OvText("OvCardState" + n, "#STR_OZ_VPP_OV_NO_PAGES", inkMuted);
 
+        // The chip hugs its word and stands 8 units after the module's name.
+        float s = UnitScale();
+        TextWidget nameW = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("OvCardName" + n));
+        Widget chip = M_SUB_WIDGET.FindAnyWidget("OvCardChip" + n);
+        Widget chipBg = M_SUB_WIDGET.FindAnyWidget("OvCardChip" + n + "Bg");
+        TextWidget stateW = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("OvCardState" + n));
+        if (nameW && chip && stateW)
+        {
+            int nameTw = OZ_VppFlex.TextWidth(nameW);
+            nameW.SetSize(nameTw + 2, 21 * s);
+            OZ_VppFlex.Hug(chip, chipBg, stateW, 8 * s);
+            chip.SetPos(15 * s + nameTw + 8 * s, 16 * s);
+        }
+
         string prob = "";
         int probInk = inkMuted;
         if (c.Problems >= 0)
@@ -1477,8 +2261,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         }
         OvText("OvCardProb" + n, prob, probInk);
 
-        string first = "";
-        string second = "";
+        // The facts on one line, a dot between them.
+        string facts = "";
         for (int i = 0; i < c.Facts.Count(); i++)
         {
             OZ_AdminFact f = c.Facts[i];
@@ -1486,21 +2270,11 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             string val = OvTr(f.Value);
             string one = lab + ": ";
             one = one + val;
-            if (i < 2)
-            {
-                if (first != "")
-                    first = first + "  |  ";
-                first = first + one;
-            }
-            else
-            {
-                if (second != "")
-                    second = second + "  |  ";
-                second = second + one;
-            }
+            if (facts != "")
+                facts = facts + " · ";
+            facts = facts + one;
         }
-        OvText("OvCardFacts" + n, first, inkMuted);
-        OvText("OvCardMore" + n, second, inkMuted);
+        OvText("OvCardFacts" + n, facts, inkMuted);
     }
 
     // A stringtable key translated; anything else as it is.
@@ -1526,31 +2300,54 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
     // A destructive action asks here, at the bottom of the page (design §3.4); "yes"
     // gives `action` to OnConfirmed. One question at a time: a new one replaces it.
+    // The strip is red, as the mockup draws it for what removes or wipes.
     protected void Confirm(string text, string yesLabel, string action)
     {
-        Widget bar = M_SUB_WIDGET.FindAnyWidget("ConfirmBar");
-        if (!bar)
+        AskStrip(text, yesLabel, action, false);
+    }
+
+    // The same strip for what applies rather than removes (the TraderPlus import): in
+    // the accent, as the mockup draws that one.
+    protected void ConfirmApply(string text, string yesLabel, string action)
+    {
+        AskStrip(text, yesLabel, action, true);
+    }
+
+    protected void AskStrip(string text, string yesLabel, string action, bool apply)
+    {
+        if (!m_ConfirmBar)
         {
-            OZ_Log.Error("vpp confirm: the window's layout has no ConfirmBar; nothing is done");
+            OZ_Log.Error("vpp confirm: the confirm strip's layout did not load; nothing is done");
             return;
         }
 
+        int ground = ARGB(255, 37, 20, 19);
+        int mark = ARGB(255, 224, 82, 74);
+        if (apply)
+        {
+            ground = ARGB(255, 47, 29, 17);
+            mark = ARGB(255, 232, 120, 43);
+        }
+        OZ_VppFlex.Paint(m_ConfirmBar, "OZ_VppConfirmBg", ground);
+        OZ_VppFlex.Paint(m_ConfirmBar, "OZ_VppConfirmLine", mark);
+        OZ_VppFlex.Paint(m_ConfirmBar, "BtnConfirmYesBg", mark);
+
         m_ConfirmAction = action;
-        TextWidget t = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("ConfirmText"));
+        TextWidget t = TextWidget.Cast(m_ConfirmBar.FindAnyWidget("ConfirmText"));
         if (t)
             t.SetText(text);
-        TextWidget yes = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("BtnConfirmYesText"));
+        TextWidget yes = TextWidget.Cast(m_ConfirmBar.FindAnyWidget("BtnConfirmYesText"));
         if (yes)
             yes.SetText(yesLabel);
-        bar.Show(true);
+        m_ConfirmBar.Show(true);
+        PlaceConfirm();
     }
 
     protected void CloseConfirm()
     {
         m_ConfirmAction = "";
-        Widget bar = M_SUB_WIDGET.FindAnyWidget("ConfirmBar");
-        if (bar)
-            bar.Show(false);
+        if (m_ConfirmBar)
+            m_ConfirmBar.Show(false);
     }
 
     // The strip's "yes". A glue's layer overrides it for its own actions and calls super.
@@ -1632,7 +2429,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (!M_SUB_WIDGET)
             return;
         Widget p = m_Panes.Get(m_Shown);
-        if (p)
+        if (p && !IsFlexPane(p))
             OZ_VppPaint.Repaint(p);
     }
 
@@ -1919,6 +2716,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
                     else
                         m_CfgPaths.Insert("");
                 }
+                RegisterFilesPages();
                 RebuildRawList();
             }
             return;
@@ -1971,6 +2769,15 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         if (!ok)
         {
+            // No answer about the signatures or about the feed: the place of the newest
+            // posts says so (the reason is in the journal), and the feed is not asked
+            // from a bridge that has just refused.
+            if (op == OZ_NewsOp.VOICES || op == OZ_NewsOp.LIST)
+            {
+                NwRecentSay("#STR_OZ_VPP_NW_RECENT_DOWN");
+                return;
+            }
+
             // ВІДМОВА «НЕ ТВОЯ ПЕРСОНА» НЕСЕ ПЕРЕЛІК (ТЗ-6 R1.3, приймання
             // 5.3), і панель його домальовує: сказати адмінові, що ім'я не
             // його, і не сказати, які його, -- це відповідь, після якої йдуть
@@ -2039,6 +2846,25 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             // старий індекс показував би одне ім'я, а підписував інше.
             m_NwPick = 0;
             PaintNewsWho();
+
+            // The bridge answers: now the feed (asked only then, so a silent bridge
+            // costs the journal one line, not two).
+            NwAskRecent();
+            return;
+        }
+
+        if (op == OZ_NewsOp.LIST)
+        {
+            // Root made by the script, read through a copy made by the script (the
+            // core's OZ_ConfigBase header): the rows are built from the copy.
+            OZ_VppNewsList got = new OZ_VppNewsList();
+            string gerr;
+            if (!JsonFileLoader<OZ_VppNewsList>.LoadData(json, got, gerr) || !got)
+            {
+                NwRecentSay("#STR_OZ_VPP_NW_RECENT_DOWN");
+                return;
+            }
+            NwTakeRecent(got.Copy());
             return;
         }
 
@@ -2056,6 +2882,9 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             NwClear();
             string posted = OvTr("#STR_OZ_VPP_NW_POSTED");
             Hint(posted + " " + who);
+
+            // The feed has a post more.
+            NwAskRecent();
             return;
         }
     }
@@ -2227,8 +3056,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
     protected bool PlrMatches(string name, string uid, string low)
     {
-        string n = name;
-        n.ToLower();
+        string n = OZ_VppFold.Lower(name);
         bool hit = false;
         if (n.IndexOf(low) != -1)
             hit = true;
@@ -2238,9 +3066,16 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     }
 
     // Every frame on this page (Tick): the list follows what is typed, and seventeen
-    // digits pick that Steam ID at once, in the game or not.
+    // digits pick that Steam ID at once, in the game or not. The card's head is laid out
+    // again for a few frames after it was painted.
     protected void PlrFollowFind()
     {
+        if (m_PlrFlowDue > 0)
+        {
+            m_PlrFlowDue--;
+            PlrFlowHead();
+        }
+
         string find = PlrFindText();
         if (find == m_PlrFindSeen)
             return;
@@ -2254,25 +3089,24 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // that is not in the game gets a row of its own on top.
     protected void PlrRebuild()
     {
-        TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("PlrList"));
-        if (!lb)
-            return;
+        if (!m_PlrRows)
+        {
+            Widget host = M_SUB_WIDGET.FindAnyWidget("PlrListRows");
+            if (!host)
+                return;
+            m_PlrRows = new OZ_VppFlexRows(m_Flex, host, "OpenZone_VPP/gui/layouts/oz_vpp_player_row.layout", "OZ_VppPlayerRow", 387, 40);
+        }
 
         string find = PlrFindText();
-        string low = find;
-        low.ToLower();
+        string low = OZ_VppFold.Lower(find);
         bool away = PlrIsSteamId(find) && m_PlrUids.Find(find) == -1;
 
-        m_Repaint = true;
-        lb.ClearItems();
-        m_PlrRowUid.Clear();
+        m_PlrRows.Clear();
 
         if (away)
         {
             string awayWord = OvTr("#STR_OZ_VPP_PLR_OFFLINE");
-            int arow = lb.AddItem(awayWord, NULL, 0);
-            lb.SetItem(arow, find, NULL, 1);
-            m_PlrRowUid.Insert(find);
+            PlrRow(find, awayWord, false);
         }
 
         for (int i = 0; i < m_PlrUids.Count(); i++)
@@ -2284,61 +3118,105 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             string shown = nm;
             if (shown == "")
                 shown = uid;
-            int row = lb.AddItem(shown, NULL, 0);
-            lb.SetItem(row, uid, NULL, 1);
-            m_PlrRowUid.Insert(uid);
+            PlrRow(uid, shown, true);
         }
-        m_Repaint = false;
+        m_PlrRows.Fit();
 
         PlrMarkRows();
         PlrPaintCount();
     }
 
-    // A NoScrollBar list draws no highlight of its own (dayz-modding gui-layouts.md):
-    // the picked row is the accent colour.
+    // One row: the sign of being in the game (green; faint for a Steam ID that is not),
+    // the name, the Steam ID. The row's key is the Steam ID.
+    protected void PlrRow(string uid, string name, bool here)
+    {
+        Widget row = m_PlrRows.Add(uid);
+        if (!row)
+            return;
+        int ink = ARGB(255, 224, 223, 218);
+        int muted = ARGB(255, 160, 159, 153);
+        int nameInk = ink;
+        int dotInk = ARGB(255, 102, 199, 92);
+        if (!here)
+        {
+            nameInk = muted;
+            dotInk = ARGB(255, 92, 90, 88);
+        }
+        RowText(row, "PlrRowName", name, nameInk);
+        RowText(row, "PlrRowUid", uid, muted);
+        Widget dot = row.FindAnyWidget("PlrRowDot");
+        if (dot)
+            dot.SetColor(dotInk);
+    }
+
+    // The picked player's row is lit: the accent's frame on its soft ground, as the
+    // board draws it; the rest lie on the head's colour.
     protected void PlrMarkRows()
     {
-        TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("PlrList"));
-        if (!lb)
+        if (!m_PlrRows)
             return;
 
-        int ink = ARGBF(1, 0.88, 0.875, 0.855);
-        int muted = ARGBF(1, 0.627, 0.624, 0.6);
-        int accent = ARGBF(1, 0.91, 0.47, 0.17);
-        for (int r = 0; r < m_PlrRowUid.Count(); r++)
+        Widget row;
+        for (int r = 0; r < m_PlrRows.Count(); r++)
         {
-            int c0 = ink;
-            int c1 = muted;
-            if (m_PlrRowUid[r] == m_PlrPick)
+            row = m_PlrRows.Row(r);
+            if (!row)
+                continue;
+            if (m_PlrRows.Key(r) == m_PlrPick)
             {
-                c0 = accent;
-                c1 = accent;
+                OZ_VppFlex.Paint(row, "OZ_VppPlayerRowEdge", ARGB(255, 232, 120, 43));
+                OZ_VppFlex.Paint(row, "OZ_VppPlayerRowBg", ARGB(255, 47, 29, 17));
             }
-            lb.SetItemColor(r, 0, c0);
-            lb.SetItemColor(r, 1, c1);
+            else
+            {
+                OZ_VppFlex.Paint(row, "OZ_VppPlayerRowEdge", ARGB(255, 19, 19, 18));
+                OZ_VppFlex.Paint(row, "OZ_VppPlayerRowBg", ARGB(255, 19, 19, 18));
+            }
         }
     }
 
+    // A click somewhere in the list; false: not this list. A player's row opens his
+    // card, and the card asks the server for his character; a question already on the
+    // confirm strip was about someone else: it goes.
+    protected bool PlrRowClick(Widget w)
+    {
+        if (!m_PlrRows)
+            return false;
+        int i = m_PlrRows.IndexOf(w);
+        if (i == -1)
+            return false;
+        if (m_ConfirmAction.IndexOf("wipe:") == 0)
+            CloseConfirm();
+        PlrPick(m_PlrRows.Key(i));
+        return true;
+    }
+
+    // "ONLINE · 1 OF 60".
     protected void PlrPaintCount()
     {
-        string head = OvTr("#STR_OZ_VPP_PLR_ONLINE");
-        string line = head + " " + m_PlrUids.Count().ToString();
+        string head = OvTr("#STR_OZ_VPP_PLR_ONLINE_CAP");
+        string line = head + " · " + m_PlrUids.Count().ToString();
         if (m_PlrMax > 0)
         {
             string of = OvTr("#STR_OZ_VPP_PLR_OF");
             line = line + " " + of;
             line = line + " " + m_PlrMax.ToString();
         }
-        OvText("PlrCount", line, ARGBF(1, 0.627, 0.624, 0.6));
+        OvText("PlrCount", line, ARGB(255, 160, 159, 153));
     }
 
     // The card: who, whether he is in the game, and the character the server holds.
     protected void PlrPaintCard()
     {
-        int ink = ARGBF(1, 0.88, 0.875, 0.855);
-        int muted = ARGBF(1, 0.627, 0.624, 0.6);
-        int okInk = ARGBF(1, 0.4, 0.78, 0.36);
-        int badInk = ARGBF(1, 0.88, 0.32, 0.29);
+        int ink = ARGB(255, 224, 223, 218);
+        int muted = ARGB(255, 160, 159, 153);
+        int okInk = ARGB(255, 102, 199, 92);
+        int badInk = ARGB(255, 224, 82, 74);
+
+        Widget chip = M_SUB_WIDGET.FindAnyWidget("PlrUidChip");
+        Widget dot = M_SUB_WIDGET.FindAnyWidget("PlrStateDot");
+        PlrPaintLinks();
+        m_PlrFlowDue = 3;
 
         if (m_PlrPick == "")
         {
@@ -2348,6 +3226,11 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             OvText("PlrCharName", "-", muted);
             OvText("PlrGen", "-", muted);
             OvText("PlrSteam", "-", muted);
+            if (chip)
+                chip.Show(false);
+            if (dot)
+                dot.Show(false);
+            PlrFlowHead();
             return;
         }
 
@@ -2359,11 +3242,24 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             shown = m_PlrCharName;
         OvText("PlrName", shown, ink);
         OvText("PlrUidShown", m_PlrPick, muted);
+        if (chip)
+            chip.Show(true);
+        if (dot)
+            dot.Show(true);
         if (at != -1)
+        {
             OvText("PlrState", "#STR_OZ_VPP_PLR_ONLINE_STATE", okInk);
+            if (dot)
+                dot.SetColor(okInk);
+        }
         else
+        {
             OvText("PlrState", "#STR_OZ_VPP_PLR_OFFLINE", muted);
+            if (dot)
+                dot.SetColor(muted);
+        }
         OvText("PlrSteam", m_PlrPick, ink);
+        PlrFlowHead();
 
         if (!m_PlrPeeked)
         {
@@ -2379,6 +3275,145 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         }
         OvText("PlrCharName", m_PlrCharName, ink);
         OvText("PlrGen", m_PlrCharGen.ToString(), ink);
+    }
+
+    // The card's head as the board lays it: the name, 12 units after it the Steam ID on
+    // a chip as wide as its digits, 12 after that the sign and the word of being in the
+    // game. Every part keeps the height the layout gave it.
+    protected void PlrFlowHead()
+    {
+        TextWidget nameW = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("PlrName"));
+        Widget chip = M_SUB_WIDGET.FindAnyWidget("PlrUidChip");
+        Widget chipBg = M_SUB_WIDGET.FindAnyWidget("PlrUidChipBg");
+        TextWidget uidW = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("PlrUidShown"));
+        Widget dot = M_SUB_WIDGET.FindAnyWidget("PlrStateDot");
+        TextWidget stateW = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("PlrState"));
+        if (!nameW || !chip || !uidW || !dot || !stateW)
+            return;
+
+        // A text that has not been drawn yet may answer no width: the head keeps the
+        // places it has until it does.
+        int tw = OZ_VppFlex.TextWidth(nameW);
+        if (tw <= 0)
+            return;
+
+        float s = UnitScale();
+        float x;
+        float y;
+        float w;
+        float h;
+        nameW.GetPos(x, y);
+        nameW.GetSize(w, h);
+        nameW.SetSize(tw + 2, h);
+        float at = x + tw + 12 * s;
+
+        if (chip.IsVisible())
+        {
+            float cw = OZ_VppFlex.Hug(chip, chipBg, uidW, 8 * s);
+            chip.GetPos(x, y);
+            chip.SetPos(at, y);
+            at = at + cw + 12 * s;
+        }
+
+        dot.GetPos(x, y);
+        dot.SetPos(at, y);
+        stateW.GetPos(x, y);
+        stateW.SetPos(at + 12 * s, y);
+    }
+
+    // A way from a player's card into another page about that player: a title, a line
+    // on what is there (both stringtable keys) and the page it opens. A module's glue
+    // adds its own after super.OnCreate; the card has PLR_LINKS places (PlrLinkAt).
+    protected void AddPlayerLink(string title, string what, string page)
+    {
+        if (page == "" || m_PlrLinkPage.Find(page) != -1)
+            return;
+        m_PlrLinkTitle.Insert(title);
+        m_PlrLinkWhat.Insert(what);
+        m_PlrLinkPage.Insert(page);
+    }
+
+    // A link opened its page for this player (Steam ID). The core's own leads to the
+    // spawns page and puts the player into its personal point's field; a glue overrides
+    // this for its pages and calls super.
+    protected void OnPlayerLink(string page, string uid)
+    {
+        if (page == "spawns")
+            SetEdit("SpUid", uid);
+    }
+
+    // The link that stands in a place of the card; -1: none. The modules' links come
+    // first, in the order their glues added them, and the core's own (the first one
+    // added) last, as the board has them; a link whose page is not in this window takes
+    // no place.
+    protected int PlrLinkAt(int place)
+    {
+        int n = m_PlrLinkPage.Count();
+        int shown = 0;
+        int at;
+        for (int i = 0; i < n; i++)
+        {
+            at = i + 1;
+            if (at >= n)
+                at = 0;
+            if (!m_Panes.Contains(m_PlrLinkPage[at]))
+                continue;
+            if (shown == place)
+                return at;
+            shown++;
+        }
+        return -1;
+    }
+
+    // The link places of the card: a place per link, the rest hidden; the whole box
+    // hidden when there is none.
+    protected void PlrPaintLinks()
+    {
+        int ink = ARGB(255, 224, 223, 218);
+        int muted = ARGB(255, 160, 159, 153);
+        int shown = 0;
+        Widget card;
+        string n;
+        int at;
+        for (int k = 0; k < PLR_LINKS; k++)
+        {
+            n = k.ToString();
+            at = PlrLinkAt(k);
+            card = M_SUB_WIDGET.FindAnyWidget("PlrLink" + n);
+            if (card)
+                card.Show(at != -1);
+            if (at == -1)
+                continue;
+            OvText("PlrLinkTitle" + n, m_PlrLinkTitle[at], ink);
+            OvText("PlrLinkWhat" + n, m_PlrLinkWhat[at], muted);
+            shown++;
+        }
+
+        Widget box = M_SUB_WIDGET.FindAnyWidget("PlrLinks");
+        Widget tag = M_SUB_WIDGET.FindAnyWidget("PlrLinksTag");
+        if (box)
+            box.Show(shown > 0);
+        if (tag)
+            tag.Show(shown > 0);
+    }
+
+    // A link place was clicked: the n-th link whose page is in this window opens its
+    // page for the picked player.
+    protected void PlrOpenLink(int place)
+    {
+        if (m_PlrPick == "")
+        {
+            Hint("#STR_OZ_VPP_PLR_PICK_FIRST");
+            return;
+        }
+
+        int at = PlrLinkAt(place);
+        if (at == -1)
+            return;
+        string page = m_PlrLinkPage[at];
+        string uid = m_PlrPick;
+        ShowPane(page);
+        OnPlayerLink(page, uid);
     }
 
     // The question on the confirm strip names the character the peek found; "yes"
@@ -2459,9 +3494,16 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         return text;
     }
 
-    // Every frame on this page (Tick): the preview and the byte counter follow typing.
+    // Every frame on this page (Tick): the preview and the byte counter follow typing,
+    // and the card is fitted to its text for a few frames after the text changed.
     protected void NwFollow()
     {
+        if (m_NwFitDue > 0)
+        {
+            m_NwFitDue--;
+            NwFitCard();
+        }
+
         string title = NwTitleText();
         string body = NwBodyText();
         if (title == m_NwSeenTitle && body == m_NwSeenBody)
@@ -2480,10 +3522,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         int bytes = body.Length();
         int max = OZ_Const.NEWS_BODY_MAX;
 
-        int accent = ARGBF(1, 0.91, 0.47, 0.17);
-        int alert = ARGBF(1, 0.96, 0.78, 0.25);
-        int bad = ARGBF(1, 0.88, 0.32, 0.29);
-        int ink = ARGBF(1, 0.88, 0.875, 0.855);
+        int accent = ARGB(255, 232, 120, 43);
+        int alert = ARGB(255, 245, 199, 64);
+        int bad = ARGB(255, 224, 82, 74);
+        int ink = ARGB(255, 224, 223, 218);
         int barInk = accent;
         int textInk = ink;
         if (bytes * 10 >= max * 9)
@@ -2502,8 +3544,11 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         count = count + " " + word;
         OvText("NwBytesText", count, textInk);
 
+        // The bar: its filled part (a frame and its ground) as wide as the text's share
+        // of the ceiling.
         Widget track = M_SUB_WIDGET.FindAnyWidget("NwBytes");
         Widget fill = M_SUB_WIDGET.FindAnyWidget("NwBytesFill");
+        Widget fillBg = M_SUB_WIDGET.FindAnyWidget("NwBytesFillBg");
         if (track && fill)
         {
             float tw;
@@ -2514,12 +3559,14 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             if (part > 1)
                 part = 1;
             fill.SetSize(tw * part, th);
-            fill.SetColor(barInk);
+            if (fillBg)
+                fillBg.SetSize(tw * part, th);
+            OZ_VppFlex.Paint(M_SUB_WIDGET, "NwBytesFillBg", barInk);
         }
 
-        // The PDA's own blue (the vppPda* tokens of the layout); the texts only.
-        int pdaText = ARGBF(1, 0.86, 0.9, 0.93);
-        int pdaMuted = ARGBF(1, 0.55, 0.62, 0.68);
+        // The PDA's own blue, as the board's card has it; the texts only.
+        int pdaText = ARGB(255, 230, 237, 242);
+        int pdaMuted = ARGB(255, 173, 180, 186);
         if (title.Trim() == "")
             OvText("NwPrevTitle", "#STR_OZ_VPP_NW_PREV_TITLE", pdaMuted);
         else
@@ -2529,13 +3576,153 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (who == "")
             who = m_NwSelf;
         string now = OvTr("#STR_OZ_VPP_NW_JUST_NOW");
-        string byline = who + "   " + now;
+        string byline = now;
+        if (who != "")
+            byline = who + " · " + now;
         OvText("NwPrevWho", byline, pdaMuted);
 
         if (body.Trim() == "")
             OvText("NwPrevBody", "#STR_OZ_VPP_NW_PREV_BODY", pdaMuted);
         else
             OvText("NwPrevBody", body, pdaText);
+
+        // The card follows its text: now and on the next frames (NwFollow).
+        m_NwFitDue = 3;
+        NwFitCard();
+    }
+
+    // The preview's card is as tall as its text, as the board draws it: the text's box
+    // takes the height its lines need (its four designed lines at least, and no more
+    // than the column has room for), the card ends 19 units under the text and the note
+    // stands 13 under the card. The numbers are those of oz_vpp_pane_news.layout
+    // (converted from the board CoreNews): convert again, check these.
+    protected void NwFitCard()
+    {
+        Widget mid = M_SUB_WIDGET.FindAnyWidget("NwMid");
+        Widget card = M_SUB_WIDGET.FindAnyWidget("NwCard");
+        Widget edge = M_SUB_WIDGET.FindAnyWidget("NwCardEdge");
+        Widget bg = M_SUB_WIDGET.FindAnyWidget("NwCardBg");
+        Widget note = M_SUB_WIDGET.FindAnyWidget("NwPrevNote");
+        RichTextWidget body = RichTextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("NwPrevBody"));
+        if (!mid || !card || !body)
+            return;
+
+        float s = UnitScale();
+        float mw;
+        float mh;
+        mid.GetSize(mw, mh);
+
+        // The card stands 42 units down the column and the text 112 down the card;
+        // under the card: 13, the note's 36 and 16 of the column's own room.
+        float designed = 86 * s;
+        float room = mh - (42 + 112 + 19 + 13 + 36 + 16) * s;
+        body.Update();
+        float need = body.GetContentHeight() + 4 * s;
+        if (need < designed)
+            need = designed;
+        if (need > room)
+            need = room;
+        if (need < designed)
+            need = designed;
+
+        // Widths stay as the layout has them; only the heights follow the text.
+        float bw;
+        float bh;
+        float cardW;
+        float cardH;
+        body.GetSize(bw, bh);
+        card.GetSize(cardW, cardH);
+        if (bw <= 0 || cardW <= 0)
+            return;
+        cardH = (112 + 19) * s + need;
+        body.SetSize(bw, need);
+        card.SetSize(cardW, cardH);
+        if (edge)
+            edge.SetSize(cardW, cardH);
+        if (bg)
+            bg.SetSize(cardW - 2 * s, cardH - 2 * s);
+        if (note)
+            note.SetPos(20 * s, (42 + 13) * s + cardH);
+    }
+
+    // The newest posts are asked from the bridge. A read asked all the time: it goes
+    // past Ask(), which would write every one of them into the journal as an action
+    // (a failed answer reaches the journal all the same, OZ_VppJournal.Answered).
+    protected void NwAskRecent()
+    {
+        if (!m_NwRows || m_NwRows.Count() == 0)
+            NwRecentSay("#STR_OZ_VPP_NW_RECENT_ASKING");
+        OZ_Rpc.AdminRequest(OZ_AdminSect.NEWS, OZ_NewsOp.LIST, "{}");
+    }
+
+    // The words beside the "newest" heading: where the list stands.
+    protected void NwRecentSay(string key)
+    {
+        OvText("NwRecentNote", key, ARGB(255, 160, 159, 153));
+    }
+
+    // "2026-11-12 13:05:44" (the bridge's stamp, UTC) as "12.11 13:05"; anything else
+    // as it came.
+    protected string NwWhen(string at)
+    {
+        if (at.Length() < 16)
+            return at;
+        string day = at.Substring(8, 2) + "." + at.Substring(5, 2);
+        return day + " " + at.Substring(11, 5);
+    }
+
+    // The feed's first page came: a row per post (its title; who signed it and when),
+    // and in the page's head how many there are and when the newest was written.
+    protected void NwTakeRecent(OZ_VppNewsList list)
+    {
+        if (!list)
+            return;
+        if (!m_NwRows)
+        {
+            Widget host = M_SUB_WIDGET.FindAnyWidget("NwRecentRows");
+            if (!host)
+                return;
+            m_NwRows = new OZ_VppFlexRows(m_Flex, host, "OpenZone_VPP/gui/layouts/oz_vpp_news_row.layout", "OZ_VppNewsRow", 400, 57);
+        }
+
+        int ink = ARGB(255, 224, 223, 218);
+        int muted = ARGB(255, 160, 159, 153);
+        m_NwRows.Clear();
+        OZ_VppNewsItem it;
+        Widget row;
+        string meta;
+        for (int i = 0; i < list.Items.Count(); i++)
+        {
+            it = list.Items[i];
+            row = m_NwRows.Add(it.Id);
+            if (!row)
+                continue;
+            meta = NwWhen(it.At);
+            if (it.Who != "")
+                meta = it.Who + "   " + meta;
+            RowText(row, "NwRowTitle", it.Title, ink);
+            RowText(row, "NwRowMeta", meta, muted);
+        }
+        m_NwRows.Fit();
+
+        int n = list.Items.Count();
+        if (n == 0)
+        {
+            NwRecentSay("#STR_OZ_VPP_NW_RECENT_NONE");
+            OvText("NwCount", "", muted);
+            return;
+        }
+        NwRecentSay("#STR_OZ_VPP_NW_RECENT_FROM");
+
+        // "Posts: 12 · the newest 12.11 13:05"; a plus when the feed goes on past this page.
+        string countWord = OvTr("#STR_OZ_VPP_NW_COUNT");
+        string lastWord = OvTr("#STR_OZ_VPP_NW_LAST");
+        string head = countWord + " " + n.ToString();
+        if (list.Next != "")
+            head = head + "+";
+        head = head + " · " + lastWord;
+        head = head + " " + NwWhen(list.Items[0].At);
+        OvText("NwCount", head, muted);
     }
 
     protected void NwClear()
@@ -2623,7 +3810,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         // The files page shows what the server saved; the FFR page reads its file and
         // FFR's groups again.
-        if (CurrentPane() == "raw" && m_RawPicked != "")
+        if (IsFilesPage(CurrentPane()) && m_RawPicked != "")
             AskCfg(m_RawPicked);
         if (CurrentPane() == "ffr")
             FfrAsk();
@@ -2695,27 +3882,28 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             FfrRegister();
     }
 
-    // The head's switch, as the last Spawns file said.
+    // The head's switch, as the last Spawns file said: a tick box beside its caption
+    // ("the spawn points are on"). Ticked and bright while the service is on, empty and
+    // muted while it is off, empty and faint until the file has come.
     protected void SpPaintSwitch()
     {
-        TextWidget t = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("BtnSpOnText"));
-        if (!t)
-            return;
+        bool known = false;
+        bool on = false;
+        if (m_SpawnsCfg)
+        {
+            known = true;
+            on = m_SpawnsCfg.Enabled;
+        }
 
-        if (!m_SpawnsCfg)
-        {
-            t.SetText("#STR_OZ_VPP_SP_ON_UNKNOWN");
-            t.SetColor(ARGBF(1, 0.627, 0.624, 0.6));
-            return;
-        }
-        if (m_SpawnsCfg.Enabled)
-        {
-            t.SetText("#STR_OZ_VPP_SP_ON_YES");
-            t.SetColor(ARGBF(1, 0.4, 0.78, 0.36));
-            return;
-        }
-        t.SetText("#STR_OZ_VPP_SP_ON_NO");
-        t.SetColor(ARGBF(1, 0.96, 0.78, 0.25));
+        int ink = ARGB(255, 92, 90, 88);
+        if (known)
+            ink = ARGB(255, 160, 159, 153);
+        if (on)
+            ink = ARGB(255, 224, 223, 218);
+        Widget t = M_SUB_WIDGET.FindAnyWidget("BtnSpOnText");
+        if (t)
+            t.SetColor(ink);
+        CorePaintTick("SpOnBox", on);
     }
 
     // Switching the service on or off asks first: it moves where every new
@@ -2767,7 +3955,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         {
             string nm = m_IdNames[at];
             if (nm != "" && nm != slug)
-                return slug + " - " + nm;
+                return slug + " — " + nm;
         }
         return slug;
     }
@@ -2825,12 +4013,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (PlrIsSteamId(typed) || SpPersonalAt(typed) != -1)
             return typed;
 
-        string low = typed;
-        low.ToLower();
+        string low = OZ_VppFold.Lower(typed);
         for (int i = 0; i < m_PlrNames.Count(); i++)
         {
-            string n = m_PlrNames[i];
-            n.ToLower();
+            string n = OZ_VppFold.Lower(m_PlrNames[i]);
             if (n == low)
                 return m_PlrUids[i];
         }
@@ -2881,21 +4067,32 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         return m.ToString();
     }
 
+    // The two kinds of rows of the list, made once: both go into the list's one spacer
+    // (SpListRows), so they stand in the order they are added.
+    protected bool SpMakeRows()
+    {
+        if (m_SpRows)
+            return true;
+        Widget host = M_SUB_WIDGET.FindAnyWidget("SpListRows");
+        if (!host)
+            return false;
+        m_SpHeads = new OZ_VppFlexRows(m_Flex, host, "OpenZone_VPP/gui/layouts/oz_vpp_spawn_head.layout", "OZ_VppSpawnHead", 420, 22);
+        m_SpRows = new OZ_VppFlexRows(m_Flex, host, "OpenZone_VPP/gui/layouts/oz_vpp_spawn_row.layout", "OZ_VppSpawnRow", 420, 38);
+        return true;
+    }
+
     // The list: a caption row per group, then its points (who, where, radius).
     protected void RebuildSpawnList()
     {
-        TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("SpawnList"));
-        if (!lb || !m_SpawnsCfg)
+        if (!m_SpawnsCfg || !SpMakeRows())
             return;
 
-        m_Repaint = true;
-        lb.ClearItems();
-        m_SpawnRowKind.Clear();
-        m_SpawnRowKey.Clear();
+        m_SpHeads.Clear();
+        m_SpRows.Clear();
 
         // СТЕЙДЖИНҐ -- ПЕРШИМ, i навіть коли його немає: «не задано» відповідає на
         // питання, яке інакше вимагало б читати файл руками.
-        SpRow(lb, "head", "", "#STR_OZ_VPP_SP_GROUP_STAGING", "", "");
+        SpHead("#STR_OZ_VPP_SP_GROUP_STAGING");
         string stg = "";
         float stgR = 0;
         if (m_SpawnsCfg.Staging)
@@ -2908,14 +4105,14 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             string stgWho = SpWho("*");
             string stgWhere = SpWhere(stg);
             string stgRad = "r " + SpMetres(stgR);
-            SpRow(lb, "zone", "*", stgWho, stgWhere, stgRad);
+            SpRow("zone:*", stgWho, stgWhere, stgRad);
         }
         else
         {
-            SpRow(lb, "none", "", "#STR_OZ_VPP_SP_NOT_SET", "", "");
+            SpRow("none", "#STR_OZ_VPP_SP_NOT_SET", "", "");
         }
 
-        SpRow(lb, "head", "", "#STR_OZ_VPP_SP_GROUP_ZONES", "", "");
+        SpHead("#STR_OZ_VPP_SP_GROUP_ZONES");
         int zones = 0;
         if (m_SpawnsCfg.Zones)
         {
@@ -2931,17 +4128,20 @@ class OZ_VppAdminMenu : AdminHudSubMenu
                 string zWho = SpWho(slug);
                 string zWhere = SpWhere(z.Center);
                 string zRad = "r " + SpMetres(z.Radius);
-                SpRow(lb, "zone", slug, zWho, zWhere, zRad);
+                SpRow("zone:" + slug, zWho, zWhere, zRad);
                 zones++;
             }
         }
         if (zones == 0)
-            SpRow(lb, "none", "", "#STR_OZ_VPP_SP_NONE", "", "");
+            SpRow("none", "#STR_OZ_VPP_SP_NONE", "", "");
 
         // Особисті точки -- у тому ж списку: адмін бачить УСЕ, що впливає на
         // спавни, на одному екрані.
-        SpRow(lb, "head", "", "#STR_OZ_VPP_SP_GROUP_PERSONAL", "", "");
+        // Two hundred rows of them at most (a row is seven widgets); the rest are counted
+        // in a last row, and the player field still takes any of them by Steam ID.
+        SpHead("#STR_OZ_VPP_SP_GROUP_PERSONAL");
         int pers = 0;
+        int hidden = 0;
         if (m_SpawnsCfg.Personal)
         {
             for (int k = 0; k < m_SpawnsCfg.Personal.Count(); k++)
@@ -2949,91 +4149,124 @@ class OZ_VppAdminMenu : AdminHudSubMenu
                 OZ_SpawnPersonal p = m_SpawnsCfg.Personal[k];
                 if (!p)
                     continue;
+                if (pers >= 200)
+                {
+                    hidden++;
+                    continue;
+                }
                 string pWho = SpPlayerName(p.Uid);
                 string pWhere = SpWhere(p.Center);
                 string pRad = "r " + SpMetres(p.Radius);
-                SpRow(lb, "uid", p.Uid, pWho, pWhere, pRad);
+                SpRow("uid:" + p.Uid, pWho, pWhere, pRad);
                 pers++;
             }
         }
         if (pers == 0)
-            SpRow(lb, "none", "", "#STR_OZ_VPP_SP_NONE", "", "");
+            SpRow("none", "#STR_OZ_VPP_SP_NONE", "", "");
+        if (hidden > 0)
+            SpRow("none", "… +" + hidden.ToString(), "", "");
 
-        m_Repaint = false;
+        m_SpHeads.Fit();
+        m_SpRows.Fit();
         SpMarkRows();
     }
 
-    // One row; a caption's or an empty group's text is a stringtable key.
-    protected void SpRow(TextListboxWidget lb, string kind, string key, string who, string where, string radius)
+    // A group's caption: a stringtable key.
+    protected void SpHead(string caption)
     {
-        string first = OvTr(who);
-        int row = lb.AddItem(first, NULL, 0);
-        if (where != "")
-            lb.SetItem(row, where, NULL, 1);
-        if (radius != "")
-            lb.SetItem(row, radius, NULL, 2);
-        m_SpawnRowKind.Insert(kind);
-        m_SpawnRowKey.Insert(key);
+        Widget row = m_SpHeads.Add(caption);
+        if (row)
+            RowText(row, "SpHeadText", caption, ARGB(255, 160, 159, 153));
     }
 
-    // Captions muted, the picked point in the accent colour (a NoScrollBar list draws
-    // no highlight of its own).
+    // One point, or the one row of an empty group (key "none": its text is a
+    // stringtable key and it names no point).
+    protected void SpRow(string key, string who, string where, string radius)
+    {
+        Widget row = m_SpRows.Add(key);
+        if (!row)
+            return;
+        int muted = ARGB(255, 160, 159, 153);
+        RowText(row, "SpRowWho", who, ARGB(255, 224, 223, 218));
+        RowText(row, "SpRowWhere", where, muted);
+        RowText(row, "SpRowR", radius, muted);
+    }
+
+    // The picked point's row is lit (the accent's frame on its soft ground, as the board
+    // draws it); the row of an empty group is faint.
     protected void SpMarkRows()
     {
-        TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("SpawnList"));
-        if (!lb)
+        if (!m_SpRows)
             return;
 
-        int ink = ARGBF(1, 0.88, 0.875, 0.855);
-        int muted = ARGBF(1, 0.627, 0.624, 0.6);
-        int faint = ARGBF(1, 0.36, 0.353, 0.345);
-        int accent = ARGBF(1, 0.91, 0.47, 0.17);
-        for (int r = 0; r < m_SpawnRowKind.Count(); r++)
+        int ink = ARGB(255, 224, 223, 218);
+        int faint = ARGB(255, 92, 90, 88);
+        Widget row;
+        Widget who;
+        string key;
+        for (int r = 0; r < m_SpRows.Count(); r++)
         {
-            string kind = m_SpawnRowKind[r];
-            string pick = kind + ":" + m_SpawnRowKey[r];
-            int c0 = ink;
-            int c1 = muted;
-            if (kind == "head")
-                c0 = muted;
-            else if (kind == "none")
-                c0 = faint;
-            else if (pick == m_SpPick)
+            row = m_SpRows.Row(r);
+            key = m_SpRows.Key(r);
+            if (!row)
+                continue;
+
+            if (key != "none" && key == m_SpPick)
             {
-                c0 = accent;
-                c1 = accent;
+                OZ_VppFlex.Paint(row, "OZ_VppSpawnRowEdge", ARGB(255, 232, 120, 43));
+                OZ_VppFlex.Paint(row, "OZ_VppSpawnRowBg", ARGB(255, 47, 29, 17));
             }
-            lb.SetItemColor(r, 0, c0);
-            lb.SetItemColor(r, 1, c1);
-            lb.SetItemColor(r, 2, c1);
+            else
+            {
+                OZ_VppFlex.Paint(row, "OZ_VppSpawnRowEdge", ARGB(255, 19, 19, 18));
+                OZ_VppFlex.Paint(row, "OZ_VppSpawnRowBg", ARGB(255, 19, 19, 18));
+            }
+
+            who = row.FindAnyWidget("SpRowWho");
+            if (!who)
+                continue;
+            if (key == "none")
+                who.SetColor(faint);
+            else
+                who.SetColor(ink);
         }
+    }
+
+    // A click somewhere in the list; false: not this list.
+    protected bool SpRowClick(Widget w)
+    {
+        if (!m_SpRows)
+            return false;
+        int i = m_SpRows.IndexOf(w);
+        if (i == -1)
+            return false;
+        SpPickKey(m_SpRows.Key(i));
+        return true;
     }
 
     // Рядок списку КЛАДЕ СЕБЕ В ФОРМУ: a zone into the cycler, a personal point into
     // the player field, its radius into the radius field; the scheme marks it.
-    protected void SpPickRow(int row)
+    protected void SpPickKey(string key)
     {
-        if (row < 0 || row >= m_SpawnRowKind.Count())
-            return;
-        string kind = m_SpawnRowKind[row];
-        string key = m_SpawnRowKey[row];
-        if (kind != "zone" && kind != "uid")
+        bool zone = key.IndexOf("zone:") == 0;
+        bool uid = key.IndexOf("uid:") == 0;
+        if (!zone && !uid)
             return;
 
-        m_SpPick = kind + ":" + key;
+        m_SpPick = key;
         float radius = 0;
         string center = "";
         SpPointOf(m_SpPick, center, radius);
         if (radius > 0)
             SetEdit("SpRadius", SpMetres(radius));
 
-        if (kind == "uid")
+        if (uid)
         {
-            SetEdit("SpUid", key);
+            SetEdit("SpUid", key.Substring(4, key.Length() - 4));
         }
         else
         {
-            m_SpSlugPick = key;
+            m_SpSlugPick = key.Substring(5, key.Length() - 5);
             SetEdit("SpSlug", "");
             PaintSpawnCycler();
         }
@@ -3090,15 +4323,18 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
     // ------------------------------------------------- the scheme around the admin
     //
-    // No map: the admin is the square in the middle, north is up, every point is a
-    // circle of its radius (the staging zone in the alert colour, faction zones in the
-    // text colour, the fallback muted, personal points green, the picked one in the
-    // accent colour). The scale fits the farthest edge of any point. Drawn on the page's
-    // CanvasWidget (dayz-modding gui-layouts.md §7: Clear, then every line again), on
-    // each change and twice a second while the page is shown (Tick).
+    // No map: the admin is the dot in the middle, north is up, every point is a circle
+    // of its radius with its name over it. As the board CoreSpawns draws them: faction
+    // zones muted, the fallback dashed, the picked point in the accent colour on a soft
+    // ground; the staging zone is in the alert colour and personal points are green (the
+    // board has neither). The scale fits the farthest edge of any point. Drawn on the
+    // page's CanvasWidget (dayz-modding gui-layouts.md §7: Clear, then every line again),
+    // on each change and twice a second while the page is shown (Tick); the names are
+    // labels placed over the canvas (SpLabel).
     protected void SpDrawScheme()
     {
         m_SpDrawnAt = GetGame().GetTime();
+        m_SpLabelsUsed = 0;
 
         CanvasWidget cv = CanvasWidget.Cast(M_SUB_WIDGET.FindAnyWidget("SpScheme"));
         if (!cv)
@@ -3110,7 +4346,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         cv.GetScreenSize(w, h);
         DayZPlayer me = GetGame().GetPlayer();
         if (w <= 0 || h <= 0 || !me)
+        {
+            SpHideLabels();
             return;
+        }
         vector at = me.GetPosition();
 
         // How far the scheme reaches: the farthest edge of any point, 100 m at least.
@@ -3143,59 +4382,153 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             }
         }
 
+        // The scheme's edge stands a label's height inside the canvas: the name over the
+        // farthest circle still has room.
+        float s = UnitScale();
         float view = far * 1.1;
-        float half = Math.Min(w, h) / 2 - 8;
+        float half = Math.Min(w, h) / 2 - 24 * s;
         if (half < 10)
+        {
+            SpHideLabels();
             return;
+        }
         float scale = half / view;
         float cx = w / 2;
         float cy = h / 2;
 
-        // Rings at the edge and at half of it, and the cross through the admin.
-        int faint = ARGBF(1, 0.36, 0.353, 0.345);
-        SpCircle(cv, cx, cy, half, faint, 1);
-        SpCircle(cv, cx, cy, half / 2, faint, 1);
-        cv.DrawLine(cx - half, cy, cx + half, cy, 1, faint);
-        cv.DrawLine(cx, cy - half, cx, cy + half, 1, faint);
+        int muted = ARGB(255, 160, 159, 153);
+        int alert = ARGB(255, 245, 199, 64);
+        int okInk = ARGB(255, 102, 199, 92);
+        int accent = ARGB(255, 232, 120, 43);
 
-        int ink = ARGBF(1, 0.88, 0.875, 0.855);
-        int muted = ARGBF(1, 0.627, 0.624, 0.6);
-        int alert = ARGBF(1, 0.96, 0.78, 0.25);
-        int okInk = ARGBF(1, 0.4, 0.78, 0.36);
-        int accent = ARGBF(1, 0.91, 0.47, 0.17);
+        // Under every line: the soft ground of the picked point (the accent colour at an
+        // eighth over the scheme's ground, written as the colour it comes to).
+        string pc;
+        float pr;
+        bool picked = SpPointOf(m_SpPick, pc, pr);
+        if (picked && pc != "")
+        {
+            vector pv = pc.ToVector();
+            if (pv != vector.Zero)
+            {
+                float fr = pr * scale;
+                if (fr < 4)
+                    fr = 4;
+                float fx = cx + (pv[0] - at[0]) * scale;
+                float fy = cy - (pv[2] - at[2]) * scale;
+                int soft = ARGB(255, 34, 21, 11);
+                SpDisc(cv, fx, fy, fr, soft);
+            }
+        }
+
+        // The dashed cross through the admin.
+        int cross = ARGB(255, 60, 60, 58);
+        SpDashes(cv, cx - half, cy, cx + half, cy, cross, s);
+        SpDashes(cv, cx, cy - half, cx, cy + half, cross, s);
 
         if (m_SpawnsCfg)
         {
-            if (m_SpawnsCfg.Staging)
-                SpDot(cv, at, scale, cx, cy, m_SpawnsCfg.Staging.Center, m_SpawnsCfg.Staging.Radius, alert, 1);
+            if (m_SpawnsCfg.Staging && m_SpPick != "zone:*")
+                SpPoint(cv, at, scale, cx, cy, "zone:*", m_SpawnsCfg.Staging.Center, m_SpawnsCfg.Staging.Radius, alert, false, false);
             for (int zi = 0; zi < m_SpawnsCfg.Zones.Count(); zi++)
             {
                 OZ_SpawnZone z = m_SpawnsCfg.Zones[zi];
                 if (!z)
                     continue;
-                int zc = ink;
-                if (z.Role == "")
-                    zc = muted;
-                SpDot(cv, at, scale, cx, cy, z.Center, z.Radius, zc, 1);
+                string zslug = z.Role;
+                if (zslug == "")
+                    zslug = "-";
+                string zkey = "zone:" + zslug;
+                if (zkey == m_SpPick)
+                    continue;
+                bool fallback = z.Role == "";
+                SpPoint(cv, at, scale, cx, cy, zkey, z.Center, z.Radius, muted, fallback, false);
             }
             for (int pk = 0; pk < m_SpawnsCfg.Personal.Count(); pk++)
             {
                 OZ_SpawnPersonal p = m_SpawnsCfg.Personal[pk];
-                if (p)
-                    SpDot(cv, at, scale, cx, cy, p.Center, p.Radius, okInk, 1);
+                if (!p)
+                    continue;
+                string pkey = "uid:" + p.Uid;
+                if (pkey == m_SpPick)
+                    continue;
+                SpPoint(cv, at, scale, cx, cy, pkey, p.Center, p.Radius, okInk, false, false);
             }
 
             // The picked point last, over the rest.
-            string pc;
-            float pr;
-            if (SpPointOf(m_SpPick, pc, pr))
-                SpDot(cv, at, scale, cx, cy, pc, pr, accent, 2);
+            if (picked)
+                SpPoint(cv, at, scale, cx, cy, m_SpPick, pc, pr, accent, false, true);
         }
 
-        // The admin: a square in the middle.
-        cv.DrawLine(cx - 5, cy, cx + 5, cy, 10, accent);
+        // The admin: a dot in the middle and the word beside it.
+        SpDisc(cv, cx, cy, 6 * s, alert);
+        string you = OvTr("#STR_OZ_VPP_SP_YOU");
+        SpLabel(cv, cx + 20 * s, cy + 5 * s, you, alert);
 
+        SpHideLabels();
         SpPaintSchemeText(at, view);
+    }
+
+    // What a point is called over its circle: a faction's id, the staging zone and the
+    // fallback in the list's words, a player's name (or Steam ID).
+    protected string SpLabelName(string key)
+    {
+        if (key.IndexOf("uid:") == 0)
+            return SpPlayerName(key.Substring(4, key.Length() - 4));
+        if (key == "zone:*")
+            return OvTr("#STR_OZ_VPP_SP_STAGING");
+        if (key == "zone:-")
+            return OvTr("#STR_OZ_VPP_SP_FALLBACK");
+        if (key.IndexOf("zone:") == 0)
+            return key.Substring(5, key.Length() - 5);
+        return "";
+    }
+
+    // A label over the scheme, its middle at x and its top at y (pixels of the canvas):
+    // the next one of the kept labels, or a new one (oz_vpp_spawn_label, 200 x 18 units,
+    // its text centred). Forty-eight at most: points beyond that go without a name.
+    protected void SpLabel(CanvasWidget cv, float x, float y, string text, int color)
+    {
+        Widget box = M_SUB_WIDGET.FindAnyWidget("SpSchemeBox");
+        if (!box || !cv)
+            return;
+
+        Widget lab;
+        if (m_SpLabelsUsed < m_SpLabels.Count())
+        {
+            lab = m_SpLabels[m_SpLabelsUsed];
+        }
+        else
+        {
+            if (m_SpLabels.Count() >= 48)
+                return;
+            lab = OZ_VppFlex.Create("OpenZone_VPP/gui/layouts/oz_vpp_spawn_label.layout", box, "OZ_VppSpawnLabel");
+            if (!lab)
+                return;
+            m_SpLabels.Insert(lab);
+        }
+        m_SpLabelsUsed++;
+        if (!lab)
+            return;
+
+        // The canvas stands inside the box's frame: its own place is added.
+        float ox;
+        float oy;
+        cv.GetPos(ox, oy);
+        float s = UnitScale();
+        lab.SetPos(ox + x - 100 * s, oy + y);
+        lab.Show(true);
+        RowText(lab, "SpLabelText", text, color);
+    }
+
+    // The labels the last drawing did not use are hidden.
+    protected void SpHideLabels()
+    {
+        for (int i = m_SpLabelsUsed; i < m_SpLabels.Count(); i++)
+        {
+            if (m_SpLabels[i])
+                m_SpLabels[i].Show(false);
+        }
     }
 
     // How far a point's far edge is from the admin, on the ground (x and z).
@@ -3212,7 +4545,10 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         return d + radius;
     }
 
-    protected void SpDot(CanvasWidget cv, vector at, float scale, float cx, float cy, string center, float radius, int color, float width)
+    // One point: its circle (dashed for the fallback zone, heavier for the picked point),
+    // a mark in its middle and its name with its radius over it -- under it when the
+    // circle reaches the canvas's top.
+    protected void SpPoint(CanvasWidget cv, vector at, float scale, float cx, float cy, string key, string center, float radius, int color, bool dashed, bool lit)
     {
         if (center == "")
             return;
@@ -3224,27 +4560,109 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         float pr = radius * scale;
         if (pr < 4)
             pr = 4;
-        SpCircle(cv, px, py, pr, color, width);
+        float width = 1;
+        if (lit)
+            width = 2;
+        SpCircle(cv, px, py, pr, color, width, dashed);
         cv.DrawLine(px - 2, py, px + 2, py, 4, color);
+
+        int ink = ARGB(255, 160, 159, 153);
+        if (lit)
+            ink = ARGB(255, 224, 223, 218);
+        float s = UnitScale();
+        float ly = py - pr - 22 * s;
+        if (ly < 2 * s)
+            ly = py + pr + 4 * s;
+        string name = SpLabelName(key);
+        name = name + " · r " + SpMetres(radius);
+        SpLabel(cv, px, ly, name, ink);
     }
 
-    // A circle as a ring of short lines (CanvasWidget draws lines only).
-    protected void SpCircle(CanvasWidget cv, float x, float y, float r, int color, float width)
+    // A circle as a ring of short lines (CanvasWidget draws lines only): a line for
+    // about every six pixels of the ring, 16 at least and 96 at most; a dashed ring
+    // draws every other one.
+    protected void SpCircle(CanvasWidget cv, float x, float y, float r, int color, float width, bool dashed)
     {
-        int segs = 40;
-        if (r < 20)
+        int segs = Math.Round(r * Math.PI2 / 6.0);
+        if (segs < 16)
             segs = 16;
+        if (segs > 96)
+            segs = 96;
         float step = Math.PI2 / segs;
         float px = x + r;
         float py = y;
+        int odd;
         for (int i = 1; i <= segs; i++)
         {
             float a = step * i;
             float nx = x + r * Math.Cos(a);
             float ny = y + r * Math.Sin(a);
-            cv.DrawLine(px, py, nx, ny, width, color);
+            odd = i % 2;
+            if (!dashed || odd == 1)
+                cv.DrawLine(px, py, nx, ny, width, color);
             px = nx;
             py = ny;
+        }
+    }
+
+    // A filled circle as horizontal bands, forty or so (a band is a pixel thick at
+    // least); each band is as wide as the circle is at its far edge, so none reaches
+    // outside the ring drawn over it.
+    protected void SpDisc(CanvasWidget cv, float x, float y, float r, int color)
+    {
+        if (r < 1)
+            return;
+        float band = r / 20.0;
+        if (band < 1)
+            band = 1;
+        float dy = -r;
+        float edge;
+        float hw;
+        float mid;
+        while (dy < r)
+        {
+            edge = dy;
+            if (dy + band > 0 && dy < 0)
+                edge = 0;
+            else if (dy >= 0)
+                edge = dy + band;
+            if (edge > r)
+                edge = r;
+            if (edge < -r)
+                edge = -r;
+            hw = Math.Sqrt(r * r - edge * edge);
+            mid = y + dy + band / 2;
+            if (hw > 0.5)
+                cv.DrawLine(x - hw, mid, x + hw, mid, band + 1, color);
+            dy = dy + band;
+        }
+    }
+
+    // A dashed line: three units drawn, six left out (the board's cross).
+    protected void SpDashes(CanvasWidget cv, float x1, float y1, float x2, float y2, int color, float s)
+    {
+        float dx = x2 - x1;
+        float dy = y2 - y1;
+        float len = Math.Sqrt(dx * dx + dy * dy);
+        if (len < 1 || s <= 0)
+            return;
+        float ux = dx / len;
+        float uy = dy / len;
+        float dash = 3 * s;
+        float pitch = 9 * s;
+        float a = 0;
+        float b;
+        float ax;
+        float ay;
+        while (a < len)
+        {
+            b = a + dash;
+            if (b > len)
+                b = len;
+            ax = x1 + ux * a;
+            ay = y1 + uy * a;
+            cv.DrawLine(ax, ay, x1 + ux * b, y1 + uy * b, 1, color);
+            a = a + pitch;
         }
     }
 
@@ -3314,7 +4732,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
     // The page's buttons; false: not one of them.
     protected bool SpClick(string nm)
     {
-        if (nm == "BtnSpOn")
+        // The switch is the whole label; its tick box is a button of its own inside it.
+        if (nm == "BtnSpOn" || nm == "SpOnBox")
         {
             SpAskSwitch();
             return true;
@@ -3386,6 +4805,36 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
     // The module a file's owner names, as the rail calls it; an owner with no page
     // in this window, by its own id.
+    // "Файли конфігів" under every module that owns a file here (design 2.1): the one
+    // page, registered once more per module; the core's own is "raw".
+    protected void RegisterFilesPages()
+    {
+        Widget pane = m_Panes.Get("raw");
+        if (!pane)
+            return;
+        string mod;
+        string id;
+        int n = m_ModIds.Count();
+        for (int m = 0; m < n; m++)
+        {
+            mod = m_ModIds[m];
+            id = mod + ".files";
+            if (mod == "core" || m_TabIds.Find(id) != -1 || m_CfgOwners.Find(mod) == -1)
+                continue;
+            RegisterPage(mod, m_ModLabels[m], id, "#STR_OZ_VPP_PAGE_FILES", pane, "");
+        }
+    }
+
+    protected bool IsFilesPage(string id)
+    {
+        if (id == "raw")
+            return true;
+        int n = id.Length();
+        if (n < 7)
+            return false;
+        return id.Substring(n - 6, 6) == ".files";
+    }
+
     protected string RawOwnerLabel(string owner)
     {
         int m = m_ModIds.Find(owner);
@@ -3396,43 +4845,124 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         return up;
     }
 
-    // The files grouped by the module that owns them, in the rail's order; owners
-    // with no page here after them. A caption row per module (its row names no file).
+    // A name in capitals, for a group's caption (the board writes them so). The engine's
+    // ToUpper() is trusted with Latin letters only: the Ukrainian ones go by a table, a
+    // letter a place in both rows (the capital I is the Latin one, as the series' strings
+    // write it).
+    protected string RawUpper(string s)
+    {
+        string low = "абвгґдеєжзиіїйклмнопрстуфхцчшщьюя";
+        string big = "АБВГҐДЕЄЖЗИIЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ";
+        string res = "";
+        string ch;
+        int at;
+        int n = s.LengthUtf8();
+        for (int i = 0; i < n; i++)
+        {
+            ch = s.SubstringUtf8(i, 1);
+            at = -1;
+            if (ch.Length() == 2)
+                at = low.IndexOf(ch);
+            if (at != -1)
+            {
+                // Every letter of the lower row is two bytes: the byte index halves
+                // into the letter's place.
+                res = res + big.SubstringUtf8(at / 2, 1);
+                continue;
+            }
+            // One byte is a Latin letter, a digit or a sign: the engine's own. Any
+            // other letter stays as it is.
+            if (ch.Length() == 1)
+                ch.ToUpper();
+            res = res + ch;
+        }
+        return res;
+    }
+
+    // The module whose files page is open: "core" for the core's own, the module of
+    // "<module>.files" for the others; empty when the open page is not a files page.
+    protected string RawPageModule()
+    {
+        if (m_Shown == "raw")
+            return "core";
+        if (!IsFilesPage(m_Shown))
+            return "";
+        return m_Shown.Substring(0, m_Shown.Length() - 6);
+    }
+
+    // The three kinds of rows of the list, made once: all go into the list's one spacer
+    // (RawListRows), so they stand in the order they are added.
+    protected bool RawMakeRows()
+    {
+        if (m_RawFiles)
+            return true;
+        Widget host = M_SUB_WIDGET.FindAnyWidget("RawListRows");
+        if (!host)
+            return false;
+        m_RawHeads = new OZ_VppFlexRows(m_Flex, host, "OpenZone_VPP/gui/layouts/oz_vpp_file_head.layout", "OZ_VppFileHead", 275, 28);
+        m_RawFiles = new OZ_VppFlexRows(m_Flex, host, "OpenZone_VPP/gui/layouts/oz_vpp_file_row.layout", "OZ_VppFileRow", 275, 28);
+        m_RawNones = new OZ_VppFlexRows(m_Flex, host, "OpenZone_VPP/gui/layouts/oz_vpp_file_none.layout", "OZ_VppFileNone", 275, 22);
+        return true;
+    }
+
+    // The files grouped by the module that owns them: the module whose files page is
+    // open first, then the rest of the rail in its order (a module with no file says
+    // so), then the owners with no page here. A caption row per group.
     protected void RebuildRawList()
     {
-        TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("RawList"));
-        if (!lb)
+        if (!RawMakeRows())
             return;
 
-        array<string> owners = new array<string>();
+        array<string> groups = new array<string>();
+        string first = RawPageModule();
+        if (first != "" && m_ModIds.Find(first) != -1)
+            groups.Insert(first);
         for (int m = 0; m < m_ModIds.Count(); m++)
         {
-            if (m_CfgOwners.Find(m_ModIds[m]) != -1)
-                owners.Insert(m_ModIds[m]);
+            if (groups.Find(m_ModIds[m]) == -1)
+                groups.Insert(m_ModIds[m]);
         }
         for (int o = 0; o < m_CfgOwners.Count(); o++)
         {
-            if (owners.Find(m_CfgOwners[o]) == -1)
-                owners.Insert(m_CfgOwners[o]);
+            if (groups.Find(m_CfgOwners[o]) == -1)
+                groups.Insert(m_CfgOwners[o]);
         }
 
-        m_Repaint = true;
-        lb.ClearItems();
-        m_RawRows.Clear();
-        for (int g = 0; g < owners.Count(); g++)
+        int muted = ARGB(255, 160, 159, 153);
+        m_RawHeads.Clear();
+        m_RawFiles.Clear();
+        m_RawNones.Clear();
+        int owners = 0;
+        Widget row;
+        for (int g = 0; g < groups.Count(); g++)
         {
-            string caption = RawOwnerLabel(owners[g]);
-            lb.AddItem(caption, NULL, 0);
-            m_RawRows.Insert("");
+            string caption = RawUpper(RawOwnerLabel(groups[g]));
+            row = m_RawHeads.Add(groups[g]);
+            if (row)
+                RowText(row, "RawHeadText", caption, muted);
+
+            int files = 0;
             for (int i = 0; i < m_CfgNames.Count(); i++)
             {
-                if (m_CfgOwners[i] != owners[g])
+                if (m_CfgOwners[i] != groups[g])
                     continue;
-                lb.AddItem("   " + m_CfgNames[i], NULL, 0);
-                m_RawRows.Insert(m_CfgNames[i]);
+                row = m_RawFiles.Add(m_CfgNames[i]);
+                if (row)
+                    RowText(row, "RawRowName", m_CfgNames[i], muted);
+                files++;
             }
+            if (files > 0)
+            {
+                owners++;
+                continue;
+            }
+            row = m_RawNones.Add(groups[g]);
+            if (row)
+                RowText(row, "RawNoneText", "#STR_OZ_VPP_FL_NO_FILES", muted);
         }
-        m_Repaint = false;
+        m_RawHeads.Fit();
+        m_RawFiles.Fit();
+        m_RawNones.Fit();
 
         RawMarkRows();
 
@@ -3440,28 +4970,55 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         string modsWord = OvTr("#STR_OZ_VPP_FL_MODULES");
         string count = filesWord + " " + m_CfgNames.Count().ToString();
         count = count + ", " + modsWord;
-        count = count + " " + owners.Count().ToString();
-        OvText("RawCount", count, ARGBF(1, 0.627, 0.624, 0.6));
+        count = count + " " + owners.ToString();
+        OvText("RawCount", count, muted);
     }
 
-    // Captions muted, the picked file in the accent colour.
+    // The picked file's row is lit: the accent's soft ground and its bar on the left,
+    // bright words; the rest lie on the list's own ground in muted words.
     protected void RawMarkRows()
     {
-        TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("RawList"));
-        if (!lb)
+        if (!m_RawFiles)
             return;
-        int ink = ARGBF(1, 0.88, 0.875, 0.855);
-        int muted = ARGBF(1, 0.627, 0.624, 0.6);
-        int accent = ARGBF(1, 0.91, 0.47, 0.17);
-        for (int r = 0; r < m_RawRows.Count(); r++)
+        Widget row;
+        Widget bar;
+        Widget name;
+        bool lit;
+        for (int r = 0; r < m_RawFiles.Count(); r++)
         {
-            int c = ink;
-            if (m_RawRows[r] == "")
-                c = muted;
-            else if (m_RawRows[r] == m_RawPicked)
-                c = accent;
-            lb.SetItemColor(r, 0, c);
+            row = m_RawFiles.Row(r);
+            if (!row)
+                continue;
+            lit = m_RawFiles.Key(r) == m_RawPicked;
+            bar = row.FindAnyWidget("OZ_VppFileRowBar");
+            if (bar)
+                bar.Show(lit);
+            name = row.FindAnyWidget("RawRowName");
+            if (lit)
+            {
+                OZ_VppFlex.Paint(row, "OZ_VppFileRowBg", ARGB(255, 53, 35, 22));
+                if (name)
+                    name.SetColor(ARGB(255, 224, 223, 218));
+            }
+            else
+            {
+                OZ_VppFlex.Paint(row, "OZ_VppFileRowBg", ARGB(255, 19, 19, 18));
+                if (name)
+                    name.SetColor(ARGB(255, 160, 159, 153));
+            }
         }
+    }
+
+    // A click somewhere in the list; false: not a file's row.
+    protected bool RawRowClick(Widget w)
+    {
+        if (!m_RawFiles)
+            return false;
+        int i = m_RawFiles.IndexOf(w);
+        if (i == -1)
+            return false;
+        RawPick(m_RawFiles.Key(i));
+        return true;
     }
 
     // The editor is emptied before the file is asked: a file that does not come (not
@@ -3531,7 +5088,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             amount = amount + " " + kbWord;
         }
         string note = OvTr("#STR_OZ_VPP_FL_SIZE_NOTE");
-        return amount + " -- " + note;
+        return amount + " — " + note;
     }
 
     // Does the text parse as JSON at all? Read into an object with no fields: the
@@ -3555,30 +5112,72 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             m_RawCheckedErr = jerr;
     }
 
+    // The status line under the editor: whether the text reads as JSON (a sign and the
+    // words), which module reads the file again once it is applied (shown while the text
+    // reads), and where the caret is.
     protected void RawPaintStatus(bool pending)
     {
-        int okInk = ARGBF(1, 0.4, 0.78, 0.36);
-        int badInk = ARGBF(1, 0.88, 0.32, 0.29);
-        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        int ink = ARGB(255, 224, 223, 218);
+        int okInk = ARGB(255, 102, 199, 92);
+        int badInk = ARGB(255, 224, 82, 74);
+        int muted = ARGB(255, 160, 159, 153);
+
+        ImageWidget sign = ImageWidget.Cast(M_SUB_WIDGET.FindAnyWidget("RawJsonIcon"));
+        Widget sep = M_SUB_WIDGET.FindAnyWidget("RawSep");
+        Widget after = M_SUB_WIDGET.FindAnyWidget("RawAfter");
+        bool reads = false;
 
         if (m_RawPicked == "")
         {
             OvText("RawJson", "", muted);
             OvText("RawWhere", "", muted);
+            OvText("RawAfter", "", muted);
+            if (sign)
+                sign.Show(false);
+            if (sep)
+                sep.Show(false);
             return;
         }
 
         if (pending)
+        {
             OvText("RawJson", "#STR_OZ_VPP_FL_JSON_WAIT", muted);
+            if (sign)
+                sign.Show(false);
+        }
         else if (m_RawCheckedOk)
-            OvText("RawJson", "#STR_OZ_VPP_FL_JSON_OK", okInk);
+        {
+            reads = true;
+            OvText("RawJson", "#STR_OZ_VPP_FL_JSON_OK", ink);
+            RawSign(sign, "check", okInk);
+        }
         else
         {
             string bad = OvTr("#STR_OZ_VPP_FL_JSON_BAD");
             if (m_RawCheckedErr != "")
                 bad = bad + ": " + m_RawCheckedErr;
             OvText("RawJson", bad, badInk);
+            RawSign(sign, "cross", badInk);
         }
+
+        // "after applying, the file is read again by the module «Trader»".
+        if (reads)
+        {
+            string afterWord = OvTr("#STR_OZ_VPP_FL_AFTER");
+            string whose = RawOwnerLabel(RawOwnerOf(m_RawPicked));
+            string said = afterWord + " «" + whose;
+            said = said + "»";
+            OvText("RawAfter", said, muted);
+        }
+        else
+        {
+            OvText("RawAfter", "", muted);
+        }
+        if (sep)
+            sep.Show(reads);
+        if (after)
+            after.Show(reads);
+        RawFlowStatus();
 
         if (!m_RawEditBox)
             return;
@@ -3590,6 +5189,69 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         where = where + " " + ofWord;
         where = where + " " + lines.ToString();
         OvText("RawWhere", where, muted);
+    }
+
+    // The sign before the status words: shown, of that picture (an icon of the window's
+    // set) and that colour.
+    protected void RawSign(ImageWidget sign, string image, int color)
+    {
+        if (!sign)
+            return;
+        sign.Show(true);
+        sign.LoadImageFile(0, "set:ozv_ui image:" + image);
+        sign.SetImage(0);
+        sign.SetColor(color);
+    }
+
+    // The status words stand by their length: the JSON words get the width they need (a
+    // text is cut at its widget's width, and the layout sized it for the board's two
+    // words) up to the paste button, and the dot and the line about the module come 14
+    // units after them, whatever language they are in, and end before that button.
+    protected void RawFlowStatus()
+    {
+        TextWidget json = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("RawJson"));
+        Widget sep = M_SUB_WIDGET.FindAnyWidget("RawSep");
+        Widget after = M_SUB_WIDGET.FindAnyWidget("RawAfter");
+        Widget paste = M_SUB_WIDGET.FindAnyWidget("BtnRawPaste");
+        if (!json || !sep || !after)
+            return;
+        int tw = OZ_VppFlex.TextWidth(json);
+        if (tw <= 0)
+            return;
+
+        float s = UnitScale();
+        float x;
+        float y;
+        float w;
+        float h;
+        float px = 0;
+        float py = 0;
+        json.GetPos(x, y);
+        json.GetSize(w, h);
+        if (paste)
+            paste.GetPos(px, py);
+
+        float wide = tw + 2;
+        float most = px - 14 * s - x;
+        if (paste && most > 40 * s && wide > most)
+            wide = most;
+        json.SetSize(wide, h);
+
+        float at = x + wide + 14 * s;
+        sep.GetPos(x, y);
+        sep.SetPos(at, y);
+        at = at + 17 * s;
+        after.GetPos(x, y);
+        after.GetSize(w, h);
+        after.SetPos(at, y);
+        if (paste)
+        {
+            // The line about the module ends before the paste button too.
+            float room = px - 14 * s - at;
+            if (room < 1)
+                room = 1;
+            after.SetSize(room, h);
+        }
     }
 
     // Every 300 ms on this page (Tick): the size follows the text at once, the JSON
@@ -3639,6 +5301,30 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         {
             if (m_RawPicked != "")
                 RawPick(m_RawPicked);
+            return true;
+        }
+
+        // The verdict on the text as it stands now, without waiting for a pause in the
+        // typing: the status line shows it and the journal keeps it.
+        if (nm == "BtnRawCheck")
+        {
+            if (m_RawPicked == "")
+            {
+                Hint("#STR_OZ_VPP_FL_PICK_FIRST");
+                return true;
+            }
+            string probeText = RawText();
+            RawCheck(probeText);
+            RawPaintStatus(false);
+            if (m_RawCheckedOk)
+            {
+                Hint("#STR_OZ_VPP_FL_JSON_OK");
+                return true;
+            }
+            string verdict = OvTr("#STR_OZ_VPP_FL_JSON_BAD");
+            if (m_RawCheckedErr != "")
+                verdict = verdict + ": " + m_RawCheckedErr;
+            Hint(verdict);
             return true;
         }
 
@@ -3722,40 +5408,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         RepaintSoon();
 
-        string nm = w.GetName();
-
-        if (nm == "RawList")
-        {
-            if (row >= 0 && row < m_RawRows.Count())
-                RawPick(m_RawRows[row]);
-            return true;
-        }
-
-        if (nm == "SpawnList")
-        {
-            SpPickRow(row);
-            return true;
-        }
-
-        if (nm == "FfrList")
-        {
-            FfrPickRow(row);
-            return true;
-        }
-
-        // A player's row opens his card; the card asks the server for his character.
-        // A question already on the confirm strip was about someone else: it goes.
-        if (nm == "PlrList")
-        {
-            if (row >= 0 && row < m_PlrRowUid.Count())
-            {
-                if (m_ConfirmAction.IndexOf("wipe:") == 0)
-                    CloseConfirm();
-                PlrPick(m_PlrRowUid[row]);
-            }
-            return true;
-        }
-
+        // The core's own pages have no listbox any more: their lists are rows of row
+        // templates and answer in OnClick. A glue's layer may still have one.
         return super.OnItemSelected(w, x, y, row, column, oldRow, oldColumn);
     }
 
@@ -3796,6 +5450,13 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return true;
         }
 
+        // The status bar's count of config problems leads to the page that lists them.
+        if (nm == "BtnVppProblems")
+        {
+            ShowPane("overview");
+            return true;
+        }
+
         if (nm == "BtnJrAll" || nm == "BtnJrErr" || nm == "BtnJrMine")
         {
             bool errs = nm == "BtnJrErr";
@@ -3812,14 +5473,29 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return true;
         }
 
+        // A module's card opens the module's first page.
+        if (nm.IndexOf("OvCard") == 0 && nm.Length() == 7 && m_Ov)
+        {
+            int cardN = nm.Substring(6, 1).ToInt();
+            if (cardN >= 0 && cardN < m_OvOrder.Count())
+            {
+                string cardPage = FirstPageOf(m_Ov.Modules[m_OvOrder[cardN]].Id);
+                if (cardPage != "" && cardPage != "overview")
+                    ShowPane(cardPage);
+            }
+            return true;
+        }
+
         if (nm == "BtnOvReload")
         {
             Confirm("#STR_OZ_VPP_OV_ASK", "#STR_OZ_VPP_OV_YES", "reload_all");
             return true;
         }
 
-        // Ядро › Точки появи.
+        // Ядро › Точки появи: its buttons, then the rows of its list.
         if (SpClick(nm))
+            return true;
+        if (SpRowClick(w))
             return true;
 
         if (nm == "BtnPlrRefresh")
@@ -3827,6 +5503,15 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             PlrAskList();
             if (m_PlrPick != "")
                 PlrPick(m_PlrPick);
+            return true;
+        }
+
+        // Ядро › Гравці: a row of the list, a link out of the card.
+        if (PlrRowClick(w))
+            return true;
+        if (nm == "PlrLink0" || nm == "PlrLink1" || nm == "PlrLink2")
+        {
+            PlrOpenLink(nm.Substring(7, 1).ToInt());
             return true;
         }
 
@@ -3877,21 +5562,21 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return true;
         }
 
-        // ДЗЕРКАЛА -- ПО ВІДЖЕТУ, А НЕ ПО ІМЕНІ. Рядки згенеровані, і всі
-        // їхні кнопки звуться однаково (MirrorRowBtn): рід везе сам рядок.
-        int mrow = m_MirrorBtns.Find(w);
-        if (mrow != -1)
-        {
-            MirrorClick(mrow);
+        // ДЗЕРКАЛА -- ПО РЯДКУ, А НЕ ПО ІМЕНІ. Рядки згенеровані, і всі їхні
+        // кнопки звуться однаково (MrRowBtn): рід везе сам рядок.
+        if (MirrorRowClick(w, nm))
             return true;
-        }
 
-        // Ядро › Файли конфігів.
+        // Ядро › Файли конфігів: its buttons, then the rows of its list.
         if (RawClick(nm))
             return true;
+        if (RawRowClick(w))
+            return true;
 
-        // Фракції › Групи FFR.
+        // Фракції › Групи FFR: its buttons, then the rows of its list.
         if (FfrClick(nm))
+            return true;
+        if (FfrRowClick(w))
             return true;
 
         return super.OnClick(w, x, y, button);
@@ -3910,7 +5595,9 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (m_FfrOn || !M_SUB_WIDGET)
             return;
 
-        Widget pane = GetGame().GetWorkspace().CreateWidgets("OpenZone_VPP/gui/layouts/oz_vpp_pane_ffr.layout", M_SUB_WIDGET);
+        // The page as the board FactionsFfr draws it (css2layout); the root's name is
+        // checked, as the engine has handed one path another file's widgets.
+        Widget pane = OZ_VppFlex.Create("OpenZone_VPP/gui/layouts/oz_vpp_pane_ffr.layout", M_SUB_WIDGET, "PaneFfr");
         if (!pane)
         {
             OZ_Log.Error("vpp ffr: layout failed to load");
@@ -3975,7 +5662,8 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         FfrPaintAll();
     }
 
-    // The draft's base faction and period into the fields, its spender into the switch.
+    // The draft's base faction and period into the fields, its spender into the switch;
+    // the picked group's list back on the faction the draft maps it to, the typed id gone.
     protected void FfrFillFields()
     {
         if (!m_FfrDraft)
@@ -3984,8 +5672,9 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             m_FfrBaseBox.SetText(m_FfrDraft.BaseFaction);
         if (m_FfrReloadBox)
             m_FfrReloadBox.SetText(m_FfrDraft.ReloadSeconds.ToString());
+        m_FfrFacPick = FfrDraftFaction(m_FfrPick);
         if (m_FfrFacBox)
-            m_FfrFacBox.SetText(FfrDraftFaction(m_FfrPick));
+            m_FfrFacBox.SetText("");
     }
 
     // The fields back into the draft, before it is compared or sent. A period that is
@@ -4056,73 +5745,110 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         return "#STR_OZ_VPP_FFR_STATE_OK";
     }
 
+    // A faction as the page writes it: its id, with its name after a dash when the
+    // server's source of factions names it; a dash for none.
+    protected string FfrFacWords(string id)
+    {
+        if (id == "")
+            return "—";
+        int at = m_IdFactions.Find(id);
+        if (at != -1 && at < m_IdNames.Count())
+        {
+            string nm = m_IdNames[at];
+            if (nm != "" && nm != id)
+                return id + " — " + nm;
+        }
+        return id;
+    }
+
+    // The groups, a row each: name, players, the faction the draft maps it to, the state.
     protected void FfrRebuild()
     {
-        TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("FfrList"));
-        if (!lb || !m_FfrGroups)
+        if (!m_FfrGroups)
             return;
+        if (!m_FfrRows)
+        {
+            Widget host = M_SUB_WIDGET.FindAnyWidget("FfrListRows");
+            if (!host)
+                return;
+            m_FfrRows = new OZ_VppFlexRows(m_Flex, host, "OpenZone_VPP/gui/layouts/oz_vpp_ffr_row.layout", "OZ_VppFfrRow", 852, 38);
+        }
 
-        m_Repaint = true;
-        lb.ClearItems();
-        m_FfrRowGroup.Clear();
+        int ink = ARGB(255, 224, 223, 218);
+        int muted = ARGB(255, 160, 159, 153);
+        m_FfrRows.Clear();
+        Widget row;
         for (int i = 0; i < m_FfrGroups.Groups.Count(); i++)
         {
             OZ_VppFfrGroupRow g = m_FfrGroups.Groups[i];
-            string fac = FfrDraftFaction(g.Name);
-            if (fac == "")
-                fac = "-";
-            string state = OvTr(FfrStateKey(g.Name));
+            row = m_FfrRows.Add(g.Name);
+            if (!row)
+                continue;
+            string fac = FfrFacWords(FfrDraftFaction(g.Name));
             string members = g.Members.ToString();
-            int row = lb.AddItem(g.Name, NULL, 0);
-            lb.SetItem(row, members, NULL, 1);
-            lb.SetItem(row, fac, NULL, 2);
-            lb.SetItem(row, state, NULL, 3);
-            m_FfrRowGroup.Insert(g.Name);
+            RowText(row, "FfrRowName", g.Name, ink);
+            RowText(row, "FfrRowCount", members, muted);
+            RowText(row, "FfrRowFaction", fac, ink);
         }
-        m_Repaint = false;
+        m_FfrRows.Fit();
         FfrMarkRows();
     }
 
-    // The picked group's name in the accent colour, each state in its own.
+    // The picked group's row is lit (the accent's frame on its soft ground, as the board
+    // draws it); each row's state is written in its own colour: mapped green, changed and
+    // not applied yet in the accent colour, base axis only in the alert colour.
     protected void FfrMarkRows()
     {
-        TextListboxWidget lb = TextListboxWidget.Cast(M_SUB_WIDGET.FindAnyWidget("FfrList"));
-        if (!lb)
+        if (!m_FfrRows)
             return;
 
-        int ink = ARGBF(1, 0.88, 0.875, 0.855);
-        int muted = ARGBF(1, 0.627, 0.624, 0.6);
-        int accent = ARGBF(1, 0.91, 0.47, 0.17);
-        int okInk = ARGBF(1, 0.4, 0.78, 0.36);
-        int alert = ARGBF(1, 0.96, 0.78, 0.25);
-        for (int r = 0; r < m_FfrRowGroup.Count(); r++)
+        int accent = ARGB(255, 232, 120, 43);
+        int okInk = ARGB(255, 102, 199, 92);
+        int alert = ARGB(255, 245, 199, 64);
+        Widget row;
+        for (int r = 0; r < m_FfrRows.Count(); r++)
         {
-            string gname = m_FfrRowGroup[r];
-            int nameInk = ink;
+            row = m_FfrRows.Row(r);
+            if (!row)
+                continue;
+            string gname = m_FfrRows.Key(r);
             if (gname == m_FfrPick)
-                nameInk = accent;
+            {
+                OZ_VppFlex.Paint(row, "OZ_VppFfrRowEdge", accent);
+                OZ_VppFlex.Paint(row, "OZ_VppFfrRowBg", ARGB(255, 47, 29, 17));
+            }
+            else
+            {
+                OZ_VppFlex.Paint(row, "OZ_VppFfrRowEdge", ARGB(255, 19, 19, 18));
+                OZ_VppFlex.Paint(row, "OZ_VppFfrRowBg", ARGB(255, 19, 19, 18));
+            }
+
             string key = FfrStateKey(gname);
             int stateInk = okInk;
             if (key == "#STR_OZ_VPP_FFR_STATE_CHANGED")
                 stateInk = accent;
             else if (key == "#STR_OZ_VPP_FFR_STATE_NONE")
                 stateInk = alert;
-            lb.SetItemColor(r, 0, nameInk);
-            lb.SetItemColor(r, 1, muted);
-            lb.SetItemColor(r, 2, ink);
-            lb.SetItemColor(r, 3, stateInk);
+            RowText(row, "FfrRowState", key, stateInk);
         }
     }
 
-    protected void FfrPickRow(int row)
+    // A click somewhere in the list; false: not this list. The group is picked and its
+    // faction list stands on what the draft maps it to.
+    protected bool FfrRowClick(Widget w)
     {
-        if (row < 0 || row >= m_FfrRowGroup.Count())
-            return;
-        m_FfrPick = m_FfrRowGroup[row];
+        if (!m_FfrRows)
+            return false;
+        int i = m_FfrRows.IndexOf(w);
+        if (i == -1)
+            return false;
+        m_FfrPick = m_FfrRows.Key(i);
+        m_FfrFacPick = FfrDraftFaction(m_FfrPick);
         if (m_FfrFacBox)
-            m_FfrFacBox.SetText(FfrDraftFaction(m_FfrPick));
+            m_FfrFacBox.SetText("");
         FfrMarkRows();
         FfrPaintPick();
+        return true;
     }
 
     protected void FfrPaintAll()
@@ -4135,11 +5861,13 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         FfrPaintBar();
     }
 
-    // "Players: 32, groups: 7, read 12 s ago"; an unread file in the bad colour.
+    // "players: 32 · groups: 7 · read, s ago: 12", beside the list's heading whatever
+    // the heading's length; an unread file in the bad colour.
     protected void FfrPaintCount()
     {
-        int muted = ARGBF(1, 0.627, 0.624, 0.6);
-        int badInk = ARGBF(1, 0.88, 0.32, 0.29);
+        int muted = ARGB(255, 160, 159, 153);
+        int badInk = ARGB(255, 224, 82, 74);
+        CoreFlowAfter("FfrGroupsHead", "FfrGroupsCount", 10);
         if (!m_FfrGroups)
         {
             OvText("FfrGroupsCount", "", muted);
@@ -4153,27 +5881,30 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
         string playersWord = OvTr("#STR_OZ_VPP_FFR_N_PLAYERS");
         string groupsWord = OvTr("#STR_OZ_VPP_FFR_N_GROUPS");
-        string agoWord = OvTr("#STR_OZ_VPP_FFR_READ_AGO");
+        string ago = string.Format(OvTr("#STR_OZ_VPP_FFR_READ_AGO"), m_FfrGroups.ReadAgo);
         string line = playersWord + " " + m_FfrGroups.Players.ToString();
-        line = line + ", " + groupsWord;
+        line = line + " · " + groupsWord;
         line = line + " " + m_FfrGroups.Groups.Count().ToString();
-        line = line + ", " + agoWord;
-        line = line + " " + m_FfrGroups.ReadAgo.ToString();
+        line = line + " · " + ago;
         OvText("FfrGroupsCount", line, muted);
     }
 
-    // The names the draft maps that FFR has no group for now, and the rule of exact names.
+    // The names the draft maps that FFR has no group for now, under the rule of exact
+    // names (which the page always shows); nothing when every name has its group.
     protected void FfrPaintMissing()
     {
-        int muted = ARGBF(1, 0.627, 0.624, 0.6);
-        string rule = OvTr("#STR_OZ_VPP_FFR_EXACT");
+        int muted = ARGB(255, 160, 159, 153);
         if (!m_FfrDraft || !m_FfrGroups)
         {
-            OvText("FfrMissing", rule, muted);
+            OvText("FfrMissing", "", muted);
             return;
         }
 
+        // The paragraph has two lines: six names fit them with the words around, the rest
+        // are counted.
         string names = "";
+        int shown = 0;
+        int more = 0;
         for (int i = 0; i < m_FfrDraft.GroupFactions.Count(); i++)
         {
             string gname = m_FfrDraft.GroupFactions[i].FfrGroup;
@@ -4185,85 +5916,92 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             }
             if (found)
                 continue;
+            if (shown >= 6)
+            {
+                more++;
+                continue;
+            }
             if (names != "")
                 names = names + ", ";
             names = names + gname;
+            shown++;
         }
 
         if (names == "")
         {
-            OvText("FfrMissing", rule, muted);
+            OvText("FfrMissing", "", muted);
             return;
+        }
+        if (more > 0)
+        {
+            names = names + ", … (+";
+            names = names + more.ToString() + ")";
         }
         string head = OvTr("#STR_OZ_VPP_FFR_MISSING");
         string tail = OvTr("#STR_OZ_VPP_FFR_MISSING_TAIL");
         string text = head + " " + names;
         text = text + ". " + tail;
-        text = text + " " + rule;
         OvText("FfrMissing", text, muted);
     }
 
-    // The spender switch: the chosen half in the accent colour.
+    // The spender switch: two choices, the chosen one ticked.
     protected void FfrPaintSpend()
     {
         bool any = true;
         if (m_FfrDraft)
             any = m_FfrDraft.AnyMemberSpends;
-        int accent = ARGBF(1, 0.91, 0.47, 0.17);
-        int muted = ARGBF(1, 0.627, 0.624, 0.6);
-        int edge = ARGBF(1, 0.235, 0.235, 0.227);
-        int anyInk = muted;
-        int noneInk = accent;
-        int anyEdge = edge;
-        int noneEdge = accent;
-        if (any)
-        {
-            anyInk = accent;
-            noneInk = muted;
-            anyEdge = accent;
-            noneEdge = edge;
-        }
-        FfrTint("BtnFfrSpendAnyText", anyInk);
-        FfrTint("BtnFfrSpendAnyEdge", anyEdge);
-        FfrTint("BtnFfrSpendNoneText", noneInk);
-        FfrTint("BtnFfrSpendNoneEdge", noneEdge);
-    }
-
-    protected void FfrTint(string name, int color)
-    {
-        Widget w = M_SUB_WIDGET.FindAnyWidget(name);
-        if (w)
-            w.SetColor(color);
+        CorePaintTick("FfrSpendAnyBox", any);
+        CorePaintTick("FfrSpendNoneBox", !any);
     }
 
     // What the trader's conditions mean here: a faction works, a post never holds (FFR
-    // has none), a leader is any member while "any member" spends, nobody otherwise.
+    // has none) -- both written in the layout --, and a leader is any member while "any
+    // member" spends, nobody otherwise.
     protected void FfrPaintTrade()
     {
         bool any = true;
         if (m_FfrDraft)
             any = m_FfrDraft.AnyMemberSpends;
-        int alert = ARGBF(1, 0.96, 0.78, 0.25);
+        int ink = ARGB(255, 224, 223, 218);
         if (any)
-            OvText("FfrTradeLeader", "#STR_OZ_VPP_FFR_TRADE_LEADER_ANY", alert);
+            OvText("FfrTradeLeader", "#STR_OZ_VPP_FFR_T_LEADER_ANY", ink);
         else
-            OvText("FfrTradeLeader", "#STR_OZ_VPP_FFR_TRADE_LEADER_NONE", alert);
+            OvText("FfrTradeLeader", "#STR_OZ_VPP_FFR_T_LEADER_NONE", ink);
     }
 
+    // The picked group's card: its name, how many players it has (right after the name,
+    // whatever its length), and the faction its list stands on.
     protected void FfrPaintPick()
     {
-        int ink = ARGBF(1, 0.88, 0.875, 0.855);
-        int muted = ARGBF(1, 0.627, 0.624, 0.6);
+        int ink = ARGB(255, 224, 223, 218);
+        int muted = ARGB(255, 160, 159, 153);
         if (m_FfrPick == "")
         {
             OvText("FfrPickName", "#STR_OZ_VPP_FFR_PICK", muted);
             OvText("FfrPickInfo", "", muted);
+            OvText("BtnFfrFacText", "", muted);
+            CoreFlowAfter("FfrPickName", "FfrPickInfo", 8);
             return;
         }
         OvText("FfrPickName", m_FfrPick, ink);
         string word = OvTr("#STR_OZ_VPP_FFR_PICK_INFO");
         string info = word + " " + FfrMembersOf(m_FfrPick).ToString();
         OvText("FfrPickInfo", info, muted);
+        CoreFlowAfter("FfrPickName", "FfrPickInfo", 8);
+        FfrPaintFac();
+    }
+
+    // The list of factions shows the one it stands on: "id — name", or that the group
+    // gets no faction.
+    protected void FfrPaintFac()
+    {
+        int ink = ARGB(255, 224, 223, 218);
+        if (m_FfrFacPick == "")
+        {
+            OvText("BtnFfrFacText", "#STR_OZ_VPP_FFR_FAC_NONE", ink);
+            return;
+        }
+        OvText("BtnFfrFacText", FfrFacWords(m_FfrFacPick), ink);
     }
 
     // What the draft changes against the file, in short; empty: nothing.
@@ -4327,10 +6065,13 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         return summary;
     }
 
+    // The draft's bar: what changed (a sign and the words, in the alert colour) or that
+    // nothing did; the note on where it is written stands after the words while there is
+    // room for it before the buttons.
     protected void FfrPaintBar()
     {
-        int muted = ARGBF(1, 0.627, 0.624, 0.6);
-        int alert = ARGBF(1, 0.96, 0.78, 0.25);
+        int muted = ARGB(255, 160, 159, 153);
+        int alert = ARGB(255, 245, 199, 64);
         string changes = FfrChanges();
         Widget dot = M_SUB_WIDGET.FindAnyWidget("FfrBarDot");
         if (dot)
@@ -4338,10 +6079,70 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (changes == "")
         {
             OvText("FfrBarText", "#STR_OZ_VPP_FFR_NO_CHANGES", muted);
+            FfrFlowBar("");
             return;
         }
         string head = OvTr("#STR_OZ_VPP_FFR_CHANGED");
-        OvText("FfrBarText", head + " " + changes, alert);
+        string said = head + " " + changes;
+        OvText("FfrBarText", said, alert);
+        FfrFlowBar(said);
+    }
+
+    // The bar's words by their length: the changes take what they need up to the
+    // buttons (cut with an ellipsis past that), the note takes the rest and goes when
+    // less than 160 units are left. `said` is the words as written ("": the caption of
+    // no changes, which is never cut).
+    protected void FfrFlowBar(string said)
+    {
+        TextWidget text = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget("FfrBarText"));
+        Widget note = M_SUB_WIDGET.FindAnyWidget("FfrBarNote");
+        Widget btn = M_SUB_WIDGET.FindAnyWidget("BtnFfrDiscard");
+        if (!text || !note || !btn)
+            return;
+        Widget clip = note.GetParent();
+        if (!clip)
+            return;
+        int tw = OZ_VppFlex.TextWidth(text);
+        if (tw <= 0)
+            return;
+
+        float s = UnitScale();
+        float x;
+        float y;
+        float w;
+        float h;
+        float bx;
+        float by;
+        text.GetPos(x, y);
+        text.GetSize(w, h);
+        btn.GetPos(bx, by);
+        float most = bx - 12 * s - x;
+        if (most < 40 * s)
+            return;
+
+        if (tw > most && said != "")
+        {
+            int n = said.LengthUtf8();
+            float f = n;
+            int keep = f * most / tw;
+            keep = keep - 2;
+            if (keep < 1)
+                keep = 1;
+            if (keep < n)
+                text.SetText(said.SubstringUtf8(0, keep) + "…");
+            tw = most;
+        }
+        text.SetSize(tw + 2, h);
+
+        float at = x + tw + 12 * s;
+        float room = bx - 12 * s - at;
+        clip.Show(room >= 160 * s);
+        if (room < 160 * s)
+            return;
+        clip.GetPos(x, y);
+        clip.GetSize(w, h);
+        clip.SetPos(at, y);
+        clip.SetSize(room, h);
     }
 
     // Every 300 ms on this page (Tick): the bar follows what is typed in the fields.
@@ -4354,29 +6155,43 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         FfrPaintBar();
     }
 
-    // The cycler beside the faction field: the ids the draft already uses, the base
-    // faction, then none.
+    // The factions the picked group's list goes through: the ids the draft already
+    // uses, the base faction, those the server's source of factions names, then none.
+    protected void FfrFacOptions(array<string> ids)
+    {
+        if (m_FfrDraft)
+        {
+            for (int i = 0; i < m_FfrDraft.GroupFactions.Count(); i++)
+            {
+                string id = m_FfrDraft.GroupFactions[i].FactionId;
+                if (id != "" && ids.Find(id) == -1)
+                    ids.Insert(id);
+            }
+            FfrReadFields();
+            if (m_FfrDraft.BaseFaction != "" && ids.Find(m_FfrDraft.BaseFaction) == -1)
+                ids.Insert(m_FfrDraft.BaseFaction);
+        }
+        for (int k = 0; k < m_IdFactions.Count(); k++)
+        {
+            if (ids.Find(m_IdFactions[k]) == -1)
+                ids.Insert(m_IdFactions[k]);
+        }
+        ids.Insert("");
+    }
+
+    // A click on the list of factions moves it to the next one; an id typed under it
+    // goes, as the list is what the admin is choosing with now.
     protected void FfrCycleFaction()
     {
-        if (!m_FfrDraft || !m_FfrFacBox)
-            return;
         array<string> ids = new array<string>();
-        for (int i = 0; i < m_FfrDraft.GroupFactions.Count(); i++)
-        {
-            string id = m_FfrDraft.GroupFactions[i].FactionId;
-            if (id != "" && ids.Find(id) == -1)
-                ids.Insert(id);
-        }
-        FfrReadFields();
-        if (m_FfrDraft.BaseFaction != "" && ids.Find(m_FfrDraft.BaseFaction) == -1)
-            ids.Insert(m_FfrDraft.BaseFaction);
-        ids.Insert("");
-
-        string current = m_FfrFacBox.GetText().Trim();
-        int at = ids.Find(current) + 1;
+        FfrFacOptions(ids);
+        int at = ids.Find(m_FfrFacPick) + 1;
         if (at >= ids.Count())
             at = 0;
-        m_FfrFacBox.SetText(ids[at]);
+        m_FfrFacPick = ids[at];
+        if (m_FfrFacBox)
+            m_FfrFacBox.SetText("");
+        FfrPaintFac();
     }
 
     // The page's buttons; false: not one of them.
@@ -4389,12 +6204,19 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             return true;
         }
 
-        if (nm == "BtnFfrFacCycle")
+        if (nm == "BtnFfrFac")
         {
+            if (m_FfrPick == "")
+            {
+                Hint("#STR_OZ_VPP_FFR_PICK");
+                return true;
+            }
             FfrCycleFaction();
             return true;
         }
 
+        // The picked group gets the faction typed under the list, or the one the list
+        // stands on; "no faction" drops the group's row from the draft.
         if (nm == "BtnFfrMap")
         {
             if (m_FfrPick == "")
@@ -4402,21 +6224,31 @@ class OZ_VppAdminMenu : AdminHudSubMenu
                 Hint("#STR_OZ_VPP_FFR_PICK");
                 return true;
             }
-            if (!m_FfrDraft || !m_FfrFacBox)
+            if (!m_FfrDraft)
                 return true;
-            string id = m_FfrFacBox.GetText().Trim();
+            string id = m_FfrFacPick;
+            if (m_FfrFacBox)
+            {
+                string typed = m_FfrFacBox.GetText().Trim();
+                if (typed != "")
+                    id = typed;
+                m_FfrFacBox.SetText("");
+            }
             m_FfrDraft.SetFaction(m_FfrPick, id);
+            m_FfrFacPick = id;
             FfrRebuild();
             FfrPaintAll();
             return true;
         }
 
-        if (nm == "BtnFfrSpendAny" || nm == "BtnFfrSpendNone")
+        // The two choices of who spends the pool: a label each, with its own tick box.
+        bool spendAny = nm == "BtnFfrSpendAny" || nm == "FfrSpendAnyBox";
+        bool spendNone = nm == "BtnFfrSpendNone" || nm == "FfrSpendNoneBox";
+        if (spendAny || spendNone)
         {
             if (!m_FfrDraft)
                 return true;
-            bool any = nm == "BtnFfrSpendAny";
-            m_FfrDraft.AnyMemberSpends = any;
+            m_FfrDraft.AnyMemberSpends = spendAny;
             FfrPaintSpend();
             FfrPaintTrade();
             FfrPaintBar();
@@ -4476,38 +6308,23 @@ class OZ_VppAdminMenu : AdminHudSubMenu
 
     // ---------------------------------------------------------- Ядро › Дзеркало Discord
 
-    // Порожня смуга з розмітки сторінки -- дім згенерованих рядків. Немає її
-    // (стара .layout поруч із новим скриптом) -- рядки лишаються дітьми
-    // вікна: гірше на вигляд, але не порожньо.
-    protected Widget MirrorStrip()
-    {
-        if (!M_SUB_WIDGET)
-            return null;
-
-        Widget strip = M_SUB_WIDGET.FindAnyWidget("MirrorStrip");
-        if (strip)
-            return strip;
-
-        return M_SUB_WIDGET;
-    }
-
     // Рядки будуються З ВІДПОВІДІ СЕРВЕРА, а не з розмітки: скільки родів
-    // зареєстрували моди, стільки й рядків.
+    // зареєстрували моди, стільки й рядків. A row per kind (the page CoreMirror.html,
+    // row template oz_vpp_mirror_row); the row's key is the kind, and the three lists
+    // beside the rows run in the rows' order.
     protected void BuildMirrorRows(OZ_MirrorState st)
     {
-        Widget strip = MirrorStrip();
-        if (!strip || !st || !st.Mirrors)
+        if (!st || !st.Mirrors)
             return;
-
-        // Старі рядки знімаємо руками: Unlink() на кожному, бо смуга живе
-        // далі й наступний mirror_list інакше домалював би другий комплект.
-        for (int d = 0; d < m_MrRows.Count(); d++)
+        if (!m_MrRows)
         {
-            if (m_MrRows[d])
-                m_MrRows[d].Unlink();
+            Widget host = M_SUB_WIDGET.FindAnyWidget("MrListRows");
+            if (!host)
+                return;
+            m_MrRows = new OZ_VppFlexRows(m_Flex, host, "OpenZone_VPP/gui/layouts/oz_vpp_mirror_row.layout", "OZ_VppMirrorRow", 1312, 66);
         }
+
         m_MrRows.Clear();
-        m_MirrorBtns.Clear();
         m_MirrorKinds.Clear();
         m_MirrorOn.Clear();
         m_MirrorNotes.Clear();
@@ -4518,7 +6335,7 @@ class OZ_VppAdminMenu : AdminHudSubMenu
             if (!km || km.Kind == "")
                 continue;
 
-            Widget row = GetGame().GetWorkspace().CreateWidgets("OpenZone_VPP/gui/layouts/oz_vpp_mirror_row.layout", strip);
+            Widget row = m_MrRows.Add(km.Kind);
             if (!row)
             {
                 OZ_Log.Error("vpp mirror: layout failed to load: " + km.Kind);
@@ -4535,73 +6352,83 @@ class OZ_VppAdminMenu : AdminHudSubMenu
                 m_MirrorNotes.Insert(st.Notes[i]);
             else
                 m_MirrorNotes.Insert("");
-
-            m_MrRows.Insert(row);
-            m_MirrorBtns.Insert(row.FindAnyWidget("MirrorRowBtn"));
         }
 
-        LayoutMirror();
+        m_MrRows.Fit();
         PaintMirror();
     }
 
-    // The rows down the strip, 72 units and 8 apart: SetPos takes pixels on an
-    // exact-size widget (gui-layouts §31), so units times UnitScale().
-    protected void LayoutMirror()
-    {
-        float s = UnitScale();
-        for (int i = 0; i < m_MrRows.Count(); i++)
-        {
-            Widget row = m_MrRows[i];
-            if (row)
-                row.SetPos(0, i * 80 * s);
-        }
-    }
-
-    // Each row: the kind, its state, the server's sentence on what switching it does,
-    // and the switch's caption.
+    // Each row: the kind, its state (a sign and a word), the server's sentence on what
+    // switching it does, and the switch's caption; in the page's head, how many kinds
+    // there are.
     protected void PaintMirror()
     {
-        int ink = ARGBF(1, 0.88, 0.875, 0.855);
-        int muted = ARGBF(1, 0.627, 0.624, 0.6);
-        int okInk = ARGBF(1, 0.4, 0.78, 0.36);
+        int ink = ARGB(255, 224, 223, 218);
+        int muted = ARGB(255, 160, 159, 153);
+        int okInk = ARGB(255, 102, 199, 92);
 
+        if (!m_MirrorKnown)
+        {
+            OvText("MrCount", "#STR_OZ_VPP_OV_ASKING", muted);
+        }
+        else
+        {
+            string countWord = OvTr("#STR_OZ_VPP_MR_COUNT");
+            OvText("MrCount", countWord + " " + m_MirrorKinds.Count().ToString(), muted);
+        }
+        if (!m_MrRows)
+            return;
+
+        Widget row;
+        Widget dot;
+        string cap;
         for (int i = 0; i < m_MrRows.Count(); i++)
         {
-            Widget row = m_MrRows[i];
-            if (!row)
+            row = m_MrRows.Row(i);
+            if (!row || i >= m_MirrorKinds.Count())
                 continue;
 
-            string cap = m_MirrorKinds[i];
+            cap = m_MirrorKinds[i];
             cap.ToUpper();
-            MrRowText(row, "MirrorRowKind", cap, ink);
-            MrRowText(row, "MirrorRowNote", m_MirrorNotes[i], muted);
+            RowText(row, "MrRowKind", cap, ink);
+            RowText(row, "MrRowNote", m_MirrorNotes[i], muted);
+            dot = row.FindAnyWidget("MrRowDot");
 
             if (!m_MirrorKnown)
             {
-                MrRowText(row, "MirrorRowState", "?", muted);
-                MrRowText(row, "MirrorRowBtnText", "", ink);
+                RowText(row, "MrRowState", "?", muted);
+                RowText(row, "MrRowBtnText", "", ink);
+                if (dot)
+                    dot.SetColor(muted);
                 continue;
             }
             if (m_MirrorOn[i] == 1)
             {
-                MrRowText(row, "MirrorRowState", "#STR_OZ_VPP_MR_ON", okInk);
-                MrRowText(row, "MirrorRowBtnText", "#STR_OZ_VPP_MR_TURN_OFF", ink);
+                RowText(row, "MrRowState", "#STR_OZ_VPP_MR_ON", okInk);
+                RowText(row, "MrRowBtnText", "#STR_OZ_VPP_MR_TURN_OFF", ink);
+                if (dot)
+                    dot.SetColor(okInk);
             }
             else
             {
-                MrRowText(row, "MirrorRowState", "#STR_OZ_VPP_MR_OFF", muted);
-                MrRowText(row, "MirrorRowBtnText", "#STR_OZ_VPP_MR_TURN_ON", ink);
+                RowText(row, "MrRowState", "#STR_OZ_VPP_MR_OFF", muted);
+                RowText(row, "MrRowBtnText", "#STR_OZ_VPP_MR_TURN_ON", ink);
+                if (dot)
+                    dot.SetColor(muted);
             }
         }
     }
 
-    protected void MrRowText(Widget row, string name, string text, int color)
+    // A click on a row's switch; false: not a switch of this list.
+    protected bool MirrorRowClick(Widget w, string nm)
     {
-        TextWidget t = TextWidget.Cast(row.FindAnyWidget(name));
-        if (!t)
-            return;
-        t.SetText(text);
-        t.SetColor(color);
+        if (nm != "MrRowBtn" || !m_MrRows)
+            return false;
+        int i = m_MrRows.IndexOf(w);
+        if (i == -1)
+            return false;
+        MirrorClick(i);
+        return true;
     }
 
     // Один перемикач на рід, через смугу підтвердження (design §3.4). Речення про
@@ -4678,6 +6505,161 @@ class OZ_VppAdminMenu : AdminHudSubMenu
         if (note != "")
             line = line + " - " + note;
         Hint(line);
+    }
+
+    // ---------------------------------------------------------- the core's pages: shared
+
+    // A tick box or a radio of a converted page: a button whose children are, in the
+    // layout's order, its frame, its ground and its mark (<name>Mark). On: filled in the
+    // accent colour, the mark shown; off: the cell's ground in a faint frame, no mark.
+    protected void CorePaintTick(string name, bool on)
+    {
+        Widget box = M_SUB_WIDGET.FindAnyWidget(name);
+        if (!box)
+            return;
+
+        int frame = ARGB(255, 92, 90, 88);
+        int ground = ARGB(255, 7, 7, 7);
+        if (on)
+        {
+            frame = ARGB(255, 232, 120, 43);
+            ground = ARGB(255, 232, 120, 43);
+        }
+        string markName = name + "Mark";
+        int n = 0;
+        Widget part = box.GetChildren();
+        while (part)
+        {
+            if (part.GetName() == markName)
+            {
+                part.Show(on);
+            }
+            else
+            {
+                if (n == 0)
+                    part.SetColor(frame);
+                else
+                    part.SetColor(ground);
+                n++;
+            }
+            part = part.GetSibling();
+        }
+    }
+
+    // Two texts of one line and one parent: the first gets the width of its words (a
+    // text is cut at its widget's width, and the layout sized it for the board's sample)
+    // and the second stands `gap` units after its last letter, whatever language it is
+    // in, up to the edge it ended at. A text that was not drawn yet may answer no width:
+    // both keep what they have until it does.
+    protected void CoreFlowAfter(string first, string second, float gap)
+    {
+        TextWidget a = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget(first));
+        Widget b = M_SUB_WIDGET.FindAnyWidget(second);
+        if (!a || !b)
+            return;
+        int tw = OZ_VppFlex.TextWidth(a);
+        if (tw <= 0)
+            return;
+
+        float x;
+        float y;
+        float w;
+        float h;
+        float bx;
+        float by;
+        float bw;
+        float bh;
+        a.GetPos(x, y);
+        a.GetSize(w, h);
+        b.GetPos(bx, by);
+        b.GetSize(bw, bh);
+
+        // The pair ends where the second ends now, and that edge stays: the first is cut
+        // there if its words are longer, the second keeps what is left.
+        float end = bx + bw;
+        float aw = tw + 2;
+        if (aw > end - x)
+            aw = end - x;
+        if (aw < 1)
+            aw = 1;
+        float at = x + aw + gap * UnitScale();
+        float room = end - at;
+        if (room < 1)
+        {
+            at = end - 1;
+            room = 1;
+        }
+        a.SetSize(aw, h);
+        b.SetPos(at, by);
+        b.SetSize(room, bh);
+    }
+
+    // The legend of a fieldset (a frame <name> with its ground <name>Bg and its caption
+    // <name>Text): as wide as its words with the board's 6 units on each side, so a longer
+    // caption of the other language is not cut and the box's line stops under it.
+    protected void CoreHugLegend(string name)
+    {
+        Widget box = M_SUB_WIDGET.FindAnyWidget(name);
+        Widget bg = M_SUB_WIDGET.FindAnyWidget(name + "Bg");
+        TextWidget t = TextWidget.Cast(M_SUB_WIDGET.FindAnyWidget(name + "Text"));
+        if (!box || !t)
+            return;
+        if (OZ_VppFlex.TextWidth(t) <= 0)
+            return;
+        OZ_VppFlex.Hug(box, bg, t, 6 * UnitScale());
+    }
+
+    // One of the core's pages was just shown, or the window changed its size while it
+    // was open (Tick): what the page lays out by script follows -- the rows of its lists
+    // as wide as their lists (a resize puts them back to the width they had), the words
+    // that stand by their length, the scheme, the cards that hug their text.
+    protected void CoreRefit(string id)
+    {
+        if (id == "spawns")
+        {
+            if (m_SpRows)
+            {
+                m_SpHeads.Fit();
+                m_SpRows.Fit();
+            }
+            SpDrawScheme();
+        }
+        if (id == "news")
+        {
+            if (m_NwRows)
+                m_NwRows.Fit();
+            m_NwFitDue = 3;
+        }
+        if (id == "players")
+        {
+            if (m_PlrRows)
+                m_PlrRows.Fit();
+            m_PlrFlowDue = 3;
+            CoreHugLegend("PlrCharTag");
+            CoreHugLegend("PlrLinksTag");
+            CoreHugLegend("PlrWipeTag");
+        }
+        if (id == "mirror" && m_MrRows)
+            m_MrRows.Fit();
+        if (IsFilesPage(id))
+        {
+            if (m_RawFiles)
+            {
+                m_RawHeads.Fit();
+                m_RawFiles.Fit();
+                m_RawNones.Fit();
+            }
+            RawFlowStatus();
+        }
+        if (id == "ffr")
+        {
+            if (m_FfrRows)
+                m_FfrRows.Fit();
+            CoreFlowAfter("FfrGroupsHead", "FfrGroupsCount", 10);
+            CoreFlowAfter("FfrPickName", "FfrPickInfo", 8);
+            CoreHugLegend("FfrAllTag");
+            FfrPaintBar();
+        }
     }
 
     // ---------------------------------------------------------- дрібне

@@ -1,0 +1,15 @@
+confirm: VppConfirm.html -> OpenZone_VPP/gui/layouts/oz_vpp_confirm.layout
+design size 1360 x 60, measured again one, two and three steps of 240 x 160 larger
+widgets: 12; 0 of them the browser re-flows as the page grows (the rule keeps them as designed)
+
+FILES
+  OpenZone_VPP/gui/layouts/oz_vpp_confirm.layout
+
+NAMED WIDGETS OF THE PAGE (FindAnyWidget)
+  ConfirmText  TextWidget (filled by script)
+  BtnConfirmNo  ButtonWidget (parts: BtnConfirmNoEdge, BtnConfirmNoBg)
+  BtnConfirmYes  ButtonWidget (parts: BtnConfirmYesBg)
+  BtnConfirmYesText  TextWidget (filled by script)
+
+CSS THE ENGINE HAS NO ANSWER FOR
+  border-radius  x2

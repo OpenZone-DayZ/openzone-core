@@ -1,0 +1,10 @@
+{
+  "note": "Ядро > Дзеркало Discord; its rows come from the server. The root is hidden in its layout; the fixture shows it.",
+  "ops": [
+    {
+      "op": "show",
+      "nth": 1,
+      "name": "PaneMirror"
+    }
+  ]
+}

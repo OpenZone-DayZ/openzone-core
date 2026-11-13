@@ -1,0 +1,54 @@
+players: CorePlayers.dc.html -> OpenZone_VPP/gui/layouts/oz_vpp_pane_players.layout
+design size 1360 x 812, measured again one, two and three steps of 240 x 160 larger
+widgets: 90; 3 of them the browser re-flows as the page grows (the rule keeps them as designed)
+
+FILES
+  OpenZone_VPP/gui/layouts/oz_vpp_pane_players.layout
+  OpenZone_VPP/gui/layouts/oz_vpp_player_row.layout
+
+NAMED WIDGETS OF THE PAGE (FindAnyWidget)
+  BtnPlrRefresh  ButtonWidget (parts: BtnPlrRefreshEdge, BtnPlrRefreshBg)
+  PlrFind  EditBox
+  PlrCount  TextWidget (filled by script)
+  PlrList  Frame
+  PlrListRows  WrapSpacer: the list's rows go here (oz_vpp_player_row); its ScrollWidget is PlrListScroll
+  PlrName  TextWidget (filled by script)
+  PlrUidChip  Frame (parts: PlrUidChipBg)
+  PlrUidShown  TextWidget (filled by script)
+  PlrStateDot  ImageWidget (the sign ●: icon dot)
+  PlrState  TextWidget (filled by script)
+  PlrCharTag  Frame (parts: PlrCharTagBg)
+  PlrCharTagText  TextWidget (a caption: recolour only)
+  PlrCharName  TextWidget (filled by script)
+  PlrGen  TextWidget (filled by script)
+  PlrSteam  TextWidget (filled by script)
+  PlrLinks  Frame (parts: PlrLinksEdge, PlrLinksBg)
+  PlrLinksTag  Frame (parts: PlrLinksTagBg)
+  PlrLinksTagText  TextWidget (a caption: recolour only)
+  PlrLink0  ButtonWidget (parts: PlrLink0Edge, PlrLink0Bg)
+  PlrLinkTitle0  TextWidget (filled by script)
+  PlrLinkWhat0  RichText (filled by script)
+  PlrLink1  ButtonWidget (parts: PlrLink1Edge, PlrLink1Bg)
+  PlrLinkTitle1  TextWidget (filled by script)
+  PlrLinkWhat1  RichText (filled by script)
+  PlrLink2  ButtonWidget (parts: PlrLink2Edge, PlrLink2Bg)
+  PlrLinkTitle2  TextWidget (filled by script)
+  PlrLinkWhat2  RichText (filled by script)
+  PlrWipeTag  Frame (parts: PlrWipeTagBg)
+  PlrWipeTagText  TextWidget (a caption: recolour only)
+  BtnPlrWipe  ButtonWidget (parts: BtnPlrWipeEdge, BtnPlrWipeBg)
+
+ROW TEMPLATES
+  oz_vpp_player_row.layout  root OZ_VppPlayerRow (Button), 1 in the sample, 387 x 40 units, list PlrListRows
+      OZ_VppPlayerRow  ButtonWidget (parts: OZ_VppPlayerRowEdge, OZ_VppPlayerRowBg)
+      PlrRowDot  ImageWidget (the sign ●: icon dot)
+      PlrRowName  TextWidget (filled by script)
+      PlrRowUid  TextWidget (filled by script)
+
+CSS THE ENGINE HAS NO ANSWER FOR
+  border-radius  x15
+
+RESIZE: WHERE THE BROWSER RE-FLOWS (a text unwraps, a box changes its row); the first of them
+  Frame PlrLinks
+  Frame pl28
+  Text pl33

@@ -1,0 +1,44 @@
+spawns: CoreSpawns.dc.html -> OpenZone_VPP/gui/layouts/oz_vpp_pane_spawns.layout
+design size 1360 x 812, measured again one, two and three steps of 240 x 160 larger
+widgets: 82; 0 of them the browser re-flows as the page grows (the rule keeps them as designed)
+
+FILES
+  OpenZone_VPP/gui/layouts/oz_vpp_pane_spawns.layout
+  OpenZone_VPP/gui/layouts/oz_vpp_spawn_head.layout
+  OpenZone_VPP/gui/layouts/oz_vpp_spawn_row.layout
+  OpenZone_VPP/gui/layouts/oz_vpp_spawn_label.layout
+
+NAMED WIDGETS OF THE PAGE (FindAnyWidget)
+  BtnSpOn  ButtonWidget (parts: BtnSpOnEdge, BtnSpOnBg)
+  SpOnBox  ButtonWidget (a checkbox; parts: SpOnBoxEdge, SpOnBoxBg); its mark is SpOnBoxMark: show it when on
+  BtnSpOnText  TextWidget (a caption: recolour only)
+  SpList  Frame (parts: SpListLine)
+  SpListRows  WrapSpacer: the list's rows go here (oz_vpp_spawn_head, oz_vpp_spawn_row); its ScrollWidget is SpListScroll
+  SpSchemeBox  Frame (parts: SpSchemeBoxEdge, SpSchemeBoxBg)
+  SpScheme  CanvasWidget
+  SpSchemePick  TextWidget (filled by script)
+  SpSchemeScale  TextWidget (filled by script)
+  BtnSpFac  ButtonWidget (a select: the script cycles or lists its options ["duty — Долг", "freedom — Воля", "ecolog — Вчені", "* очікування", "- запасна"]); its caption is BtnSpFacText
+  SpSlug  EditBox
+  SpRadius  EditBox
+  BtnSpHere  ButtonWidget (parts: BtnSpHereBg)
+  BtnSpClear  ButtonWidget (parts: BtnSpClearEdge, BtnSpClearBg)
+  SpUid  EditBox
+  BtnSpUidHere  ButtonWidget (parts: BtnSpUidHereEdge, BtnSpUidHereBg)
+  BtnSpUidClear  ButtonWidget (parts: BtnSpUidClearEdge, BtnSpUidClearBg)
+
+ROW TEMPLATES
+  oz_vpp_spawn_head.layout  root OZ_VppSpawnHead (Frame), 3 in the sample, 420 x 22 units, list SpListRows
+      OZ_VppSpawnHead  Frame
+      SpHeadText  TextWidget (filled by script)
+  oz_vpp_spawn_row.layout  root OZ_VppSpawnRow (Button), 5 in the sample, 420 x 38 units, list SpListRows
+      OZ_VppSpawnRow  ButtonWidget (parts: OZ_VppSpawnRowEdge, OZ_VppSpawnRowBg)
+      SpRowWho  TextWidget (filled by script)
+      SpRowWhere  TextWidget (filled by script)
+      SpRowR  TextWidget (filled by script)
+  oz_vpp_spawn_label.layout  root OZ_VppSpawnLabel (Frame), 1 in the sample, 200 x 18 units, placed by script
+      OZ_VppSpawnLabel  Frame
+      SpLabelText  TextWidget (filled by script)
+
+CSS THE ENGINE HAS NO ANSWER FOR
+  border-radius  x11

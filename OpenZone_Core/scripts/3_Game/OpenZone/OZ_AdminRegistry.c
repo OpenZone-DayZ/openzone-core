@@ -122,6 +122,9 @@ class OZ_NewsOp
 {
     static const string VOICES = "news_voices";
     static const string POST   = "news_post";
+    // The newest posts as the bridge keeps them (its v1/news/list): a read, for the
+    // "newest" column of the window's news page (VPP rework 2026-11-13).
+    static const string LIST   = "news_list";
 }
 
 // Операції розділу PLAYERS -- з тієї самої причини, що й OZ_NewsOp вище.

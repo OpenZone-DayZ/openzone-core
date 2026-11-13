@@ -1,0 +1,401 @@
+{
+  "note": "How the mockup of the OpenZone window in VPP (docs/specs/2026-11-12-openzone-vpp-mockup/project, HTML and CSS) becomes the window's layouts: `python -m dayz_mcp.css2layout ui/css2layout.json [page] [--demo]` from the MCP repository's src. This file holds what the whole series shares -- the fonts of the window (Fira Sans and Fira Sans Condensed as the ozv_* atlases of OpenZone_VPP/gui/fonts), the characters those faces lack (drawn as icons of the ozv_ui imageset) and the icons -- and the core's own pages. A glue's ui/css2layout.json extends this one and names its pages, its output folder and its stringtable. The sizes are the 'exact text size' that draws a CSS pixel size as the browser does (measured: the cell is 1.11 to 1.15 of the em).",
+  "serve": "../../docs/specs/2026-11-12-openzone-vpp-mockup/project",
+  "step": [
+    240,
+    160
+  ],
+  "out": "../OpenZone_VPP/gui/layouts",
+  "prefix": "OpenZone_VPP/gui/layouts",
+  "report": "css2layout",
+  "runtime": {
+    "prefix": "OZ_Vpp",
+    "out": "../OpenZone_VPP/scripts/5_Mission/OpenZone_VPP/OZ_VppFlex.c"
+  },
+  "strings": {
+    "files": [
+      "../OpenZone_Core/stringtable.csv"
+    ],
+    "column": "original",
+    "fold": {
+      "І": "I"
+    },
+    "pending": [
+      "css2layout/strings.pending.json"
+    ]
+  },
+  "scrollbar": [
+    0.235,
+    0.235,
+    0.227,
+    1
+  ],
+  "fonts": [
+    {
+      "family": "Fira Sans",
+      "weight": [
+        0,
+        449
+      ],
+      "face": "OpenZone_VPP/gui/fonts/ozv_sans28",
+      "sizes": {
+        "10": 11,
+        "11": 12,
+        "12": 13,
+        "13": 14,
+        "14": 15,
+        "15": 16,
+        "16": 17
+      },
+      "ratio": 1.08,
+      "wrap": {
+        "face": "OpenZone_VPP/gui/fonts/ozv_sdf_sans32",
+        "sizes": {
+          "11": 12,
+          "12": 13,
+          "13": 14,
+          "14": 15
+        },
+        "ratio": 1.08,
+        "dy": -1
+      },
+      "edit": {
+        "12": "OpenZone_VPP/gui/fonts/ozv_field13",
+        "13": "OpenZone_VPP/gui/fonts/ozv_field14",
+        "14": "OpenZone_VPP/gui/fonts/ozv_field15"
+      }
+    },
+    {
+      "family": "Fira Sans",
+      "weight": [
+        450,
+        549
+      ],
+      "face": "OpenZone_VPP/gui/fonts/ozv_sansm28",
+      "sizes": {
+        "10": 12,
+        "11": 13,
+        "12": 14,
+        "13": 15,
+        "14": 16,
+        "15": 17,
+        "16": 18
+      },
+      "ratio": 1.13,
+      "wrap": {
+        "face": "OpenZone_VPP/gui/fonts/ozv_sdf_sansm32",
+        "sizes": {
+          "11": 12,
+          "12": 13,
+          "13": 14,
+          "14": 15
+        },
+        "ratio": 1.08,
+        "dy": -1
+      },
+      "edit": {
+        "12": "OpenZone_VPP/gui/fonts/ozv_field13",
+        "13": "OpenZone_VPP/gui/fonts/ozv_field14",
+        "14": "OpenZone_VPP/gui/fonts/ozv_field15"
+      }
+    },
+    {
+      "family": "Fira Sans",
+      "weight": [
+        550,
+        1000
+      ],
+      "face": "OpenZone_VPP/gui/fonts/ozv_sansb28",
+      "sizes": {
+        "10": 12,
+        "11": 13,
+        "12": 14,
+        "13": 15,
+        "14": 16,
+        "15": 17,
+        "16": 18
+      },
+      "ratio": 1.14,
+      "wrap": {
+        "face": "OpenZone_VPP/gui/fonts/ozv_sdf_sansm32",
+        "sizes": {
+          "11": 12,
+          "12": 13,
+          "13": 14,
+          "14": 15
+        },
+        "ratio": 1.08,
+        "dy": -1
+      },
+      "edit": {
+        "15": "OpenZone_VPP/gui/fonts/ozv_fieldb17"
+      }
+    },
+    {
+      "family": "Fira Sans Condensed",
+      "weight": [
+        0,
+        549
+      ],
+      "face": "OpenZone_VPP/gui/fonts/ozv_condm28",
+      "sizes": {
+        "11": 13,
+        "12": 14,
+        "13": 15,
+        "14": 16,
+        "15": 17,
+        "16": 18
+      },
+      "ratio": 1.13
+    },
+    {
+      "family": "Fira Sans Condensed",
+      "weight": [
+        550,
+        649
+      ],
+      "by": [
+        {
+          "upto": 16,
+          "face": "OpenZone_VPP/gui/fonts/ozv_cond28",
+          "sizes": {
+            "11": 13,
+            "12": 14,
+            "13": 15,
+            "14": 16,
+            "15": 17,
+            "16": 18
+          }
+        },
+        {
+          "face": "OpenZone_VPP/gui/fonts/ozv_cond44",
+          "sizes": {
+            "17": 19,
+            "18": 21,
+            "19": 22,
+            "20": 23,
+            "22": 25,
+            "24": 27,
+            "26": 30
+          }
+        }
+      ],
+      "ratio": 1.137,
+      "track": [
+        {
+          "from": 0.9,
+          "max": 16,
+          "face": "OpenZone_VPP/gui/fonts/ozv_condt28"
+        }
+      ]
+    },
+    {
+      "family": "Fira Sans Condensed",
+      "weight": [
+        650,
+        1000
+      ],
+      "by": [
+        {
+          "upto": 16,
+          "face": "OpenZone_VPP/gui/fonts/ozv_condb28",
+          "sizes": {
+            "11": 13,
+            "12": 14,
+            "13": 15,
+            "14": 16,
+            "15": 17,
+            "16": 18
+          }
+        },
+        {
+          "face": "OpenZone_VPP/gui/fonts/ozv_condb44",
+          "sizes": {
+            "17": 19,
+            "18": 21,
+            "20": 23,
+            "22": 25,
+            "24": 27
+          }
+        }
+      ],
+      "ratio": 1.146,
+      "track": [
+        {
+          "from": 2.5,
+          "min": 17,
+          "face": "OpenZone_VPP/gui/fonts/ozv_condbw44"
+        }
+      ]
+    },
+    {
+      "family": [
+        "ui-monospace",
+        "monospace"
+      ],
+      "weight": [
+        0,
+        1000
+      ],
+      "face": "OpenZone_VPP/gui/fonts/ozv_mono28",
+      "sizes": {
+        "12": 13,
+        "13": 14
+      },
+      "ratio": 1.08,
+      "edit": {
+        "13": "OpenZone_VPP/gui/fonts/ozv_monofield14"
+      }
+    }
+  ],
+  "glyphs": {
+    "●": {
+      "icon": "dot",
+      "scale": 0.62
+    },
+    "○": {
+      "icon": "ring",
+      "scale": 0.62
+    },
+    "✓": {
+      "icon": "check",
+      "scale": 0.95
+    },
+    "✗": {
+      "icon": "cross",
+      "scale": 0.8
+    },
+    "▸": {
+      "icon": "tri_right",
+      "scale": 0.8
+    },
+    "▾": {
+      "icon": "tri_down",
+      "scale": 0.8
+    },
+    "❗": {
+      "icon": "excl",
+      "scale": 0.8
+    },
+    "➖": {
+      "icon": "dash",
+      "scale": 0.8
+    }
+  },
+  "icons": {
+    "set": "ozv_ui",
+    "png": "../source/icons/png",
+    "max": 40,
+    "disc": "disc"
+  },
+  "pages": {
+    "shell": {
+      "page": "Main.dc.html",
+      "size": [
+        1600,
+        900
+      ],
+      "layout": "oz_vpp_admin",
+      "root": "OZ_VppRoot",
+      "auto": "vp",
+      "hidden": true,
+      "priority": false
+    },
+    "confirm": {
+      "page": "VppConfirm.html",
+      "size": [
+        1360,
+        60
+      ],
+      "layout": "oz_vpp_confirm",
+      "root": "OZ_VppConfirm",
+      "auto": "cf",
+      "hidden": true
+    },
+    "overview": {
+      "page": "Overview.dc.html",
+      "size": [
+        1360,
+        812
+      ],
+      "layout": "oz_vpp_pane_overview",
+      "root": "PaneOverview",
+      "auto": "ov",
+      "hidden": true
+    },
+    "spawns": {
+      "page": "CoreSpawns.dc.html",
+      "size": [
+        1360,
+        812
+      ],
+      "layout": "oz_vpp_pane_spawns",
+      "root": "PaneSpawns",
+      "auto": "sp",
+      "hidden": true
+    },
+    "news": {
+      "page": "CoreNews.dc.html",
+      "size": [
+        1360,
+        812
+      ],
+      "layout": "oz_vpp_pane_news",
+      "root": "PaneNews",
+      "auto": "nw",
+      "hidden": true
+    },
+    "players": {
+      "page": "CorePlayers.dc.html",
+      "size": [
+        1360,
+        812
+      ],
+      "layout": "oz_vpp_pane_players",
+      "root": "PanePlayers",
+      "auto": "pl",
+      "hidden": true
+    },
+    "files": {
+      "page": "CoreFiles.dc.html",
+      "size": [
+        1360,
+        812
+      ],
+      "layout": "oz_vpp_pane_raw",
+      "root": "PaneRaw",
+      "auto": "rw",
+      "hidden": true
+    },
+    "ffr": {
+      "page": "FactionsFfr.dc.html",
+      "size": [
+        1360,
+        812
+      ],
+      "layout": "oz_vpp_pane_ffr",
+      "root": "PaneFfr",
+      "auto": "ff",
+      "hidden": true
+    },
+    "mirror": {
+      "page": "CoreMirror.html",
+      "size": [
+        1360,
+        812
+      ],
+      "layout": "oz_vpp_pane_mirror",
+      "root": "PaneMirror",
+      "auto": "mr",
+      "hidden": true
+    }
+  },
+  "marks": {
+    "off": "#5c5a58",
+    "on": "#e8782b",
+    "fill": "#070707",
+    "fill_on": "#e8782b",
+    "mark": "#140a02",
+    "track": "#3c3c3a"
+  }
+}

@@ -1,0 +1,61 @@
+shell: Main.dc.html -> OpenZone_VPP/gui/layouts/oz_vpp_admin.layout
+design size 1600 x 900, measured again one, two and three steps of 240 x 160 larger
+widgets: 64; 0 of them the browser re-flows as the page grows (the rule keeps them as designed)
+
+FILES
+  OpenZone_VPP/gui/layouts/oz_vpp_admin.layout
+  OpenZone_VPP/gui/layouts/oz_vpp_rail_mod.layout
+  OpenZone_VPP/gui/layouts/oz_vpp_rail_page.layout
+
+NAMED WIDGETS OF THE PAGE (FindAnyWidget)
+  VppHeader  Frame (parts: VppHeaderBg, VppHeaderLine)
+  Header  Panel (unseen, takes the pointer)
+  VppCrumbMod  TextWidget (filled by script)
+  VppCrumbSep  TextWidget (filled by script)
+  VppCrumbPage  TextWidget (filled by script)
+  VppChipServer  Frame (parts: VppChipServerBg)
+  VppChipServerText  TextWidget (filled by script)
+  VppChipPlayers  Frame (parts: VppChipPlayersBg)
+  VppChipPlayersDot  ImageWidget (the sign ●: icon dot)
+  VppChipPlayersText  TextWidget (filled by script)
+  VppChipBridge  Frame (parts: VppChipBridgeBg)
+  VppChipBridgeDot  ImageWidget (the sign ●: icon dot)
+  VppChipBridgeText  TextWidget (filled by script)
+  VppSearchBox  Frame (parts: VppSearchBoxEdge, VppSearchBoxBg)
+  VppSearch  EditBox
+  BtnVppClose  ButtonWidget (parts: BtnVppCloseEdge, BtnVppCloseBg)
+  Rail  Frame (parts: RailBg, RailLine)
+  RailFoot  Frame (parts: RailFootLine)
+  RailFootA  RichText (filled by script)
+  RailFootB  TextWidget (filled by script)
+  VppContent  Frame (parts: VppContentBg)
+  StatusBar  Frame (parts: StatusBarBg, StatusBarLine)
+  StatusDot  ImageWidget (the sign ●: icon dot)
+  StatusState  TextWidget (filled by script)
+  StatusText  TextWidget (filled by script)
+  BtnVppProblems  ButtonWidget
+  StatusCount  TextWidget (filled by script)
+  StatusLast  TextWidget (filled by script)
+  Grip  Panel (unseen, takes the pointer)
+
+ROW TEMPLATES
+  oz_vpp_rail_mod.layout  root OZ_VppRailMod (Button), 6 in the sample, 219 x 40 units, placed by script
+      OZ_VppRailMod  ButtonWidget (parts: OZ_VppRailModBg)
+      RailModBadge  Frame (parts: RailModBadgeBg)
+      RailModMark  TextWidget (filled by script)
+      RailModName  TextWidget (filled by script)
+      RailModChevron  ImageWidget (the sign ▾: icon tri_down)
+  oz_vpp_rail_page.layout  root OZ_VppRailPage (Button), 8 in the sample, 219 x 32 units, placed by script
+      OZ_VppRailPage  ButtonWidget (parts: OZ_VppRailPageBg, OZ_VppRailPageBar)
+      RailPageName  TextWidget (filled by script)
+
+CAPTIONS WITH NO STRINGTABLE KEY (written into the layout as they are)
+  OPENZONE
+
+CSS THE ENGINE HAS NO ANSWER FOR
+  border-radius  x8
+  letter-spacing 0.5px (no tracked face for Fira Sans Condensed 600)  x1
+  letter-spacing 0.5px (no tracked face for Fira Sans Condensed 700)  x1
+
+NOTES
+  left out, it lies off the page: span at -9998,18

@@ -1,0 +1,10 @@
+{
+  "note": "Фракції > Групи FFR (registered only when the FFR glue is the source of factions). The root is hidden in its layout; the fixture shows it.",
+  "ops": [
+    {
+      "op": "show",
+      "nth": 1,
+      "name": "PaneFfr"
+    }
+  ]
+}

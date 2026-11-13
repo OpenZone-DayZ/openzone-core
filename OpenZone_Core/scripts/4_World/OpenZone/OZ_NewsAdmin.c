@@ -150,6 +150,8 @@ class OZ_NewsSection : OZ_AdminSection
 {
     override bool IsRead(string op)
     {
+        if (op == OZ_NewsOp.LIST)
+            return true;
         return op == OZ_NewsOp.VOICES;
     }
 
@@ -172,6 +174,12 @@ class OZ_NewsSection : OZ_AdminSection
 
         if (op == OZ_NewsOp.VOICES)
             return Ask("v1/news/voices", sender, op, "", error);
+
+        // The feed's first page, newest first, as the bridge answers it: the window
+        // shows it beside the form (titles, who signed, when). The letter is the same
+        // {Uid}; the bridge reads only Cursor and Limit from it and finds neither.
+        if (op == OZ_NewsOp.LIST)
+            return Ask("v1/news/list", sender, op, "", error);
 
         if (op == OZ_NewsOp.POST)
             return Ask("v1/news/post", sender, op, json, error);

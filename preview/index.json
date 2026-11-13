@@ -1,48 +1,77 @@
 {
-  "note": "Preview gallery for ui_gallery: the VPP admin window (the rework of 2026-11-12: a rail of modules on the left, a status bar), its rail row, the core's pages and the link screen, as the engine draws them (the faction pages moved to openzone-factions). The window and the panes are hidden in their own layouts -- VPP shows the window, ShowPane shows the open tab's pane -- so each fixture shows its root first, or the entry photographs an empty host. TabStrip is empty in every shot: a tab exists only at runtime, one per pane registered, and how many there are depends on which glue pbos loaded. The panes are hosted at 1000x620, not at their own 1000x524, because each one sits at [0, vpp.paneY] inside the window -- the host is the window they will land in.",
+  "note": "Preview gallery for ui_gallery: the OpenZone window in VPP and the core's pages as converted from the mockup (css2layout, 2026-11-13; docs/specs/2026-11-12-openzone-vpp-mockup), and the link screen. Every converted root is hidden in its layout -- the window shows it -- so each fixture shows its root. The pages are 1360x812, the room the window gives a page; rows of lists exist only at run time (their templates are entries of their own). A page FILLED with the mockup's sample is its demo twin: `python -m dayz_mcp.css2layout ui/css2layout.json <page> --demo` writes _demo_<layout>.layout.",
   "entries": [
     {
       "name": "vpp-admin",
       "layout": "OpenZone_VPP/gui/layouts/oz_vpp_admin.layout",
-      "host": "1920 1080",
-      "fixture": "preview/vpp-window.json",
-      "note": "The host is the workspace VPP hands the window, not the window itself: the root positions itself at a FRACTION of its host (at_frac 0.24 0.14), so a host the size of the window would push it 24 per cent right and crop the close button off the shot."
+      "host": "1600 900",
+      "fixture": "preview/vpp-admin.json"
     },
     {
-      "name": "vpp-rail-row",
-      "layout": "OpenZone_VPP/gui/layouts/oz_vpp_rail_row.layout",
-      "host": "220 32",
-      "fixture": "preview/vpp-rail-row.json"
+      "name": "vpp-confirm",
+      "layout": "OpenZone_VPP/gui/layouts/oz_vpp_confirm.layout",
+      "host": "1360 60",
+      "fixture": "preview/vpp-confirm.json"
+    },
+    {
+      "name": "vpp-rail-mod",
+      "layout": "OpenZone_VPP/gui/layouts/oz_vpp_rail_mod.layout",
+      "host": "219 40",
+      "fixture": "preview/vpp-rail-mod.json"
+    },
+    {
+      "name": "vpp-rail-page",
+      "layout": "OpenZone_VPP/gui/layouts/oz_vpp_rail_page.layout",
+      "host": "219 32",
+      "fixture": "preview/vpp-rail-page.json"
     },
     {
       "name": "vpp-overview",
       "layout": "OpenZone_VPP/gui/layouts/oz_vpp_pane_overview.layout",
-      "host": "1000 620",
+      "host": "1360 812",
       "fixture": "preview/vpp-overview.json"
+    },
+    {
+      "name": "vpp-journal-row",
+      "layout": "OpenZone_VPP/gui/layouts/oz_vpp_journal_row.layout",
+      "host": "1310 33",
+      "fixture": "preview/vpp-journal-row.json"
     },
     {
       "name": "vpp-spawns",
       "layout": "OpenZone_VPP/gui/layouts/oz_vpp_pane_spawns.layout",
-      "host": "1000 620",
+      "host": "1360 812",
       "fixture": "preview/vpp-spawns.json"
-    },
-    {
-      "name": "vpp-raw",
-      "layout": "OpenZone_VPP/gui/layouts/oz_vpp_pane_raw.layout",
-      "host": "1000 620",
-      "fixture": "preview/vpp-raw.json"
     },
     {
       "name": "vpp-news",
       "layout": "OpenZone_VPP/gui/layouts/oz_vpp_pane_news.layout",
-      "host": "1000 620",
+      "host": "1360 812",
       "fixture": "preview/vpp-news.json"
     },
     {
       "name": "vpp-players",
       "layout": "OpenZone_VPP/gui/layouts/oz_vpp_pane_players.layout",
-      "host": "1000 620",
+      "host": "1360 812",
       "fixture": "preview/vpp-players.json"
+    },
+    {
+      "name": "vpp-mirror",
+      "layout": "OpenZone_VPP/gui/layouts/oz_vpp_pane_mirror.layout",
+      "host": "1360 812",
+      "fixture": "preview/vpp-mirror.json"
+    },
+    {
+      "name": "vpp-raw",
+      "layout": "OpenZone_VPP/gui/layouts/oz_vpp_pane_raw.layout",
+      "host": "1360 812",
+      "fixture": "preview/vpp-raw.json"
+    },
+    {
+      "name": "vpp-ffr",
+      "layout": "OpenZone_VPP/gui/layouts/oz_vpp_pane_ffr.layout",
+      "host": "1360 812",
+      "fixture": "preview/vpp-ffr.json"
     },
     {
       "name": "link",

@@ -1,0 +1,10 @@
+{
+  "note": "The window as VPP hosts it, at its design size. The root is hidden in its layout; the fixture shows it.",
+  "ops": [
+    {
+      "op": "show",
+      "nth": 1,
+      "name": "OZ_VppRoot"
+    }
+  ]
+}

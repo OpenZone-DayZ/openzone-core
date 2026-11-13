@@ -1,0 +1,38 @@
+news: CoreNews.dc.html -> OpenZone_VPP/gui/layouts/oz_vpp_pane_news.layout
+design size 1360 x 812, measured again one, two and three steps of 240 x 160 larger
+widgets: 76; 0 of them the browser re-flows as the page grows (the rule keeps them as designed)
+
+FILES
+  OpenZone_VPP/gui/layouts/oz_vpp_pane_news.layout
+  OpenZone_VPP/gui/layouts/oz_vpp_news_row.layout
+
+NAMED WIDGETS OF THE PAGE (FindAnyWidget)
+  NwCount  TextWidget (filled by script)
+  NwTitle  EditBox
+  NwBody  MultilineEditBox
+  NwBytes  Frame (parts: NwBytesBg)
+  NwBytesFill  Frame (parts: NwBytesFillBg)
+  NwBytesText  TextWidget (filled by script)
+  BtnNwWho  ButtonWidget (a select: the script cycles or lists its options ["Survivor (я)", "[персона з Discord]", "[персона з Discord]"]); its caption is BtnNwWhoText
+  BtnNwPost  ButtonWidget (parts: BtnNwPostBg)
+  BtnNwClear  ButtonWidget (parts: BtnNwClearEdge, BtnNwClearBg)
+  NwMid  Frame (parts: NwMidLine)
+  NwCard  Frame (parts: NwCardEdge, NwCardBg)
+  NwPrevTitle  TextWidget (filled by script)
+  NwPrevWho  TextWidget (filled by script)
+  NwPrevBody  RichText (filled by script)
+  NwPrevNote  RichText (a caption: recolour only)
+  NwRecentNote  TextWidget (filled by script)
+  NwRecent  Frame
+  NwRecentRows  WrapSpacer: the list's rows go here (oz_vpp_news_row); its ScrollWidget is NwRecentScroll
+
+ROW TEMPLATES
+  oz_vpp_news_row.layout  root OZ_VppNewsRow (Frame), 6 in the sample, 400 x 57 units, list NwRecentRows
+      OZ_VppNewsRow  Frame (parts: OZ_VppNewsRowBg)
+      NwRowTitle  TextWidget (filled by script)
+      NwRowMeta  TextWidget (filled by script)
+
+CSS THE ENGINE HAS NO ANSWER FOR
+  border-radius  x8
+  letter-spacing 1px (no tracked face for Fira Sans 400)  x1
+  letter-spacing 2px (no tracked face for Fira Sans Condensed 700)  x1

@@ -1,0 +1,52 @@
+ffr: FactionsFfr.dc.html -> OpenZone_VPP/gui/layouts/oz_vpp_pane_ffr.layout
+design size 1360 x 812, measured again one, two and three steps of 240 x 160 larger
+widgets: 109; 2 of them the browser re-flows as the page grows (the rule keeps them as designed)
+
+FILES
+  OpenZone_VPP/gui/layouts/oz_vpp_pane_ffr.layout
+  OpenZone_VPP/gui/layouts/oz_vpp_ffr_row.layout
+
+NAMED WIDGETS OF THE PAGE (FindAnyWidget)
+  BtnFfrReread  ButtonWidget (parts: BtnFfrRereadEdge, BtnFfrRereadBg)
+  FfrGroupsHead  TextWidget (a caption: recolour only)
+  FfrGroupsCount  TextWidget (filled by script)
+  FfrList  Frame
+  FfrListRows  WrapSpacer: the list's rows go here (oz_vpp_ffr_row); its ScrollWidget is FfrListScroll
+  FfrMissing  RichText (filled by script)
+  FfrPickName  TextWidget (filled by script)
+  FfrPickInfo  TextWidget (filled by script)
+  BtnFfrFac  ButtonWidget (a select: the script cycles or lists its options ["без фракції (лише базова вісь)", "mercenary — Найманці", "neutral — Нейтрали", "monolith — Моноліт", "military — Війсь); its caption is BtnFfrFacText
+  FfrFacId  EditBox
+  BtnFfrMap  ButtonWidget (parts: BtnFfrMapBg)
+  FfrAllTag  Frame (parts: FfrAllTagBg)
+  FfrAllTagText  TextWidget (a caption: recolour only)
+  FfrBase  EditBox
+  BtnFfrSpendAny  ButtonWidget
+  FfrSpendAnyBox  ButtonWidget (a radio; parts: FfrSpendAnyBoxEdge, FfrSpendAnyBoxBg); its mark is FfrSpendAnyBoxMark: show it when on
+  BtnFfrSpendAnyText  TextWidget (a caption: recolour only)
+  BtnFfrSpendNone  ButtonWidget
+  FfrSpendNoneBox  ButtonWidget (a radio; parts: FfrSpendNoneBoxEdge, FfrSpendNoneBoxBg); its mark is FfrSpendNoneBoxMark: show it when on
+  BtnFfrSpendNoneText  TextWidget (a caption: recolour only)
+  FfrReload  EditBox
+  FfrTradeLeader  TextWidget (filled by script)
+  FfrBarDot  ImageWidget (the sign ●: icon dot)
+  FfrBarText  TextWidget (filled by script)
+  FfrBarNote  TextWidget (a caption: recolour only)
+  BtnFfrDiscard  ButtonWidget (parts: BtnFfrDiscardEdge, BtnFfrDiscardBg)
+  BtnFfrApply  ButtonWidget (parts: BtnFfrApplyBg)
+
+ROW TEMPLATES
+  oz_vpp_ffr_row.layout  root OZ_VppFfrRow (Button), 7 in the sample, 852 x 38 units, list FfrListRows
+      OZ_VppFfrRow  ButtonWidget (parts: OZ_VppFfrRowEdge, OZ_VppFfrRowBg)
+      FfrRowName  TextWidget (filled by script)
+      FfrRowCount  TextWidget (filled by script)
+      FfrRowFaction  TextWidget (filled by script)
+      FfrRowState  TextWidget (filled by script)
+
+CSS THE ENGINE HAS NO ANSWER FOR
+  border-radius  x14
+  letter-spacing 0.5px (no tracked face for Fira Sans 400)  x1
+
+RESIZE: WHERE THE BROWSER RE-FLOWS (a text unwraps, a box changes its row); the first of them
+  Frame FfrList
+  Panel ff12

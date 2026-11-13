@@ -381,6 +381,13 @@ class OZ_BridgeClient
         // гасило кеш цілком.
         s_RouteRole.Set("v1/news/voices", ROUTE_NEUTRAL);
 
+        // The feed itself, asked by the same admin form for its "newest" column
+        // (OZ_NewsOp.LIST): a read, so it must not count as a write and put out the
+        // whole cache on a server without the PDA. Neutral here -- not cached, puts
+        // nothing out; the PDA's news kind names the same road in its Reads() and its
+        // own entry, set by the loop below, makes it a cached read again.
+        s_RouteRole.Set("v1/news/list", ROUTE_NEUTRAL);
+
         // РЕШТА ВЛАСНИХ ДОРІГ ЯДРА -- ЗАПИС, і це свідомо, а не забуто:
         //   v1/news/post   -- ядро пише новину (OZ_NewsAdmin); світ після неї
         //                     інший, і скидання кеша цілком застарює й

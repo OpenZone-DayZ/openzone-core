@@ -1,0 +1,27 @@
+mirror: CoreMirror.html -> OpenZone_VPP/gui/layouts/oz_vpp_pane_mirror.layout
+design size 1360 x 812, measured again one, two and three steps of 240 x 160 larger
+widgets: 28; 0 of them the browser re-flows as the page grows (the rule keeps them as designed)
+
+FILES
+  OpenZone_VPP/gui/layouts/oz_vpp_pane_mirror.layout
+  OpenZone_VPP/gui/layouts/oz_vpp_mirror_row.layout
+
+NAMED WIDGETS OF THE PAGE (FindAnyWidget)
+  MrCount  TextWidget (filled by script)
+  BtnMrRefresh  ButtonWidget (parts: BtnMrRefreshEdge, BtnMrRefreshBg)
+  MrList  Frame
+  MrListRows  WrapSpacer: the list's rows go here (oz_vpp_mirror_row); its ScrollWidget is MrListScroll
+
+ROW TEMPLATES
+  oz_vpp_mirror_row.layout  root OZ_VppMirrorRow (Frame), 2 in the sample, 1312 x 66 units, list MrListRows
+      OZ_VppMirrorRow  Frame (parts: OZ_VppMirrorRowEdge, OZ_VppMirrorRowBg)
+      MrRowKind  TextWidget (filled by script)
+      MrRowDot  ImageWidget (the sign ●: icon dot)
+      MrRowState  TextWidget (filled by script)
+      MrRowNote  RichText (filled by script)
+      MrRowBtn  ButtonWidget (parts: MrRowBtnEdge, MrRowBtnBg)
+      MrRowBtnText  TextWidget (filled by script)
+
+CSS THE ENGINE HAS NO ANSWER FOR
+  border-radius  x3
+  letter-spacing 0.5px (no tracked face for Fira Sans 400)  x1

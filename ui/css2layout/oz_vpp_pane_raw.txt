@@ -1,0 +1,41 @@
+files: CoreFiles.dc.html -> OpenZone_VPP/gui/layouts/oz_vpp_pane_raw.layout
+design size 1360 x 812, measured again one, two and three steps of 240 x 160 larger
+widgets: 55; 0 of them the browser re-flows as the page grows (the rule keeps them as designed)
+
+FILES
+  OpenZone_VPP/gui/layouts/oz_vpp_pane_raw.layout
+  OpenZone_VPP/gui/layouts/oz_vpp_file_head.layout
+  OpenZone_VPP/gui/layouts/oz_vpp_file_row.layout
+  OpenZone_VPP/gui/layouts/oz_vpp_file_none.layout
+
+NAMED WIDGETS OF THE PAGE (FindAnyWidget)
+  RawCount  TextWidget (filled by script)
+  RawList  Frame (parts: RawListBg, RawListLine)
+  RawListRows  WrapSpacer: the list's rows go here (oz_vpp_file_head, oz_vpp_file_row, oz_vpp_file_none); its ScrollWidget is RawListScroll
+  RawPath  TextWidget (filled by script)
+  RawSize  TextWidget (filled by script)
+  BtnRawReload  ButtonWidget (parts: BtnRawReloadEdge, BtnRawReloadBg)
+  BtnRawCheck  ButtonWidget (parts: BtnRawCheckEdge, BtnRawCheckBg)
+  BtnRawApply  ButtonWidget (parts: BtnRawApplyBg)
+  RawEdit  MultilineEditBox
+  RawJsonIcon  ImageWidget (the sign ✓: icon check)
+  RawJson  TextWidget (filled by script)
+  RawSep  TextWidget (a caption: recolour only)
+  RawAfter  TextWidget (filled by script)
+  BtnRawPaste  ButtonWidget (parts: BtnRawPasteEdge, BtnRawPasteBg)
+  BtnRawCopy  ButtonWidget (parts: BtnRawCopyEdge, BtnRawCopyBg)
+  RawWhere  TextWidget (filled by script)
+
+ROW TEMPLATES
+  oz_vpp_file_head.layout  root OZ_VppFileHead (Frame), 6 in the sample, 275 x 28 units, list RawListRows
+      OZ_VppFileHead  Frame
+      RawHeadText  TextWidget (filled by script)
+  oz_vpp_file_row.layout  root OZ_VppFileRow (Button), 15 in the sample, 275 x 28 units, list RawListRows
+      OZ_VppFileRow  ButtonWidget (parts: OZ_VppFileRowBg, OZ_VppFileRowBar)
+      RawRowName  TextWidget (filled by script)
+  oz_vpp_file_none.layout  root OZ_VppFileNone (Frame), 1 in the sample, 275 x 22 units, list RawListRows
+      OZ_VppFileNone  Frame
+      RawNoneText  TextWidget (filled by script)
+
+CSS THE ENGINE HAS NO ANSWER FOR
+  border-radius  x6

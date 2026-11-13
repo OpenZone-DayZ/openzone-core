@@ -1,0 +1,84 @@
+overview: Overview.dc.html -> OpenZone_VPP/gui/layouts/oz_vpp_pane_overview.layout
+design size 1360 x 812, measured again one, two and three steps of 240 x 160 larger
+widgets: 142; 0 of them the browser re-flows as the page grows (the rule keeps them as designed)
+
+FILES
+  OpenZone_VPP/gui/layouts/oz_vpp_pane_overview.layout
+  OpenZone_VPP/gui/layouts/oz_vpp_journal_row.layout
+
+NAMED WIDGETS OF THE PAGE (FindAnyWidget)
+  BtnOvReload  ButtonWidget (parts: BtnOvReloadBg)
+  OvBody  Frame
+  OvBodyBody  Frame: the scrolled content (734 units tall in the sample); its ScrollWidget is OvBodyScroll
+  OvStat0  Frame (parts: OvStat0Bg)
+  OvStat0Val  TextWidget (filled by script)
+  OvStat1  Frame (parts: OvStat1Bg)
+  OvStat1Val  TextWidget (filled by script)
+  OvStat2  Frame (parts: OvStat2Bg)
+  OvStat2Val  TextWidget (filled by script)
+  OvStat3  Frame (parts: OvStat3Bg)
+  OvStat3Val  TextWidget (filled by script)
+  OvCard0  ButtonWidget (parts: OvCard0Edge, OvCard0Bg)
+  OvCardName0  TextWidget (filled by script)
+  OvCardChip0  Frame (parts: OvCardChip0Bg)
+  OvCardState0  TextWidget (filled by script)
+  OvCardProb0  TextWidget (filled by script)
+  OvCardFacts0  TextWidget (filled by script)
+  OvCard1  ButtonWidget (parts: OvCard1Edge, OvCard1Bg)
+  OvCardName1  TextWidget (filled by script)
+  OvCardChip1  Frame (parts: OvCardChip1Bg)
+  OvCardState1  TextWidget (filled by script)
+  OvCardProb1  TextWidget (filled by script)
+  OvCardFacts1  TextWidget (filled by script)
+  OvCard2  ButtonWidget (parts: OvCard2Edge, OvCard2Bg)
+  OvCardName2  TextWidget (filled by script)
+  OvCardChip2  Frame (parts: OvCardChip2Bg)
+  OvCardState2  TextWidget (filled by script)
+  OvCardProb2  TextWidget (filled by script)
+  OvCardFacts2  TextWidget (filled by script)
+  OvCard3  ButtonWidget (parts: OvCard3Edge, OvCard3Bg)
+  OvCardName3  TextWidget (filled by script)
+  OvCardChip3  Frame (parts: OvCardChip3Bg)
+  OvCardState3  TextWidget (filled by script)
+  OvCardProb3  TextWidget (filled by script)
+  OvCardFacts3  TextWidget (filled by script)
+  OvCard4  ButtonWidget (parts: OvCard4Edge, OvCard4Bg)
+  OvCardName4  TextWidget (filled by script)
+  OvCardChip4  Frame (parts: OvCardChip4Bg)
+  OvCardState4  TextWidget (filled by script)
+  OvCardProb4  TextWidget (filled by script)
+  OvCardFacts4  TextWidget (filled by script)
+  OvCard5  ButtonWidget (parts: OvCard5Edge, OvCard5Bg)
+  OvCardName5  TextWidget (filled by script)
+  OvCardChip5  Frame (parts: OvCardChip5Bg)
+  OvCardState5  TextWidget (filled by script)
+  OvCardProb5  TextWidget (filled by script)
+  OvCardFacts5  TextWidget (filled by script)
+  OvCard6  ButtonWidget (parts: OvCard6Edge, OvCard6Bg)
+  OvCardName6  TextWidget (filled by script)
+  OvCardChip6  Frame (parts: OvCardChip6Bg)
+  OvCardState6  TextWidget (filled by script)
+  OvCardFacts6  TextWidget (filled by script)
+  OvJournalBox  Frame (parts: OvJournalBoxEdge, OvJournalBoxBg)
+  BtnJrAll  ButtonWidget (parts: BtnJrAllEdge, ov14, ov15, BtnJrAllBg, ov16, ov17)
+  BtnJrAllText  TextWidget (a caption: recolour only)
+  BtnJrErr  ButtonWidget (parts: BtnJrErrEdge, ov18, ov19, BtnJrErrBg, ov20, ov21)
+  BtnJrErrText  TextWidget (filled by script)
+  BtnJrMine  ButtonWidget (parts: BtnJrMineEdge, ov22, ov23, BtnJrMineBg, ov24, ov25)
+  BtnJrMineText  TextWidget (a caption: recolour only)
+  OvJournal  WrapSpacer: the rows go here (oz_vpp_journal_row); it is as tall as its rows and scrolls with what holds it
+
+ROW TEMPLATES
+  oz_vpp_journal_row.layout  root OZ_VppJournalRow (Frame), 7 in the sample, 1310 x 33 units, list OvJournal
+      OZ_VppJournalRow  Frame (parts: OZ_VppJournalRowLine)
+      JrTime  TextWidget (filled by script)
+      JrModule  TextWidget (filled by script)
+      JrWho  TextWidget (filled by script)
+      JrWhat  TextWidget (filled by script)
+      JrResultIcon  ImageWidget (the sign ✓: icon check)
+      JrResult  TextWidget (filled by script)
+
+CSS THE ENGINE HAS NO ANSWER FOR
+  border style dashed (drawn solid)  x1
+  border-radius  x20
+  letter-spacing 0.5px (no tracked face for Fira Sans 400)  x7

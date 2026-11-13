@@ -1,5 +1,5 @@
 {
-  "note": "The journal page; the list is empty in the gallery: entries exist only at runtime.",
+  "note": "Ядро > Огляд і журнал; the journal is empty here: its rows exist at run time. The root is hidden in its layout; the fixture shows it.",
   "ops": [
     {
       "op": "show",

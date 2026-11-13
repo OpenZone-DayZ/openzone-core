@@ -1,0 +1,10 @@
+{
+  "note": "A module row of the rail (a row template: the script creates one per module). The root is hidden in its layout; the fixture shows it.",
+  "ops": [
+    {
+      "op": "show",
+      "nth": 1,
+      "name": "OZ_VppRailMod"
+    }
+  ]
+}
