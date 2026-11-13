@@ -28,11 +28,14 @@ cannot be accepted. **GPL code in particular cannot go in.**
   unpacked game scripts. If you are not sure, unpack the PBO and look.
 - **`OpenZone_VPP/gui/layouts/*.layout` files are generated, never hand-edited**
   -- with one named exception: `OpenZone_Core/gui/layouts/oz_link.layout`
-  (hand-written on purpose, palette kept by hand). Every other layout comes
-  from a description under `ui/OpenZone_VPP/`; regenerate with the MCP's
-  `layout_build` or `python -m dayz_mcp.layoutgen <root>` from the generator
-  repo. Run the gallery at two sizes and in two languages before calling a
-  UI change done.
+  (hand-written on purpose, palette kept by hand). The window and its pages
+  are converted from the mockup's HTML boards by the MCP's `layout_convert`
+  (`python -m dayz_mcp.css2layout ui/css2layout.json [page]`): the config
+  names each page's board, layout and root, `ui/css2layout/*.txt` lists what
+  each page names for its script, and the boards live with the series' notes
+  (`docs/specs/2026-11-12-openzone-vpp-mockup/project`). Edit the board and
+  convert again. Look at the pages on the stand in both languages before
+  calling a UI change done.
 - **`ui/tokens.json` lives here and nowhere else.** `OpenZone_PDA` and
   `OpenZone_Factions` read it through their own `[build] tokens`; the
   `vpp` group exists only for this repo's own `OpenZone_VPP` window and is
