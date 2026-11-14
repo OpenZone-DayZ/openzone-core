@@ -6,9 +6,11 @@
 // The window makes one (OZ_VppAdminMenu.OnCreate), every glue names its fields in
 // ClassFields, and the window's Tick drives it. It follows the focused edit box from Tick, as
 // the window's own search does, not through OnChange: the pages answer their fields' OnChange
-// themselves and do not pass it on. The list's widgets have the list's own handler; arrows and
-// Enter are read with KeyState while it is open. A pick is the same as typing: the text goes
-// into the field and the window's OnChange hears it, so a page keeps its draft as always.
+// themselves and do not pass it on. A field is an EditBoxWidget or a MultilineEditBoxWidget,
+// which the engine does not derive from it (both extend other classes). The list's widgets
+// have the list's own handler; arrows and Enter are read with KeyState while it is open. A
+// pick is the same as typing: the text goes into the field and the window's OnChange hears
+// it, so a page keeps its draft as always.
 
 #ifdef AVPPAdminTools
 #ifndef NO_GUI
@@ -46,10 +48,12 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
     protected ref array<Widget> m_RowClassBox;
     protected ref array<TextWidget> m_RowName;
     protected ref array<TextWidget> m_RowClass;
+    // A row whose class has no name of its own: the class takes the whole row.
+    protected ref array<bool> m_RowWide;
     protected ref map<string, ref OZ_ClassPickField> m_Fields;
 
     // The field the list follows, its text when last looked at, and what it found.
-    protected EditBoxWidget m_Edit;
+    protected Widget m_Edit;
     protected OZ_ClassPickField m_Field;
     protected string m_Seen;
     protected bool m_Open;
@@ -74,6 +78,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
         m_RowClassBox = new array<Widget>();
         m_RowName = new array<TextWidget>();
         m_RowClass = new array<TextWidget>();
+        m_RowWide = new array<bool>();
         m_Found = new array<int>();
         m_Seen = "";
         if (!window)
@@ -105,6 +110,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
             m_RowClassBox.Insert(row.FindAnyWidget("OZ_ClassPickRowClassBox"));
             m_RowName.Insert(TextWidget.Cast(row.FindAnyWidget("OZ_ClassPickRowName")));
             m_RowClass.Insert(TextWidget.Cast(row.FindAnyWidget("OZ_ClassPickRowClass")));
+            m_RowWide.Insert(false);
         }
     }
 
@@ -126,7 +132,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
         if (!m_Root || !m_RowsBox)
             return;
 
-        EditBoxWidget edit = FocusedField();
+        Widget edit = FocusedField();
         if (m_Open && m_Edit && edit != m_Edit && ListKeyDown())
         {
             // The engine moves the focus with the arrows, off the field onto the next widget
@@ -146,7 +152,7 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
             return;
         }
 
-        string text = edit.GetText();
+        string text = FieldText(edit);
         if (edit != m_Edit)
         {
             // A field just entered: the list waits for typing, not for a click into a field
@@ -157,6 +163,11 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
             CloseList();
             return;
         }
+
+        // The keys before the text: in a box of many lines Enter also breaks the line, and a
+        // pick works from the text the list was found for.
+        if (m_Open && ReadKeys())
+            return;
 
         bool changed = text != m_Seen;
         bool fresher = false;
@@ -170,10 +181,8 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
             m_Seen = text;
             SearchText(changed);
         }
-        if (!m_Open)
-            return;
-        PlaceList();
-        ReadKeys();
+        if (m_Open)
+            PlaceList();
     }
 
     // ------------------------------------------------------------------ searching
@@ -245,13 +254,14 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
         return at;
     }
 
-    // The class at a place of the results into the field, as if typed.
+    // The class at a place of the results into the field, as if typed, in the text the
+    // results were found for (a line break Enter put in after it is dropped).
     protected void PickAt(int place)
     {
         if (!m_Edit || place < 0 || place >= m_Found.Count())
             return;
         string cls = OZ_ClassIndex.ClassAt(m_Found[place]);
-        string text = m_Edit.GetText();
+        string text = m_Seen;
         string next = cls;
         if (m_Field && m_Field.List)
         {
@@ -272,10 +282,17 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
                 tail = word.Substring(colon, word.Length() - colon);
             next = head + lead + cls + tail;
         }
-        m_Edit.SetText(next);
+        FieldSet(m_Edit, next);
         m_Seen = next;
         CloseList();
-        SetFocus(m_Edit);
+        // A box of one line keeps the focus, its caret after the text. A box of many lines puts
+        // its caret at the very start when a script sets its text, and no script can move it
+        // (measured 2026-11-14): it is let go, so the next key does not land there, and the
+        // admin's click puts the caret where they go on.
+        if (EditBoxWidget.Cast(m_Edit))
+            SetFocus(m_Edit);
+        else
+            SetFocus(null);
         // The page hears it as typing: its own OnChange keeps its draft.
         if (m_Menu)
             m_Menu.OnChange(m_Edit, 0, 0, false);
@@ -313,9 +330,11 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
             int i = m_Found[place];
             string name = OZ_ClassIndex.NameAt(i);
             string cls = OZ_ClassIndex.ClassAt(i);
-            // A class with no name of its own (a building) is said once, on the left.
+            // A class with no name of its own (a building) is said once, across the row.
             if (name == cls)
                 cls = "";
+            bool wide = cls == "";
+            m_RowWide.Set(r, wide);
             if (m_RowName[r])
                 m_RowName[r].SetText(name);
             if (m_RowClass[r])
@@ -417,13 +436,16 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
             row.SetSize(inner, rowH);
             if (m_RowLit[r])
                 m_RowLit[r].SetSize(inner, rowH);
+            float nw = nameW - pad * 1.5;
+            if (m_RowWide[r])
+                nw = inner - pad * 2;
             if (m_RowNameBox[r])
             {
                 m_RowNameBox[r].SetPos(pad, 0);
-                m_RowNameBox[r].SetSize(nameW - pad * 1.5, rowH);
+                m_RowNameBox[r].SetSize(nw, rowH);
             }
             if (m_RowName[r])
-                m_RowName[r].SetSize(nameW - pad * 1.5, rowH);
+                m_RowName[r].SetSize(nw, rowH);
             if (m_RowClassBox[r])
             {
                 m_RowClassBox[r].SetPos(nameW, 0);
@@ -442,7 +464,8 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
 
     // ------------------------------------------------------------------ input
 
-    protected void ReadKeys()
+    // The arrows move the lit row, Enter picks it; true when it picked.
+    protected bool ReadKeys()
     {
         bool up = KeyState(KeyCode.KC_UP) != 0;
         bool down = KeyState(KeyCode.KC_DOWN) != 0;
@@ -457,8 +480,10 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
             MoveLit(1);
         if (goUp)
             MoveLit(-1);
-        if (pick && m_Found.Count() > 0)
-            PickAt(m_Lit);
+        if (!pick || m_Found.Count() == 0)
+            return false;
+        PickAt(m_Lit);
+        return true;
     }
 
     protected bool ListKeyDown()
@@ -540,10 +565,12 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
     // ------------------------------------------------------------------ where things are
 
     // The focused edit box when it is a bound field of this window.
-    protected EditBoxWidget FocusedField()
+    protected Widget FocusedField()
     {
-        EditBoxWidget e = EditBoxWidget.Cast(GetFocus());
+        Widget e = GetFocus();
         if (!e || !m_Fields.Contains(e.GetName()))
+            return null;
+        if (!EditBoxWidget.Cast(e) && !MultilineEditBoxWidget.Cast(e))
             return null;
         Widget p = e;
         while (p)
@@ -553,6 +580,31 @@ class OZ_ClassPick : ScriptedWidgetEventHandler
             p = p.GetParent();
         }
         return null;
+    }
+
+    protected string FieldText(Widget field)
+    {
+        EditBoxWidget one = EditBoxWidget.Cast(field);
+        if (one)
+            return one.GetText();
+        string text = "";
+        MultilineEditBoxWidget many = MultilineEditBoxWidget.Cast(field);
+        if (many)
+            many.GetText(text);
+        return text;
+    }
+
+    protected void FieldSet(Widget field, string text)
+    {
+        EditBoxWidget one = EditBoxWidget.Cast(field);
+        if (one)
+        {
+            one.SetText(text);
+            return;
+        }
+        MultilineEditBoxWidget many = MultilineEditBoxWidget.Cast(field);
+        if (many)
+            many.SetText(text);
     }
 
     protected bool Hovered()
